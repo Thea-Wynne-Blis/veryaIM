@@ -17,6 +17,7 @@ VERYAL 是高性能、跨平台、可扩展的即时通讯基础设施。本仓�
 - MySQL 8.0.30 + MyBatis-Plus + Flyway；本地开发使用 H2（MySQL 兼容模式）零依赖启动。
 - Redis 在线状态（生产 profile）+ 内存实现（开发/测试 profile），Caffeine 用户资料缓存。
 - Prometheus / Actuator 指标、统一日志字段（traceId / userId / connectionId 等）。
+- **策略模式限流**：令牌桶 / 滑动窗口 / 固定窗口可配置；HTTP 登录按 IP、HTTP API 按用户、TCP 登录按 IP、消息发送按用户。
 - Lombok 消除样板代码，Hutool 提供 ID / 字符串等基础工具。
 
 ## 模块结构
@@ -56,10 +57,11 @@ access ──> protocol ──> common
 ```text
 com.veryal
 ├── common
-│   ├── core            ApiResponse / CursorPage / TimeProvider / Preconditions / TenantIds
+│   ├── core            ApiResponse / CursorPage / TimeProvider / Preconditions / TenantIds / RandomIds
 │   ├── exception       ErrorCode / VeryalException / Business / System / Protocol / Auth / Persistence
 │   ├── id              IdGenerator / SnowflakeIdGenerator
 │   ├── json            JsonUtils
+│   ├── ratelimit       RateLimitPolicy / RateLimiter / TokenBucket / SlidingWindow / FixedWindow / Registry
 │   └── observability   TraceContext / LogFields / MetricNames
 ├── protocol
 │   ├── api             Command / ProtocolConstants / ProtocolFrame / ProtocolMessage
@@ -80,6 +82,7 @@ com.veryal
 │   ├── conversation    ConversationApplicationService / ConversationView / ConversationSummary
 │   ├── group           GroupApplicationService / GroupView / GroupSummary
 │   ├── message         MessageApplicationService / SendMessageCommand / SendMessageResult
+│   ├── ratelimit       RateLimitProperties / RateLimitConfig / RateLimitCleanupTask
 │   └── sync            SyncApplicationService
 ├── infrastructure
 │   ├── mysql
@@ -94,7 +97,7 @@ com.veryal
 │   ├── core            Connection / ConnectionRegistry / GatewayHandlers / handler / protocol / push（RealtimeDelivery + LocalGatewayPush）/ metrics
 │   ├── tcp             TcpGatewayServer / TcpGatewayProperties
 │   ├── websocket       WebSocketGatewayServer / codec
-│   └── http            controller / dto / security / error / config
+│   └── http            controller / dto / security（AuthenticationFilter + RateLimitFilter）/ error / config
 └── bootstrap           VeryalApplication / CoreConfig / resources
 ```
 
@@ -136,6 +139,8 @@ docker compose up -d --build
 ```json
 {"code":0,"message":"success","data":{},"traceId":"..."}
 ```
+
+触发限流时返回 `429` 与错误码 `42900`，并带 `Retry-After`、`X-RateLimit-Remaining` 响应头。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
@@ -215,7 +220,7 @@ connect → (10s 内) LOGIN(token, deviceId) → LOGIN_RESPONSE
 mvn test
 ```
 
-- 单元测试：雪花 ID、Envelope 编解码、Netty 帧拆包/粘包/非法帧、JWT、PBKDF2、Outbox 事件 JSON 往返。
+- 单元测试：雪花 ID、Envelope 编解码、Netty 帧拆包/粘包/非法帧、JWT、PBKDF2、Outbox 事件 JSON、限流算法（令牌桶/滑动窗口/固定窗口/注册表）。
 - 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、TCP 端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
 
 集成测试使用 `test` profile，Netty Gateway 端口配置为 0（系统分配），不占用本机端口。
@@ -228,12 +233,13 @@ mvn test
 - Redis Key 统一由 `RedisKeys` 生成；协议指令码与字段编号不复用。
 - 数据库时间统一 UTC，客户端自行转换时区。
 - 消息排序只信任服务端分配的会话序号。
+- 限流策略通过 `veryal.rate-limit.policies` 配置，每条策略可选择不同算法；当前为单机内存实现，集群化需切换 Redis 计数。
 - POJO / 配置类使用 Lombok（`@Getter`、`@Setter`、`@RequiredArgsConstructor`、`@Slf4j`）；通用工具优先使用 Hutool，避免重复造轮子。
 
 ## 后续路线
 
 - V0.3：已完成 Outbox + RabbitMQ + 重试/DLQ + 多实例实时投递；后续补充投递记录表与跨节点路由优化。
-- V0.4：群聊、群管理（含群主转让/解散）、Redis 网关路由已完成；继续补充大群异步扇出、服务发现与连接数限流。
+- V0.4：群聊、群管理（含群主转让/解散）、Redis 网关路由、策略模式限流已完成；继续补充大群异步扇出、TLS 与审计日志。
 - V0.5：Caffeine 两级缓存完善、MinIO 文件服务、多租户、开放 API / SDK。
 - V1.0：管理后台、完整群聊/好友体系、监控告警、私有化部署。
 
