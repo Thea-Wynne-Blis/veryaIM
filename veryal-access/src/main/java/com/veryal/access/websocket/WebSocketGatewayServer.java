@@ -24,8 +24,8 @@ import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.websocketx.WebSocketFrameAggregator;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.handler.timeout.IdleStateHandler;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
@@ -38,12 +38,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Netty WebSocket Gateway。与 TCP 共用 Protobuf Envelope 与业务 Handler，仅传输编码不同。
  */
+@Slf4j
 @Component
+@RequiredArgsConstructor
 @ConditionalOnProperty(prefix = "veryal.gateway.websocket", name = "enabled",
         havingValue = "true", matchIfMissing = true)
 public class WebSocketGatewayServer implements SmartLifecycle {
-
-    private static final Logger log = LoggerFactory.getLogger(WebSocketGatewayServer.class);
 
     private final WebSocketGatewayProperties properties;
     private final GatewayProperties gatewayProperties;
@@ -54,13 +54,6 @@ public class WebSocketGatewayServer implements SmartLifecycle {
     private Channel serverChannel;
     private volatile int boundPort = -1;
     private volatile boolean running;
-
-    public WebSocketGatewayServer(WebSocketGatewayProperties properties, GatewayProperties gatewayProperties,
-                                  GatewayHandlers gatewayHandlers) {
-        this.properties = properties;
-        this.gatewayProperties = gatewayProperties;
-        this.gatewayHandlers = gatewayHandlers;
-    }
 
     @Override
     public void start() {

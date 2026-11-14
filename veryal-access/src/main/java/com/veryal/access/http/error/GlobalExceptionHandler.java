@@ -4,8 +4,7 @@ import com.veryal.common.core.ApiResponse;
 import com.veryal.common.exception.ErrorCode;
 import com.veryal.common.exception.VeryalException;
 import jakarta.validation.ConstraintViolationException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -19,10 +18,9 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 /**
  * HTTP 统一异常处理：所有异常都转换为 {@link ApiResponse}，不向客户端泄漏堆栈。
  */
+@Slf4j
 @RestControllerAdvice(basePackages = "com.veryal.access.http")
 public class GlobalExceptionHandler {
-
-    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(VeryalException.class)
     public ResponseEntity<ApiResponse<Void>> handleVeryal(VeryalException e) {

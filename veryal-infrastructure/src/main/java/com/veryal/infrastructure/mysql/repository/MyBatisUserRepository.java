@@ -7,6 +7,7 @@ import com.veryal.domain.identity.UserStatus;
 import com.veryal.infrastructure.mysql.SqlTime;
 import com.veryal.infrastructure.mysql.mapper.UserMapper;
 import com.veryal.infrastructure.mysql.po.UserPO;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -15,13 +16,10 @@ import java.util.Optional;
  * 用户仓储 MyBatis-Plus 实现。
  */
 @Repository
+@RequiredArgsConstructor
 public class MyBatisUserRepository implements UserRepository {
 
     private final UserMapper userMapper;
-
-    public MyBatisUserRepository(UserMapper userMapper) {
-        this.userMapper = userMapper;
-    }
 
     @Override
     public Optional<User> findById(long userId) {

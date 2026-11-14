@@ -5,6 +5,7 @@ import com.veryal.common.exception.ErrorCode;
 import com.veryal.common.exception.VeryalException;
 import com.veryal.domain.presence.PresenceRecord;
 import com.veryal.domain.presence.PresenceRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -13,15 +14,11 @@ import java.util.List;
  * 会话在线状态应用服务。接入层登录 / 断开时调用。
  */
 @Service
+@RequiredArgsConstructor
 public class SessionApplicationService {
 
     private final PresenceRepository presenceRepository;
     private final TimeProvider timeProvider;
-
-    public SessionApplicationService(PresenceRepository presenceRepository, TimeProvider timeProvider) {
-        this.presenceRepository = presenceRepository;
-        this.timeProvider = timeProvider;
-    }
 
     public void online(AuthenticatedUser user, String gatewayId, String connectionId) {
         if (gatewayId == null || gatewayId.isBlank()) {

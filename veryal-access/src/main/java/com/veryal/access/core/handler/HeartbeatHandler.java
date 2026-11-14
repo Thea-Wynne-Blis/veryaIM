@@ -12,8 +12,8 @@ import com.veryal.protocol.protobuf.HeartbeatResponse;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -21,19 +21,14 @@ import java.time.Instant;
 /**
  * 心跳处理：续期本地连接租约与在线状态，不进入业务线程池。
  */
+@Slf4j
 @ChannelHandler.Sharable
 @Component
+@RequiredArgsConstructor
 public class HeartbeatHandler extends SimpleChannelInboundHandler<ProtocolMessage> {
-
-    private static final Logger log = LoggerFactory.getLogger(HeartbeatHandler.class);
 
     private final SessionApplicationService sessionService;
     private final TimeProvider timeProvider;
-
-    public HeartbeatHandler(SessionApplicationService sessionService, TimeProvider timeProvider) {
-        this.sessionService = sessionService;
-        this.timeProvider = timeProvider;
-    }
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, ProtocolMessage message) {

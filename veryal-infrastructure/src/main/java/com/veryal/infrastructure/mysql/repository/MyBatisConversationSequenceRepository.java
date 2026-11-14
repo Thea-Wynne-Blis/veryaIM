@@ -2,6 +2,7 @@ package com.veryal.infrastructure.mysql.repository;
 
 import com.veryal.domain.message.ConversationSequenceRepository;
 import com.veryal.infrastructure.mysql.mapper.ConversationSequenceMapper;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 /**
@@ -11,13 +12,10 @@ import org.springframework.stereotype.Repository;
  * 行锁保证同一会话的序号严格递增；不同会话互不阻塞。</p>
  */
 @Repository
+@RequiredArgsConstructor
 public class MyBatisConversationSequenceRepository implements ConversationSequenceRepository {
 
     private final ConversationSequenceMapper sequenceMapper;
-
-    public MyBatisConversationSequenceRepository(ConversationSequenceMapper sequenceMapper) {
-        this.sequenceMapper = sequenceMapper;
-    }
 
     @Override
     public long allocate(long tenantId, String conversationId) {

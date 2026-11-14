@@ -7,28 +7,23 @@ import com.veryal.access.core.protocol.ProtocolMessages;
 import com.veryal.common.exception.ErrorCode;
 import com.veryal.common.exception.ProtocolException;
 import com.veryal.common.exception.VeryalException;
-import com.veryal.protocol.api.ProtocolMessage;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
  * 统一异常出口：协议错误必须断开连接，业务错误只回错误帧并保持连接。
  */
+@Slf4j
 @ChannelHandler.Sharable
 @Component
+@RequiredArgsConstructor
 public class GatewayExceptionHandler extends ChannelInboundHandlerAdapter {
 
-    private static final Logger log = LoggerFactory.getLogger(GatewayExceptionHandler.class);
-
     private final GatewayMetrics metrics;
-
-    public GatewayExceptionHandler(GatewayMetrics metrics) {
-        this.metrics = metrics;
-    }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {

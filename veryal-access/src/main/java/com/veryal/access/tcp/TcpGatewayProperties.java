@@ -1,10 +1,14 @@
 package com.veryal.access.tcp;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
  * TCP 接入配置。
  */
+@Getter
+@Setter
 @ConfigurationProperties(prefix = "veryal.gateway.tcp")
 public class TcpGatewayProperties {
 
@@ -19,44 +23,4 @@ public class TcpGatewayProperties {
     private int workerThreads = 0;
 
     private int backlog = 1024;
-
-    public boolean isEnabled() {
-        return enabled;
-    }
-
-    public void setEnabled(boolean enabled) {
-        this.enabled = enabled;
-    }
-
-    public int getPort() {
-        return port;
-    }
-
-    public void setPort(int port) {
-        this.port = port;
-    }
-
-    public int getBossThreads() {
-        return bossThreads;
-    }
-
-    public void setBossThreads(int bossThreads) {
-        this.bossThreads = bossThreads;
-    }
-
-    public int getWorkerThreads() {
-        return workerThreads;
-    }
-
-    public void setWorkerThreads(int workerThreads) {
-        this.workerThreads = workerThreads;
-    }
-
-    public int getBacklog() {
-        return backlog;
-    }
-
-    public void setBacklog(int backlog) {
-        this.backlog = backlog;
-    }
 }

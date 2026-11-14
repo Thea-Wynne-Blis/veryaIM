@@ -7,6 +7,7 @@ import com.veryal.domain.device.Platform;
 import com.veryal.infrastructure.mysql.SqlTime;
 import com.veryal.infrastructure.mysql.mapper.DeviceMapper;
 import com.veryal.infrastructure.mysql.po.DevicePO;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
@@ -17,13 +18,10 @@ import java.util.Optional;
  * 设备仓储 MyBatis-Plus 实现。
  */
 @Repository
+@RequiredArgsConstructor
 public class MyBatisDeviceRepository implements DeviceRepository {
 
     private final DeviceMapper deviceMapper;
-
-    public MyBatisDeviceRepository(DeviceMapper deviceMapper) {
-        this.deviceMapper = deviceMapper;
-    }
 
     @Override
     public Optional<Device> findByDeviceId(String deviceId) {

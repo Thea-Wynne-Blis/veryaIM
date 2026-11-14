@@ -1,5 +1,6 @@
 package com.veryal.common.core;
 
+import cn.hutool.core.util.StrUtil;
 import com.veryal.common.exception.ErrorCode;
 import com.veryal.common.exception.VeryalException;
 
@@ -25,7 +26,7 @@ public final class Preconditions {
     }
 
     public static String notBlank(String value, ErrorCode errorCode, String message) {
-        if (value == null || value.isBlank()) {
+        if (StrUtil.isBlank(value)) {
             throw new VeryalException(errorCode, message);
         }
         return value;

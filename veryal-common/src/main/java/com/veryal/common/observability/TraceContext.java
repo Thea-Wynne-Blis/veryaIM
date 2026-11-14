@@ -1,8 +1,7 @@
 package com.veryal.common.observability;
 
+import com.veryal.common.core.RandomIds;
 import org.slf4j.MDC;
-
-import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * 基于 SLF4J MDC 的链路上下文。
@@ -64,7 +63,7 @@ public final class TraceContext {
     }
 
     private static String newTraceId() {
-        return Long.toHexString(System.currentTimeMillis()) + Long.toHexString(ThreadLocalRandom.current().nextLong());
+        return RandomIds.newId();
     }
 
     /**

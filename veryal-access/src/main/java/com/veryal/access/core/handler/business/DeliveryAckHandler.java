@@ -9,22 +9,18 @@ import com.veryal.common.exception.BusinessException;
 import com.veryal.common.exception.ErrorCode;
 import com.veryal.protocol.api.Command;
 import com.veryal.protocol.protobuf.DeliveryAck;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
  * 投递回执：记录消息已到达设备，并推进同步游标。
  */
 @Component
+@RequiredArgsConstructor
 public class DeliveryAckHandler implements CommandHandler {
 
     private final MessageApplicationService messageApplicationService;
     private final ConversationApplicationService conversationApplicationService;
-
-    public DeliveryAckHandler(MessageApplicationService messageApplicationService,
-                              ConversationApplicationService conversationApplicationService) {
-        this.messageApplicationService = messageApplicationService;
-        this.conversationApplicationService = conversationApplicationService;
-    }
 
     @Override
     public Command command() {

@@ -11,6 +11,7 @@ import com.veryal.application.identity.AuthenticatedUser;
 import com.veryal.application.identity.SessionApplicationService;
 import com.veryal.application.identity.UserApplicationService;
 import com.veryal.application.identity.UserProfile;
+import com.veryal.common.core.RandomIds;
 import com.veryal.common.core.TimeProvider;
 import com.veryal.common.exception.AuthenticationException;
 import com.veryal.common.exception.ErrorCode;
@@ -27,12 +28,11 @@ import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.util.AttributeKey;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
-import java.util.UUID;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -41,11 +41,12 @@ import java.util.concurrent.TimeUnit;
  *
  * <p>日志中的 traceId 来自 Envelope，用户标识在登录成功后写入 MDC。</p>
  */
+@Slf4j
 @ChannelHandler.Sharable
 @Component
+@RequiredArgsConstructor
 public class AuthenticationHandler extends SimpleChannelInboundHandler<ProtocolMessage> {
 
-    private static final Logger log = LoggerFactory.getLogger(AuthenticationHandler.class);
     private static final AttributeKey<ScheduledFuture<?>> LOGIN_TIMEOUT =
             AttributeKey.valueOf("veryal.loginTimeout");
 
@@ -57,25 +58,9 @@ public class AuthenticationHandler extends SimpleChannelInboundHandler<ProtocolM
     private final GatewayMetrics metrics;
     private final TimeProvider timeProvider;
 
-    public AuthenticationHandler(AuthApplicationService authService,
-                                 UserApplicationService userService,
-                                 SessionApplicationService sessionService,
-                                 ConnectionRegistry connectionRegistry,
-                                 GatewayProperties properties,
-                                 GatewayMetrics metrics,
-                                 TimeProvider timeProvider) {
-        this.authService = authService;
-        this.userService = userService;
-        this.sessionService = sessionService;
-        this.connectionRegistry = connectionRegistry;
-        this.properties = properties;
-        this.metrics = metrics;
-        this.timeProvider = timeProvider;
-    }
-
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
-        Connection connection = Connection.create(UUID.randomUUID().toString(), properties.getId(),
+        Connection connection = Connection.create(RandomIds.newId(), properties.getId(),
                 ctx.channel(), timeProvider.now());
         ctx.channel().attr(ChannelAttributes.CONNECTION).set(connection);
         connectionRegistry.register(connection);

@@ -8,6 +8,7 @@ import com.veryal.domain.message.MessageType;
 import com.veryal.infrastructure.mysql.SqlTime;
 import com.veryal.infrastructure.mysql.mapper.MessageMapper;
 import com.veryal.infrastructure.mysql.po.MessagePO;
+import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
@@ -20,15 +21,12 @@ import java.util.Optional;
  * <p>唯一键 {@code uk_sender_client_msg} 承担幂等兜底；冲突时抛出领域异常，由应用层回查已存在消息。</p>
  */
 @Repository
+@RequiredArgsConstructor
 public class MyBatisMessageRepository implements MessageRepository {
 
     private static final int MAX_PAGE_LIMIT = 1000;
 
     private final MessageMapper messageMapper;
-
-    public MyBatisMessageRepository(MessageMapper messageMapper) {
-        this.messageMapper = messageMapper;
-    }
 
     @Override
     public Optional<Message> findById(long messageId) {

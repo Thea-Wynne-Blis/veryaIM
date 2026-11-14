@@ -6,6 +6,7 @@ import com.veryal.common.exception.ErrorCode;
 import com.veryal.domain.device.DeviceRepository;
 import com.veryal.domain.identity.User;
 import com.veryal.domain.identity.UserRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -17,18 +18,12 @@ import java.util.List;
  * 用户资料应用服务。资料读取走 L1（Caffeine）缓存，更新时失效。
  */
 @Service
+@RequiredArgsConstructor
 public class UserApplicationService {
 
     private final UserRepository userRepository;
     private final DeviceRepository deviceRepository;
     private final TimeProvider timeProvider;
-
-    public UserApplicationService(UserRepository userRepository, DeviceRepository deviceRepository,
-                                  TimeProvider timeProvider) {
-        this.userRepository = userRepository;
-        this.deviceRepository = deviceRepository;
-        this.timeProvider = timeProvider;
-    }
 
     @Cacheable(cacheNames = "user", key = "#userId")
     @Transactional(readOnly = true)

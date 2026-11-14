@@ -1,5 +1,7 @@
 package com.veryal.access.core.config;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.time.Duration;
@@ -7,6 +9,8 @@ import java.time.Duration;
 /**
  * Gateway 通用配置。
  */
+@Getter
+@Setter
 @ConfigurationProperties(prefix = "veryal.gateway")
 public class GatewayProperties {
 
@@ -27,52 +31,4 @@ public class GatewayProperties {
 
     /** 业务队列容量，必须有界。 */
     private int businessQueueCapacity = 10_000;
-
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    public int getMaxFrameLength() {
-        return maxFrameLength;
-    }
-
-    public void setMaxFrameLength(int maxFrameLength) {
-        this.maxFrameLength = maxFrameLength;
-    }
-
-    public Duration getHeartbeatIdle() {
-        return heartbeatIdle;
-    }
-
-    public void setHeartbeatIdle(Duration heartbeatIdle) {
-        this.heartbeatIdle = heartbeatIdle;
-    }
-
-    public Duration getLoginTimeout() {
-        return loginTimeout;
-    }
-
-    public void setLoginTimeout(Duration loginTimeout) {
-        this.loginTimeout = loginTimeout;
-    }
-
-    public int getBusinessThreads() {
-        return businessThreads;
-    }
-
-    public void setBusinessThreads(int businessThreads) {
-        this.businessThreads = businessThreads;
-    }
-
-    public int getBusinessQueueCapacity() {
-        return businessQueueCapacity;
-    }
-
-    public void setBusinessQueueCapacity(int businessQueueCapacity) {
-        this.businessQueueCapacity = businessQueueCapacity;
-    }
 }

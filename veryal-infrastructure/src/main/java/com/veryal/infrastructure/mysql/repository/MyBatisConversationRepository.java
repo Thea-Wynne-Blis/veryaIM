@@ -10,6 +10,7 @@ import com.veryal.infrastructure.mysql.mapper.ConversationMapper;
 import com.veryal.infrastructure.mysql.mapper.ConversationMemberMapper;
 import com.veryal.infrastructure.mysql.po.ConversationMemberPO;
 import com.veryal.infrastructure.mysql.po.ConversationPO;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
@@ -20,16 +21,11 @@ import java.util.Optional;
  * 会话仓储 MyBatis-Plus 实现。
  */
 @Repository
+@RequiredArgsConstructor
 public class MyBatisConversationRepository implements ConversationRepository {
 
     private final ConversationMapper conversationMapper;
     private final ConversationMemberMapper memberMapper;
-
-    public MyBatisConversationRepository(ConversationMapper conversationMapper,
-                                         ConversationMemberMapper memberMapper) {
-        this.conversationMapper = conversationMapper;
-        this.memberMapper = memberMapper;
-    }
 
     @Override
     public Optional<Conversation> findById(String conversationId) {

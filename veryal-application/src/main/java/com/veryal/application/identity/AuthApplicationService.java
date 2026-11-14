@@ -11,6 +11,7 @@ import com.veryal.domain.device.Platform;
 import com.veryal.domain.identity.PasswordHasher;
 import com.veryal.domain.identity.User;
 import com.veryal.domain.identity.UserRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +23,7 @@ import java.util.regex.Pattern;
  * 认证应用服务：注册、登录、Token 校验。
  */
 @Service
+@RequiredArgsConstructor
 public class AuthApplicationService {
 
     private static final Pattern USERNAME_PATTERN = Pattern.compile("^[A-Za-z0-9_]{3,32}$");
@@ -36,17 +38,6 @@ public class AuthApplicationService {
     private final JwtTokenService tokenService;
     private final IdGenerator idGenerator;
     private final TimeProvider timeProvider;
-
-    public AuthApplicationService(UserRepository userRepository, DeviceRepository deviceRepository,
-                                  PasswordHasher passwordHasher, JwtTokenService tokenService,
-                                  IdGenerator idGenerator, TimeProvider timeProvider) {
-        this.userRepository = userRepository;
-        this.deviceRepository = deviceRepository;
-        this.passwordHasher = passwordHasher;
-        this.tokenService = tokenService;
-        this.idGenerator = idGenerator;
-        this.timeProvider = timeProvider;
-    }
 
     @Transactional
     public UserProfile register(long tenantId, RegisterCommand command) {

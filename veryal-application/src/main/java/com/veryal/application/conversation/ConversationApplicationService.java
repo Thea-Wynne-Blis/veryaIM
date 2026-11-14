@@ -10,6 +10,7 @@ import com.veryal.domain.conversation.ConversationMember;
 import com.veryal.domain.conversation.ConversationRepository;
 import com.veryal.domain.identity.UserRepository;
 import com.veryal.domain.message.MessageRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +21,7 @@ import java.util.List;
  * 会话应用服务：单聊创建、会话列表、成员校验、读游标推进。
  */
 @Service
+@RequiredArgsConstructor
 public class ConversationApplicationService {
 
     private static final int MAX_MEMBERS_SHOWN = 500;
@@ -29,18 +31,6 @@ public class ConversationApplicationService {
     private final UserRepository userRepository;
     private final IdGenerator idGenerator;
     private final TimeProvider timeProvider;
-
-    public ConversationApplicationService(ConversationRepository conversationRepository,
-                                          MessageRepository messageRepository,
-                                          UserRepository userRepository,
-                                          IdGenerator idGenerator,
-                                          TimeProvider timeProvider) {
-        this.conversationRepository = conversationRepository;
-        this.messageRepository = messageRepository;
-        this.userRepository = userRepository;
-        this.idGenerator = idGenerator;
-        this.timeProvider = timeProvider;
-    }
 
     /**
      * 创建（或获取已存在的）单聊会话。同一对用户永远只有一个单聊会话。

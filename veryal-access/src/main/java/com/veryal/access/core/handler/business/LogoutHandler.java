@@ -6,19 +6,17 @@ import com.veryal.access.core.protocol.CommandHandler;
 import com.veryal.application.identity.AuthenticatedUser;
 import com.veryal.application.identity.SessionApplicationService;
 import com.veryal.protocol.api.Command;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
  * 主动登出：清理在线状态后关闭连接。
  */
 @Component
+@RequiredArgsConstructor
 public class LogoutHandler implements CommandHandler {
 
     private final SessionApplicationService sessionApplicationService;
-
-    public LogoutHandler(SessionApplicationService sessionApplicationService) {
-        this.sessionApplicationService = sessionApplicationService;
-    }
 
     @Override
     public Command command() {

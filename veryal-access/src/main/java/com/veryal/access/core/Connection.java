@@ -3,8 +3,7 @@ package com.veryal.access.core;
 import com.veryal.protocol.api.ProtocolMessage;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFutureListener;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicLong;
@@ -15,9 +14,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * <p>Channel 只存在于当前 Gateway 本地；Redis 只保存路由元数据。连接对象由 EventLoop 创建，
  * 认证信息在登录成功后写入。</p>
  */
+@Slf4j
 public final class Connection {
-
-    private static final Logger log = LoggerFactory.getLogger(Connection.class);
 
     private final String connectionId;
     private final String gatewayId;

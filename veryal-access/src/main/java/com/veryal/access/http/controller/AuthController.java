@@ -14,6 +14,7 @@ import com.veryal.application.identity.UserApplicationService;
 import com.veryal.common.core.ApiResponse;
 import com.veryal.common.core.TenantIds;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -25,16 +26,11 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/v1/auth")
+@RequiredArgsConstructor
 public class AuthController {
 
     private final AuthApplicationService authApplicationService;
     private final UserApplicationService userApplicationService;
-
-    public AuthController(AuthApplicationService authApplicationService,
-                          UserApplicationService userApplicationService) {
-        this.authApplicationService = authApplicationService;
-        this.userApplicationService = userApplicationService;
-    }
 
     @PostMapping("/register")
     public ApiResponse<UserResponse> register(@Valid @RequestBody RegisterRequest request) {

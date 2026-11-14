@@ -7,6 +7,7 @@ import com.veryal.domain.conversation.Conversation;
 import com.veryal.domain.conversation.ConversationRepository;
 import com.veryal.domain.message.Message;
 import com.veryal.domain.message.MessageRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,18 +19,13 @@ import java.util.List;
  * <p>客户端上传各会话游标，服务端按 {@code seq > cursor} 返回缺失消息，客户端确认后再推进游标。</p>
  */
 @Service
+@RequiredArgsConstructor
 public class SyncApplicationService {
 
     private static final int MAX_SYNC_LIMIT = 200;
 
     private final MessageRepository messageRepository;
     private final ConversationRepository conversationRepository;
-
-    public SyncApplicationService(MessageRepository messageRepository,
-                                  ConversationRepository conversationRepository) {
-        this.messageRepository = messageRepository;
-        this.conversationRepository = conversationRepository;
-    }
 
     @Transactional(readOnly = true)
     public CursorPage<Message> syncMessages(long tenantId, long userId, String conversationId,

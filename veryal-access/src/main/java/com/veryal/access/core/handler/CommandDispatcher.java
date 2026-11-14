@@ -16,8 +16,7 @@ import com.veryal.protocol.api.ProtocolMessage;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
@@ -30,11 +29,10 @@ import java.util.concurrent.ThreadPoolExecutor;
 /**
  * 命令分发：EventLoop 只做解码与投递，业务处理全部进入有界业务线程池。
  */
+@Slf4j
 @ChannelHandler.Sharable
 @Component
 public class CommandDispatcher extends SimpleChannelInboundHandler<ProtocolMessage> {
-
-    private static final Logger log = LoggerFactory.getLogger(CommandDispatcher.class);
 
     private final Map<Command, CommandHandler> handlers;
     private final ThreadPoolExecutor businessExecutor;

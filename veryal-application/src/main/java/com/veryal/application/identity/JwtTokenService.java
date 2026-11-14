@@ -3,7 +3,9 @@ package com.veryal.application.identity;
 import com.veryal.common.exception.AuthenticationException;
 import com.veryal.common.exception.ErrorCode;
 import com.veryal.common.json.JsonUtils;
+import com.veryal.common.core.RandomIds;
 import com.veryal.common.core.TimeProvider;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.Mac;
@@ -14,7 +16,6 @@ import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * JWT（HS256）实现。不引入第三方 JWT 依赖，保持协议层可控。
@@ -22,6 +23,7 @@ import java.util.UUID;
  * <p>Token 载荷只包含身份路由所需的最小信息，不包含权限与敏感数据。</p>
  */
 @Component
+@RequiredArgsConstructor
 public class JwtTokenService {
 
     private static final String HMAC_ALGORITHM = "HmacSHA256";
@@ -33,11 +35,6 @@ public class JwtTokenService {
     private final TokenProperties properties;
     private final TimeProvider timeProvider;
 
-    public JwtTokenService(TokenProperties properties, TimeProvider timeProvider) {
-        this.properties = properties;
-        this.timeProvider = timeProvider;
-    }
-
     public IssuedToken issue(long userId, long tenantId, String deviceId) {
         Instant now = timeProvider.now();
         Instant expiresAt = now.plus(properties.ttl());
@@ -48,7 +45,7 @@ public class JwtTokenService {
                 "iss", properties.issuer(),
                 "iat", now.getEpochSecond(),
                 "exp", expiresAt.getEpochSecond(),
-                "jti", UUID.randomUUID().toString()
+                "jti", RandomIds.newId()
         ));
         String header = encode(HEADER_JSON.getBytes(StandardCharsets.UTF_8));
         String body = encode(payload.getBytes(StandardCharsets.UTF_8));

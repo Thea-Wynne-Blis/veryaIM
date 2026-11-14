@@ -8,6 +8,7 @@ import com.veryal.application.identity.AuthenticatedUser;
 import com.veryal.application.identity.UserApplicationService;
 import com.veryal.common.core.ApiResponse;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -21,13 +22,10 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api/v1/users")
+@RequiredArgsConstructor
 public class UserController {
 
     private final UserApplicationService userApplicationService;
-
-    public UserController(UserApplicationService userApplicationService) {
-        this.userApplicationService = userApplicationService;
-    }
 
     @GetMapping("/me")
     public ApiResponse<UserResponse> me(@CurrentUser AuthenticatedUser user) {
