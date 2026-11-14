@@ -21,6 +21,7 @@ VERYAL 是高性能、跨平台、可扩展的即时通讯基础设施。本仓�
 - **策略模式限流**：令牌桶 / 滑动窗口 / 固定窗口可配置；HTTP 登录按 IP、HTTP API 按用户、TCP 登录按 IP、消息发送按用户。
 - **审计日志**：登录、建群/改名/成员变更/踢人/退群/转让/解散写入 `im_audit_log`，独立事务、失败不影响主业务。
 - **可选 TLS**：TCP 与 WebSocket Gateway 支持 TLS 1.2/1.3（PEM 证书链 + 私钥）；HTTP 通过 Spring Boot `server.ssl` 开启。
+- **连接数治理**：单节点总连接数与单 IP 连接数可配置，准入处理器在 TLS/协议握手前拒绝超限连接，并输出拒绝指标。
 - Lombok 消除样板代码，Hutool 提供 ID / 字符串等基础工具。
 
 ## 模块结构
@@ -234,6 +235,17 @@ server:
 
 或设置 `SERVER_SSL_ENABLED=true`、`SERVER_SSL_CERTIFICATE`、`SERVER_SSL_CERTIFICATE_PRIVATE_KEY`。TLS 上下文在首次连接时构建，证书缺失会快速失败；暂不支持热加载证书。
 
+### 连接数限制
+
+```yaml
+veryal:
+  gateway:
+    max-connections: 10000        # 0 表示不限制
+    max-connections-per-ip: 20    # 0 表示不限制
+```
+
+环境变量：`VERYAL_GATEWAY_MAX_CONNECTIONS`、`VERYAL_GATEWAY_MAX_CONNECTIONS_PER_IP`。限制在 pipeline 最前端的 `ConnectionLimitHandler` 执行，超限连接直接关闭；拒绝次数记录在 `veryal.gateway.connections.rejected` 指标。
+
 ## 一致性设计
 
 - 消息写入：校验成员 → 幂等检查 → 分配会话序号（`SELECT ... FOR UPDATE`）→ 插入消息 → 写入 Outbox → 更新会话时间，同一数据库事务内完成。
@@ -254,8 +266,8 @@ server:
 mvn test
 ```
 
-- 单元测试：雪花 ID、Envelope 编解码、Netty 帧拆包/粘包/非法帧、JWT、PBKDF2、Outbox 事件 JSON、限流算法（令牌桶/滑动窗口/固定窗口/注册表）、TLS 配置开关与快速失败。
-- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群消息分页扇出、限流 429、审计日志、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
+- 单元测试：雪花 ID、Envelope 编解码、Netty 帧拆包/粘包/非法帧、JWT、PBKDF2、Outbox 事件 JSON、限流算法（令牌桶/滑动窗口/固定窗口/注册表）、TLS 配置开关与快速失败、连接数限制。
+- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群消息分页扇出、限流 429、审计日志、连接数超限拒绝、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
 
 集成测试使用 `test` profile，Netty Gateway 端口配置为 0（系统分配），不占用本机端口。
 
@@ -273,7 +285,7 @@ mvn test
 ## 后续路线
 
 - V0.3：已完成 Outbox + RabbitMQ + 重试/DLQ + 多实例实时投递；后续补充投递记录表与跨节点路由优化。
-- V0.4：群聊、群管理（含群主转让/解散）、群消息分页扇出、Redis 网关路由、策略模式限流、审计日志、可选 TLS 已完成；继续补充连接数上限、审计查询与大群压测。
+- V0.4：群聊、群管理（含群主转让/解散）、群消息分页扇出、Redis 网关路由、策略模式限流、审计日志、可选 TLS、连接数上限已完成；继续补充审计查询与大群压测。
 - V0.5：Caffeine 两级缓存完善、MinIO 文件服务、多租户、开放 API / SDK。
 - V1.0：管理后台、完整群聊/好友体系、监控告警、私有化部署。
 
