@@ -25,6 +25,24 @@ veryal:
     enabled: false
   mq:
     enabled: false
+  rate-limit:
+    policies:
+      - name: http-login
+        algorithm: SLIDING_WINDOW
+        permits: 1000
+        window-seconds: 60
+      - name: http-api
+        algorithm: TOKEN_BUCKET
+        permits: 10000
+        refill-per-second: 10000
+      - name: tcp-login
+        algorithm: SLIDING_WINDOW
+        permits: 1000
+        window-seconds: 60
+      - name: message-send
+        algorithm: TOKEN_BUCKET
+        permits: 5
+        refill-per-second: 0
   security:
     token:
       secret: test-only-secret-please-change-0123456789abcdef

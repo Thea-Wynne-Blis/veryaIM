@@ -18,6 +18,8 @@ import com.veryal.common.exception.ErrorCode;
 import com.veryal.common.exception.VeryalException;
 import com.veryal.common.observability.LogFields;
 import com.veryal.common.observability.TraceContext;
+import com.veryal.common.ratelimit.RateLimitResult;
+import com.veryal.common.ratelimit.RateLimiterRegistry;
 import com.veryal.protocol.api.Command;
 import com.veryal.protocol.api.ProtocolMessage;
 import com.veryal.protocol.protobuf.EnvelopeCodec;
@@ -32,6 +34,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.time.Instant;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -57,6 +61,7 @@ public class AuthenticationHandler extends SimpleChannelInboundHandler<ProtocolM
     private final GatewayProperties properties;
     private final GatewayMetrics metrics;
     private final TimeProvider timeProvider;
+    private final RateLimiterRegistry rateLimiterRegistry;
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
@@ -102,6 +107,12 @@ public class AuthenticationHandler extends SimpleChannelInboundHandler<ProtocolM
     private void handleLogin(ChannelHandlerContext ctx, Connection connection, ProtocolMessage message) {
         try (TraceContext.Scope ignored = TraceContext.start(message.traceId())) {
             connection.markAuthenticating();
+            String clientIp = clientIp(ctx);
+            RateLimitResult loginRate = rateLimiterRegistry.tryAcquire("tcp-login", clientIp);
+            if (!loginRate.allowed()) {
+                throw new AuthenticationException(ErrorCode.RATE_LIMITED,
+                        "too many login attempts, retry after " + loginRate.retryAfterSeconds() + "s");
+            }
             LoginRequest request = EnvelopeCodec.parsePayload(message.payload(), LoginRequest.parser());
             AuthenticatedUser user = authService.authenticate(request.getToken());
             String requestedDeviceId = request.getDeviceId().trim();
@@ -171,5 +182,15 @@ public class AuthenticationHandler extends SimpleChannelInboundHandler<ProtocolM
         if (future != null) {
             future.cancel(false);
         }
+    }
+
+    private String clientIp(ChannelHandlerContext ctx) {
+        SocketAddress address = ctx.channel().remoteAddress();
+        if (address instanceof InetSocketAddress inetSocketAddress) {
+            return inetSocketAddress.getAddress() == null
+                    ? inetSocketAddress.getHostString()
+                    : inetSocketAddress.getAddress().getHostAddress();
+        }
+        return address == null ? "unknown" : address.toString();
     }
 }

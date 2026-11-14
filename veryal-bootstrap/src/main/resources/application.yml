@@ -100,6 +100,24 @@ veryal:
     max-retries: 5
     confirm-timeout-ms: 5000
     stale-timeout-ms: 60000
+  rate-limit:
+    policies:
+      - name: http-login
+        algorithm: SLIDING_WINDOW
+        permits: 10
+        window-seconds: 60
+      - name: http-api
+        algorithm: TOKEN_BUCKET
+        permits: 200
+        refill-per-second: 50
+      - name: tcp-login
+        algorithm: SLIDING_WINDOW
+        permits: 10
+        window-seconds: 60
+      - name: message-send
+        algorithm: TOKEN_BUCKET
+        permits: 30
+        refill-per-second: 15
 
 logging:
   level:

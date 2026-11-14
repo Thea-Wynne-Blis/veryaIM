@@ -7,6 +7,8 @@ import com.veryal.common.exception.BusinessException;
 import com.veryal.common.exception.ErrorCode;
 import com.veryal.common.id.IdGenerator;
 import com.veryal.common.json.JsonUtils;
+import com.veryal.common.ratelimit.RateLimitResult;
+import com.veryal.common.ratelimit.RateLimiterRegistry;
 import com.veryal.domain.conversation.Conversation;
 import com.veryal.domain.conversation.ConversationMember;
 import com.veryal.domain.conversation.ConversationRepository;
@@ -47,6 +49,7 @@ public class MessageApplicationService {
     private final ConversationRepository conversationRepository;
     private final OutboxAppender outboxAppender;
     private final DeliveryRepository deliveryRepository;
+    private final RateLimiterRegistry rateLimiterRegistry;
     private final IdGenerator idGenerator;
     private final TimeProvider timeProvider;
 
@@ -67,6 +70,14 @@ public class MessageApplicationService {
                 command.tenantId(), command.senderId(), command.clientMessageId());
         if (existing.isPresent()) {
             return new SendMessageResult(existing.get(), null, true);
+        }
+
+        // 幂等命中不消耗限流额度；只有真正的新消息才检查发送速率。
+        RateLimitResult rateLimit = rateLimiterRegistry.tryAcquire("message-send",
+                command.tenantId() + ":" + command.senderId());
+        if (!rateLimit.allowed()) {
+            throw new BusinessException(ErrorCode.RATE_LIMITED,
+                    "message rate limit exceeded, retry after " + rateLimit.retryAfterSeconds() + "s");
         }
 
         Instant now = timeProvider.now();
