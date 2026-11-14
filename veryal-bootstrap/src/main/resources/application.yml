@@ -15,6 +15,10 @@ spring:
     time-zone: UTC
     serialization:
       write-dates-as-timestamps: false
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 22MB
   datasource:
     url: jdbc:mysql://localhost:3306/veryal_im?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
     username: veryal
@@ -122,6 +126,20 @@ veryal:
         algorithm: TOKEN_BUCKET
         permits: 30
         refill-per-second: 15
+  storage:
+    type: ${VERYAL_STORAGE_TYPE:local}
+    local:
+      root-path: ${VERYAL_STORAGE_LOCAL_ROOT:./data/files}
+    minio:
+      endpoint: ${VERYAL_MINIO_ENDPOINT:}
+      access-key: ${VERYAL_MINIO_ACCESS_KEY:}
+      secret-key: ${VERYAL_MINIO_SECRET_KEY:}
+      bucket: ${VERYAL_MINIO_BUCKET:veryal}
+    oss:
+      endpoint: ${VERYAL_OSS_ENDPOINT:}
+      access-key-id: ${VERYAL_OSS_ACCESS_KEY_ID:}
+      access-key-secret: ${VERYAL_OSS_ACCESS_KEY_SECRET:}
+      bucket: ${VERYAL_OSS_BUCKET:veryal}
 
 logging:
   level:

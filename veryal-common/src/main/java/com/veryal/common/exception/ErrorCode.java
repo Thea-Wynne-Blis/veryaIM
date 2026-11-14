@@ -18,6 +18,7 @@ public enum ErrorCode {
     INVALID_ARGUMENT(40001, "参数校验失败", 400),
     MESSAGE_CONTENT_INVALID(40002, "消息内容不合法", 400),
     FRAME_TOO_LARGE(40003, "消息帧超过最大长度限制", 400),
+    FILE_TOO_LARGE(40004, "文件超过大小限制", 400),
 
     UNAUTHORIZED(40100, "未认证或认证信息缺失", 401),
     TOKEN_EXPIRED(40101, "登录凭证已过期", 401),
@@ -33,6 +34,7 @@ public enum ErrorCode {
     CONVERSATION_NOT_FOUND(40402, "会话不存在", 404),
     MESSAGE_NOT_FOUND(40403, "消息不存在", 404),
     DEVICE_NOT_FOUND(40404, "设备不存在", 404),
+    FILE_NOT_FOUND(40405, "文件不存在", 404),
 
     CONFLICT(40900, "资源状态冲突", 409),
     USERNAME_ALREADY_EXISTS(40901, "用户名已存在", 409),
@@ -44,6 +46,7 @@ public enum ErrorCode {
     INTERNAL_ERROR(50000, "服务内部错误", 500),
     PERSISTENCE_ERROR(50010, "数据持久化失败", 500),
     CONFIGURATION_ERROR(50011, "配置错误", 500),
+    STORAGE_ERROR(50012, "文件存储失败", 500),
     PROTOCOL_ERROR(50020, "协议解析失败", 400),
     INVALID_FRAME(50021, "非法协议帧", 400),
     UNSUPPORTED_COMMAND(50022, "不支持的协议指令", 400),

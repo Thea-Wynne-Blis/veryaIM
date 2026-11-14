@@ -25,6 +25,10 @@ veryal:
     enabled: false
   mq:
     enabled: false
+  storage:
+    type: local
+    local:
+      root-path: target/test-files
   rate-limit:
     policies:
       - name: http-login
