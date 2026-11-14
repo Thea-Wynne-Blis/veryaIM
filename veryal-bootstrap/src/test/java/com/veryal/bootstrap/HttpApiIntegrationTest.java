@@ -127,6 +127,7 @@ class HttpApiIntegrationTest {
                 .orElseThrow();
         assertThat(summary.lastReadSeq()).isEqualTo(2);
         assertThat(summary.lastSeq()).isEqualTo(2);
+        assertThat(summary.unreadCount()).isZero();
 
         // 非成员不能读取会话消息
         HttpHeaders charlieHeaders = jsonHeaders(charlieLogin.token());

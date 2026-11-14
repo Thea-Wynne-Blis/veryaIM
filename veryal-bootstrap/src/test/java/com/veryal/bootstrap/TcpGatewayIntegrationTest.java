@@ -121,6 +121,10 @@ class TcpGatewayIntegrationTest {
                     .setDeliveredSequence(1L)
                     .build());
             awaitDeliveryRecord(Long.parseLong(ack.getServerMessageId()), "tcp-device-b-" + suffix);
+            var deliveries = messageApplicationService.listDeliveries(TenantIds.DEFAULT_TENANT_ID,
+                    bob.userId(), conversationId, Long.parseLong(ack.getServerMessageId()));
+            assertThat(deliveries).hasSize(1);
+            assertThat(deliveries.get(0).deviceId()).isEqualTo("tcp-device-b-" + suffix);
             bobClient.send(Command.READ_ACK, ReadAck.newBuilder()
                     .setConversationId(conversationId)
                     .setReadSequence(1L)
