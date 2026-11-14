@@ -1,5 +1,7 @@
 package com.veryal.application.message;
 
+import com.veryal.application.message.strategy.MessageContentContext;
+import com.veryal.application.message.strategy.MessageTypeStrategyFactory;
 import com.veryal.common.core.CursorPage;
 import com.veryal.common.core.RandomIds;
 import com.veryal.common.core.TimeProvider;
@@ -50,6 +52,7 @@ public class MessageApplicationService {
     private final OutboxAppender outboxAppender;
     private final DeliveryRepository deliveryRepository;
     private final RateLimiterRegistry rateLimiterRegistry;
+    private final MessageTypeStrategyFactory messageTypeStrategyFactory;
     private final IdGenerator idGenerator;
     private final TimeProvider timeProvider;
 
@@ -58,6 +61,8 @@ public class MessageApplicationService {
         MessagePolicy.validateConversationId(command.conversationId());
         MessagePolicy.validateClientMessageId(command.clientMessageId());
         MessagePolicy.validate(command.messageType(), command.content());
+        messageTypeStrategyFactory.validate(new MessageContentContext(command.tenantId(),
+                command.senderId(), command.messageType(), command.content()));
 
         Conversation conversation = conversationRepository.findById(command.conversationId())
                 .filter(item -> item.tenantId() == command.tenantId())

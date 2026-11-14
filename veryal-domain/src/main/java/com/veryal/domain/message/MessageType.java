@@ -13,6 +13,7 @@ public enum MessageType {
     FILE(3, true),
     AUDIO(4, true),
     VIDEO(5, true),
+    EMOJI(6, true),
     SYSTEM(9, false);
 
     private final int code;
