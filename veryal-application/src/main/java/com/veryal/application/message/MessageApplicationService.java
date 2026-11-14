@@ -162,13 +162,16 @@ public class MessageApplicationService {
 
     private MessageCreatedEvent createEvent(SendMessageCommand command, Message message,
                                             Conversation conversation, Instant now) {
-        List<Long> recipients = conversationRepository.findMembers(message.conversationId()).stream()
-                .map(ConversationMember::userId)
-                .filter(userId -> userId != command.senderId())
-                .toList();
         String eventType = conversation.type() == ConversationType.GROUP
                 ? MessageEvents.GROUP_CREATED
                 : MessageEvents.PRIVATE_CREATED;
+        // 群消息不携带接收者快照，由消费者/本地投递按成员分页拉取，避免大群事件体积膨胀。
+        List<Long> recipients = conversation.type() == ConversationType.GROUP
+                ? List.of()
+                : conversationRepository.findMembers(message.conversationId()).stream()
+                        .map(ConversationMember::userId)
+                        .filter(userId -> userId != command.senderId())
+                        .toList();
         return new MessageCreatedEvent(RandomIds.newId(), eventType, message.tenantId(),
                 message.conversationId(), message.id(), message.senderId(), command.senderDeviceId(),
                 message.seq(), message.type().code(), message.content(), now,

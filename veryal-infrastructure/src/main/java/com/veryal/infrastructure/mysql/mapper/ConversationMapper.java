@@ -29,4 +29,16 @@ public interface ConversationMapper extends BaseMapper<ConversationPO> {
             LIMIT 200
             """)
     List<ConversationPO> selectByUser(@Param("tenantId") long tenantId, @Param("userId") long userId);
+
+    @Select("""
+            SELECT user_id
+            FROM im_conversation_member
+            WHERE conversation_id = #{conversationId}
+              AND user_id > #{afterUserId}
+            ORDER BY user_id ASC
+            LIMIT #{limit}
+            """)
+    List<Long> selectMemberIdsPage(@Param("conversationId") String conversationId,
+                                   @Param("afterUserId") long afterUserId,
+                                   @Param("limit") int limit);
 }

@@ -9,6 +9,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -30,8 +31,15 @@ public class GatewayRouter {
     public Map<String, List<String>> route(MessageCreatedEvent event) {
         Set<Long> users = new LinkedHashSet<>(event.recipientUserIds());
         users.add(event.senderId());
+        return route(event, users);
+    }
+
+    /**
+     * 按指定用户集合路由，供大群分页扇出使用。
+     */
+    public Map<String, List<String>> route(MessageCreatedEvent event, Collection<Long> userIds) {
         Map<String, List<String>> routes = new ConcurrentHashMap<>();
-        for (Long userId : users) {
+        for (Long userId : userIds) {
             for (PresenceRecord record : presenceRepository.findByUserId(userId)) {
                 if (record.status() != PresenceStatus.ONLINE) {
                     continue;

@@ -20,6 +20,11 @@ public interface ConversationRepository {
 
     List<ConversationMember> findMembers(String conversationId);
 
+    /**
+     * 按 user_id 升序分页读取成员 ID，用于大群异步扇出，避免一次性加载全部成员。
+     */
+    List<Long> findMemberIdsPage(String conversationId, long afterUserId, int limit);
+
     Optional<ConversationMember> findMember(String conversationId, long userId);
 
     void addMember(ConversationMember member);

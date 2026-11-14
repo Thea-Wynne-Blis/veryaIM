@@ -2,6 +2,7 @@ package com.veryal.infrastructure.mq;
 
 import com.rabbitmq.client.Channel;
 import com.veryal.common.json.JsonUtils;
+import com.veryal.domain.conversation.ConversationRepository;
 import com.veryal.domain.delivery.GatewayPushCommand;
 import com.veryal.domain.message.event.MessageCreatedEvent;
 import com.veryal.domain.message.event.MessageEvents;
@@ -33,7 +34,10 @@ import java.util.Map;
 @ConditionalOnProperty(prefix = "veryal.mq", name = "enabled", havingValue = "true")
 public class MessageDeliveryListener {
 
+    private static final int MEMBER_PAGE_SIZE = 500;
+
     private final GatewayRouter gatewayRouter;
+    private final ConversationRepository conversationRepository;
     private final DeliveryDeduplicator deduplicator;
     private final RabbitTemplate rabbitTemplate;
     private final OutboxProperties properties;
@@ -78,7 +82,33 @@ public class MessageDeliveryListener {
     }
 
     private void route(MessageCreatedEvent event) {
-        Map<String, List<String>> routes = gatewayRouter.route(event);
+        if (MessageEvents.GROUP_CREATED.equals(event.eventType())) {
+            routeGroupInPages(event);
+            return;
+        }
+        publishRoutes(event, gatewayRouter.route(event));
+    }
+
+    /**
+     * 群消息不携带接收者快照：按 user_id 分页拉取成员，逐页路由，避免大群一次性加载。
+     */
+    private void routeGroupInPages(MessageCreatedEvent event) {
+        long cursor = 0;
+        while (true) {
+            List<Long> page = conversationRepository.findMemberIdsPage(event.conversationId(),
+                    cursor, MEMBER_PAGE_SIZE);
+            if (page.isEmpty()) {
+                return;
+            }
+            publishRoutes(event, gatewayRouter.route(event, page));
+            cursor = page.get(page.size() - 1);
+            if (page.size() < MEMBER_PAGE_SIZE) {
+                return;
+            }
+        }
+    }
+
+    private void publishRoutes(MessageCreatedEvent event, Map<String, List<String>> routes) {
         if (routes.isEmpty()) {
             log.debug("no online route for message: messageId={}", event.messageId());
             return;

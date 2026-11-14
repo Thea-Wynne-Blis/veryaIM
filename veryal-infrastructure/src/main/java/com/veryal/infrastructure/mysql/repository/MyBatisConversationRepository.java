@@ -55,6 +55,11 @@ public class MyBatisConversationRepository implements ConversationRepository {
     }
 
     @Override
+    public List<Long> findMemberIdsPage(String conversationId, long afterUserId, int limit) {
+        return conversationMapper.selectMemberIdsPage(conversationId, afterUserId, Math.max(1, limit));
+    }
+
+    @Override
     public Optional<ConversationMember> findMember(String conversationId, long userId) {
         return Optional.ofNullable(memberMapper.selectOne(Wrappers.<ConversationMemberPO>lambdaQuery()
                         .eq(ConversationMemberPO::getConversationId, conversationId)
