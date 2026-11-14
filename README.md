@@ -19,6 +19,7 @@ VERYAL 是高性能、跨平台、可扩展的即时通讯基础设施。本仓�
 - Redis 在线状态（生产 profile）+ 内存实现（开发/测试 profile），Caffeine 用户资料缓存。
 - Prometheus / Actuator 指标、统一日志字段（traceId / userId / connectionId 等）。
 - **策略模式限流**：令牌桶 / 滑动窗口 / 固定窗口可配置；HTTP 登录按 IP、HTTP API 按用户、TCP 登录按 IP、消息发送按用户。
+- **审计日志**：登录、建群/改名/成员变更/踢人/退群/转让/解散写入 `im_audit_log`，独立事务、失败不影响主业务。
 - Lombok 消除样板代码，Hutool 提供 ID / 字符串等基础工具。
 
 ## 模块结构
@@ -76,6 +77,7 @@ com.veryal
 │   │   ├── event       MessageCreatedEvent / MessageEvents
 │   │   └── outbox      OutboxMessage / OutboxAppender
 │   ├── group           Group / GroupMember / GroupRole / GroupRepository
+│   ├── audit           AuditAction / AuditLog / AuditRepository
 │   ├── delivery        DeliveryRecord / DeliveryRepository / GatewayPushCommand / GatewayPushPort / RealtimeDeliveryPort
 │   └── presence        PresenceRecord / PresenceRepository
 ├── application
@@ -84,11 +86,12 @@ com.veryal
 │   ├── group           GroupApplicationService / GroupView / GroupSummary
 │   ├── message         MessageApplicationService / SendMessageCommand / SendMessageResult
 │   ├── ratelimit       RateLimitProperties / RateLimitConfig / RateLimitCleanupTask
+│   ├── audit           AuditRecorder
 │   └── sync            SyncApplicationService
 ├── infrastructure
 │   ├── mysql
-│   │   ├── mapper      UserMapper / DeviceMapper / ConversationMapper / GroupMapper / MessageMapper / DeliveryMapper / OutboxMapper / ...
-│   │   ├── po          UserPO / DevicePO / ConversationPO / GroupPO / MessagePO / DeliveryPO / OutboxPO / ...
+│   │   ├── mapper      UserMapper / DeviceMapper / ConversationMapper / GroupMapper / MessageMapper / DeliveryMapper / AuditLogMapper / OutboxMapper / ...
+│   │   ├── po          UserPO / DevicePO / ConversationPO / GroupPO / MessagePO / DeliveryPO / AuditLogPO / OutboxPO / ...
 │   │   ├── repository  MyBatis*Repository / MyBatisOutboxAppender
 │   │   ├── MyBatisPlusConfig / SqlTime
 │   ├── redis           RedisKeys / RedisPresenceRepository / InMemoryPresenceRepository
@@ -223,7 +226,7 @@ mvn test
 ```
 
 - 单元测试：雪花 ID、Envelope 编解码、Netty 帧拆包/粘包/非法帧、JWT、PBKDF2、Outbox 事件 JSON、限流算法（令牌桶/滑动窗口/固定窗口/注册表）。
-- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群消息分页扇出、限流 429、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
+- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群消息分页扇出、限流 429、审计日志、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
 
 集成测试使用 `test` profile，Netty Gateway 端口配置为 0（系统分配），不占用本机端口。
 
@@ -241,7 +244,7 @@ mvn test
 ## 后续路线
 
 - V0.3：已完成 Outbox + RabbitMQ + 重试/DLQ + 多实例实时投递；后续补充投递记录表与跨节点路由优化。
-- V0.4：群聊、群管理（含群主转让/解散）、群消息分页扇出、Redis 网关路由、策略模式限流已完成；继续补充放开群成员上限与压测、TLS 与审计日志。
+- V0.4：群聊、群管理（含群主转让/解散）、群消息分页扇出、Redis 网关路由、策略模式限流、审计日志已完成；继续补充 TLS、连接数上限与大群压测。
 - V0.5：Caffeine 两级缓存完善、MinIO 文件服务、多租户、开放 API / SDK。
 - V1.0：管理后台、完整群聊/好友体系、监控告警、私有化部署。
 
