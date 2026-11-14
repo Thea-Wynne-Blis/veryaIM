@@ -16,9 +16,13 @@ management:
   health:
     redis:
       enabled: false
+    rabbit:
+      enabled: false
 
 veryal:
   redis:
+    enabled: false
+  mq:
     enabled: false
   security:
     token:

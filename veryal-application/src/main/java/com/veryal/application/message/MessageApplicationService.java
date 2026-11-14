@@ -1,10 +1,12 @@
 package com.veryal.application.message;
 
 import com.veryal.common.core.CursorPage;
+import com.veryal.common.core.RandomIds;
 import com.veryal.common.core.TimeProvider;
 import com.veryal.common.exception.BusinessException;
 import com.veryal.common.exception.ErrorCode;
 import com.veryal.common.id.IdGenerator;
+import com.veryal.common.json.JsonUtils;
 import com.veryal.domain.conversation.Conversation;
 import com.veryal.domain.conversation.ConversationMember;
 import com.veryal.domain.conversation.ConversationRepository;
@@ -13,7 +15,11 @@ import com.veryal.domain.message.DuplicateMessageException;
 import com.veryal.domain.message.Message;
 import com.veryal.domain.message.MessagePolicy;
 import com.veryal.domain.message.MessageRepository;
-import com.veryal.domain.message.MessageType;
+import com.veryal.domain.message.event.MessageCreatedEvent;
+import com.veryal.domain.message.event.MessageEvents;
+import com.veryal.domain.message.outbox.OutboxAppender;
+import com.veryal.domain.message.outbox.OutboxMessage;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,10 +30,11 @@ import java.util.Optional;
 /**
  * 消息应用服务。
  *
- * <p>发送流程：成员校验 → 幂等检查 → 分配会话序号 → 持久化消息 → 返回 ACK。
- * 消息持久化是可靠性的唯一依据，实时投递失败不影响消息本身。</p>
+ * <p>发送流程：成员校验 → 幂等检查 → 分配会话序号 → 持久化消息 → 写入 Outbox → 提交事务。
+ * 实时投递由 Outbox → RabbitMQ → 消费者完成，投递失败不影响消息可靠性。</p>
  */
 @Service
+@RequiredArgsConstructor
 public class MessageApplicationService {
 
     private static final int MAX_HISTORY_LIMIT = 200;
@@ -35,23 +42,10 @@ public class MessageApplicationService {
     private final MessageRepository messageRepository;
     private final ConversationSequenceRepository sequenceRepository;
     private final ConversationRepository conversationRepository;
+    private final OutboxAppender outboxAppender;
     private final DeliveryTracker deliveryTracker;
     private final IdGenerator idGenerator;
     private final TimeProvider timeProvider;
-
-    public MessageApplicationService(MessageRepository messageRepository,
-                                     ConversationSequenceRepository sequenceRepository,
-                                     ConversationRepository conversationRepository,
-                                     DeliveryTracker deliveryTracker,
-                                     IdGenerator idGenerator,
-                                     TimeProvider timeProvider) {
-        this.messageRepository = messageRepository;
-        this.sequenceRepository = sequenceRepository;
-        this.conversationRepository = conversationRepository;
-        this.deliveryTracker = deliveryTracker;
-        this.idGenerator = idGenerator;
-        this.timeProvider = timeProvider;
-    }
 
     @Transactional
     public SendMessageResult send(SendMessageCommand command) {
@@ -69,7 +63,7 @@ public class MessageApplicationService {
         Optional<Message> existing = messageRepository.findByIdempotencyKey(
                 command.tenantId(), command.senderId(), command.clientMessageId());
         if (existing.isPresent()) {
-            return new SendMessageResult(existing.get(), recipients(conversation.id(), command.senderId()), true);
+            return new SendMessageResult(existing.get(), null, true);
         }
 
         Instant now = timeProvider.now();
@@ -83,10 +77,14 @@ public class MessageApplicationService {
             Message duplicate = messageRepository.findByIdempotencyKey(
                             command.tenantId(), command.senderId(), command.clientMessageId())
                     .orElseThrow(() -> e);
-            return new SendMessageResult(duplicate, recipients(conversation.id(), command.senderId()), true);
+            return new SendMessageResult(duplicate, null, true);
         }
+
+        MessageCreatedEvent event = createEvent(command, message, now);
+        outboxAppender.append(new OutboxMessage(event.eventId(), conversation.id(),
+                MessageEvents.PRIVATE_CREATED, JsonUtils.toJsonBytes(event), now));
         conversationRepository.touch(conversation.id(), now);
-        return new SendMessageResult(message, recipients(conversation.id(), command.senderId()), false);
+        return new SendMessageResult(message, event, false);
     }
 
     @Transactional(readOnly = true)
@@ -131,11 +129,15 @@ public class MessageApplicationService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CONVERSATION_MEMBER));
     }
 
-    private List<Long> recipients(String conversationId, long senderId) {
-        return conversationRepository.findMembers(conversationId).stream()
+    private MessageCreatedEvent createEvent(SendMessageCommand command, Message message, Instant now) {
+        List<Long> recipients = conversationRepository.findMembers(message.conversationId()).stream()
                 .map(ConversationMember::userId)
-                .filter(userId -> userId != senderId)
+                .filter(userId -> userId != command.senderId())
                 .toList();
+        return new MessageCreatedEvent(RandomIds.newId(), message.tenantId(),
+                message.conversationId(), message.id(), message.senderId(), command.senderDeviceId(),
+                message.seq(), message.type().code(), message.content(), now,
+                message.clientMsgId(), recipients);
     }
 
     private static int clampLimit(int limit) {

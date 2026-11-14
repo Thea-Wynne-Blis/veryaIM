@@ -35,6 +35,21 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
     validate-on-migrate: true
+  rabbitmq:
+    host: ${SPRING_RABBITMQ_HOST:localhost}
+    port: ${SPRING_RABBITMQ_PORT:5672}
+    username: ${SPRING_RABBITMQ_USERNAME:veryal}
+    password: ${SPRING_RABBITMQ_PASSWORD:veryal}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+    listener:
+      simple:
+        acknowledge-mode: manual
+        prefetch: 50
+        concurrency: 2
+        max-concurrency: 8
 
 mybatis-plus:
   configuration:
@@ -76,6 +91,14 @@ veryal:
       ttl: 7d
   redis:
     enabled: ${VERYAL_REDIS_ENABLED:true}
+  mq:
+    enabled: ${VERYAL_MQ_ENABLED:false}
+  outbox:
+    batch-size: 100
+    poll-interval-ms: 500
+    max-retries: 5
+    confirm-timeout-ms: 5000
+    stale-timeout-ms: 60000
 
 logging:
   level:

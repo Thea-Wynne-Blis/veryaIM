@@ -71,3 +71,22 @@ CREATE TABLE IF NOT EXISTS im_message
 CREATE UNIQUE INDEX IF NOT EXISTS uk_sender_client_msg ON im_message (tenant_id, sender_id, client_msg_id);
 CREATE UNIQUE INDEX IF NOT EXISTS uk_conversation_seq ON im_message (tenant_id, conversation_id, seq);
 CREATE INDEX IF NOT EXISTS idx_conversation_time ON im_message (conversation_id, created_at);
+
+CREATE TABLE IF NOT EXISTS im_outbox
+(
+    id            BIGINT      NOT NULL PRIMARY KEY,
+    event_id      VARCHAR(64) NOT NULL,
+    aggregate_id  VARCHAR(64) NOT NULL,
+    event_type    VARCHAR(64) NOT NULL,
+    payload       BLOB        NOT NULL,
+    status        TINYINT     NOT NULL DEFAULT 0,
+    retry_count   INT         NOT NULL DEFAULT 0,
+    next_retry_at TIMESTAMP(3) NOT NULL,
+    last_error    VARCHAR(512),
+    created_at    TIMESTAMP(3) NOT NULL,
+    updated_at    TIMESTAMP(3) NOT NULL,
+    published_at  TIMESTAMP(3)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_outbox_event_id ON im_outbox (event_id);
+CREATE INDEX IF NOT EXISTS idx_outbox_status_retry ON im_outbox (status, next_retry_at);
+

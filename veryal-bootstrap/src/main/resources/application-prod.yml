@@ -12,6 +12,11 @@ spring:
       port: ${VERYAL_REDIS_PORT:6379}
       password: ${VERYAL_REDIS_PASSWORD:}
       timeout: 2s
+  rabbitmq:
+    host: ${SPRING_RABBITMQ_HOST:rabbitmq}
+    port: ${SPRING_RABBITMQ_PORT:5672}
+    username: ${SPRING_RABBITMQ_USERNAME:veryal}
+    password: ${SPRING_RABBITMQ_PASSWORD:veryal}
 
 veryal:
   node-id: ${VERYAL_NODE_ID:1}
@@ -19,6 +24,8 @@ veryal:
     id: ${VERYAL_GATEWAY_ID:gateway-1}
   redis:
     enabled: ${VERYAL_REDIS_ENABLED:true}
+  mq:
+    enabled: ${VERYAL_MQ_ENABLED:true}
   security:
     token:
       secret: ${VERYAL_TOKEN_SECRET}

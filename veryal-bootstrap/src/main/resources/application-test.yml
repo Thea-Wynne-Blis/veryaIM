@@ -16,10 +16,14 @@ management:
   health:
     redis:
       enabled: false
+    rabbit:
+      enabled: false
 
 veryal:
   node-id: 99
   redis:
+    enabled: false
+  mq:
     enabled: false
   security:
     token:

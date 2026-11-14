@@ -17,6 +17,7 @@ import com.veryal.common.exception.BusinessException;
 import com.veryal.common.exception.ErrorCode;
 import com.veryal.domain.message.MessageType;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -35,16 +36,11 @@ import java.util.Locale;
  */
 @RestController
 @RequestMapping("/api/v1/conversations")
+@RequiredArgsConstructor
 public class ConversationController {
 
     private final ConversationApplicationService conversationApplicationService;
     private final MessageApplicationService messageApplicationService;
-
-    public ConversationController(ConversationApplicationService conversationApplicationService,
-                                  MessageApplicationService messageApplicationService) {
-        this.conversationApplicationService = conversationApplicationService;
-        this.messageApplicationService = messageApplicationService;
-    }
 
     @PostMapping
     public ApiResponse<ConversationResponse> create(@CurrentUser AuthenticatedUser user,
@@ -74,7 +70,8 @@ public class ConversationController {
         MessageType type = parseType(request.type());
         byte[] content = parseContent(request);
         SendMessageResult result = messageApplicationService.send(new SendMessageCommand(
-                user.tenantId(), user.userId(), conversationId, request.clientMessageId(), type, content));
+                user.tenantId(), user.userId(), user.deviceId(), conversationId,
+                request.clientMessageId(), type, content));
         return ApiResponse.ok(SendMessageResponse.from(result));
     }
 

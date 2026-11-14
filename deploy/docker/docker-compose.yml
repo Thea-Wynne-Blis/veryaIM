@@ -81,6 +81,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: prod
       VERYAL_DB_URL: jdbc:mysql://mysql:3306/veryal_im?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&rewriteBatchedStatements=true
@@ -90,6 +92,11 @@ services:
       VERYAL_GATEWAY_ID: ${VERYAL_GATEWAY_ID:-gateway-1}
       VERYAL_NODE_ID: ${VERYAL_NODE_ID:-1}
       VERYAL_REDIS_ENABLED: "true"
+      VERYAL_MQ_ENABLED: "true"
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: "5672"
+      SPRING_RABBITMQ_USERNAME: ${VERYAL_MQ_USER:-veryal}
+      SPRING_RABBITMQ_PASSWORD: ${VERYAL_MQ_PASSWORD:-veryal}
     ports:
       - "8080:8080"
       - "9098:9098"
