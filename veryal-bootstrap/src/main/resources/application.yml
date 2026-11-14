@@ -15,11 +15,6 @@ spring:
     time-zone: UTC
     serialization:
       write-dates-as-timestamps: false
-  cache:
-    type: caffeine
-    cache-names: user
-    caffeine:
-      spec: maximumSize=100000,expireAfterWrite=10m,recordStats
   datasource:
     url: jdbc:mysql://localhost:3306/veryal_im?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
     username: veryal
