@@ -174,11 +174,12 @@ docker compose up -d --build
 | GET | `/api/v1/conversations` | 会话列表（含读游标与最大序号） |
 | GET | `/api/v1/conversations/{id}` | 会话详情 |
 | POST | `/api/v1/conversations/{id}/messages` | 发送消息 |
+| POST | `/api/v1/conversations/{id}/messages/{messageId}/recall` | 撤回消息（仅发送者，2 分钟内） |
 | GET | `/api/v1/conversations/{id}/messages?cursor=0&limit=50` | 历史消息（游标） |
 | GET | `/api/v1/conversations/{id}/messages/{messageId}/deliveries` | 消息设备投递记录 |
 | POST | `/api/v1/conversations/{id}/read` | 上报已读序号 |
 | GET | `/api/v1/sync/messages?conversationId=...&cursor=...&limit=...` | 离线同步 |
-| POST | `/api/v1/files` | 上传文件（multipart，字段 `file`） |
+| POST | `/api/v1/files` | 上传文件（multipart，字段 `file`，可选 `conversationId` 绑定会话） |
 | GET | `/api/v1/files/{fileId}` | 文件元数据 |
 | GET | `/api/v1/files/{fileId}/content` | 下载文件（仅上传者） |
 | GET | `/api/v1/files/{fileId}/url?ttlSeconds=600` | 临时访问 URL（MinIO/OSS 为预签名地址，本地为下载路径） |
@@ -199,6 +200,10 @@ docker compose up -d --build
 | `SYSTEM` | 9 | 服务端保留，客户端提交返回不支持 |
 
 图片/视频的 `width`、`height` 与语音/视频的 `durationSeconds` 为可选正数；`fileId` 必填。文本、表情以外的消息体最大 256KB。
+
+消息撤回：仅发送者本人可在发送后 2 分钟内撤回；撤回后历史消息返回 `recalled=true` 且 `content` 为空，原文不再下发。每次撤回写入审计日志（`MESSAGE_RECALL`）。
+
+文件消息访问：上传时传 `conversationId` 绑定会话后，该会话成员可下载文件并可作为图片/语音/视频/文件消息引用；未绑定会话的文件仍仅上传者可访问。
 
 发送消息示例：
 
@@ -310,7 +315,7 @@ veryal:
 - 文件大小上限 20MB（Spring multipart 与应用双重校验）。
 - 对象键：`tenant/{tenantId}/{yyyy/MM/dd}/{fileId}.{ext}`；文件名做路径穿越与控制字符清理。
 - 上传先写对象存储，再写 `im_file`；元数据失败会补偿删除对象。
-- 当前仅上传者可下载/删除；后续接入会话文件消息时再扩展成员权限。
+- 当前文件若绑定 `conversationId`，会话成员可下载；否则仅上传者可下载/删除。文件消息的成员引用权限与此一致。
 
 ## 一致性设计
 
@@ -333,7 +338,7 @@ mvn test
 ```
 
 - 单元测试：雪花 ID、Envelope 编解码、Netty 帧拆包/粘包/非法帧、JWT、PBKDF2、Outbox 事件 JSON、限流算法（令牌桶/滑动窗口/固定窗口/注册表）、TLS 配置开关与快速失败、连接数限制、Caffeine 缓存配置、本地/云端存储策略。
-- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群消息分页扇出、限流 429、审计日志、连接数超限拒绝、文件上传/下载/权限/删除、多消息类型与文件归属校验、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
+- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群消息分页扇出、限流 429、审计日志、连接数超限拒绝、文件上传/下载/权限/删除、文件会话成员访问、多消息类型与文件归属校验、消息撤回、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
 
 集成测试使用 `test` profile，Netty Gateway 端口配置为 0（系统分配），不占用本机端口。
 
