@@ -2,6 +2,7 @@ package com.veryal.access.http.controller;
 
 import com.veryal.access.http.dto.ConversationResponse;
 import com.veryal.access.http.dto.CreateConversationRequest;
+import com.veryal.access.http.dto.DeliveryResponse;
 import com.veryal.access.http.dto.MessagePageResponse;
 import com.veryal.access.http.dto.ReadRequest;
 import com.veryal.access.http.dto.SendMessageRequest;
@@ -91,6 +92,16 @@ public class ConversationController {
         conversationApplicationService.markRead(user.tenantId(), user.userId(), conversationId,
                 request.readSequence());
         return ApiResponse.ok();
+    }
+
+    @GetMapping("/{conversationId}/messages/{messageId}/deliveries")
+    public ApiResponse<List<DeliveryResponse>> deliveries(@CurrentUser AuthenticatedUser user,
+                                                          @PathVariable String conversationId,
+                                                          @PathVariable long messageId) {
+        return ApiResponse.ok(messageApplicationService.listDeliveries(user.tenantId(), user.userId(),
+                        conversationId, messageId).stream()
+                .map(DeliveryResponse::from)
+                .toList());
     }
 
     private MessageType parseType(String type) {

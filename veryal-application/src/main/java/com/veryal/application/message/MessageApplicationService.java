@@ -127,6 +127,19 @@ public class MessageApplicationService {
         return messageRepository.maxSeq(tenantId, conversationId);
     }
 
+    /**
+     * 查询单条消息的设备投递记录（仅会话成员可见）。
+     */
+    @Transactional(readOnly = true)
+    public List<DeliveryRecord> listDeliveries(long tenantId, long userId, String conversationId,
+                                               long messageId) {
+        requireMember(tenantId, conversationId, userId);
+        Message message = messageRepository.findById(messageId)
+                .filter(item -> item.conversationId().equals(conversationId))
+                .orElseThrow(() -> new BusinessException(ErrorCode.MESSAGE_NOT_FOUND));
+        return deliveryRepository.findByMessage(message.id());
+    }
+
     @Transactional(readOnly = true)
     public void requireMember(long tenantId, String conversationId, long userId) {
         Conversation conversation = conversationRepository.findById(conversationId)
