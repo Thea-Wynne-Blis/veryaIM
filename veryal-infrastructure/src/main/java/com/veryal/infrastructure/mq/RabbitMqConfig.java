@@ -14,9 +14,9 @@ import org.springframework.context.annotation.Configuration;
 /**
  * RabbitMQ 拓扑。
  *
- * <p>主交换机保存消息事件；每个实例声明自己的临时投递队列并绑定 {@code message.*.created}，
- * 从而每个实例都能收到全部事件并只推送本节点连接。失败消息进入实例级 TTL 重试队列，
- * 超过重试上限进入共享死信队列。</p>
+ * <p>投递链路：消息事件交换机 → 全局单投递队列 → 路由消费者（单实例消费）；
+ * 路由消费者按 Redis 连接路由把推送命令发到网关交换机 → 各 Gateway 自己的推送队列。
+ * 失败消息进入 TTL 重试队列，超过上限进入共享死信队列。</p>
  */
 @Configuration
 @ConditionalOnProperty(prefix = "veryal.mq", name = "enabled", havingValue = "true")
@@ -38,18 +38,21 @@ public class RabbitMqConfig {
     }
 
     @Bean
-    public Queue messageDeliveryQueue(RabbitInstance instance) {
-        return QueueBuilder.nonDurable(instance.deliveryQueueName())
-                .autoDelete()
+    public TopicExchange gatewayExchange() {
+        return new TopicExchange(RabbitConstants.GATEWAY_EXCHANGE, true, false);
+    }
+
+    @Bean
+    public Queue messageDeliveryQueue() {
+        return QueueBuilder.durable(RabbitConstants.DELIVERY_QUEUE)
                 .deadLetterExchange(RabbitConstants.DEAD_LETTER_EXCHANGE)
                 .deadLetterRoutingKey(RabbitConstants.DEAD_ROUTING_KEY)
                 .build();
     }
 
     @Bean
-    public Queue messageRetryQueue(RabbitInstance instance) {
-        return QueueBuilder.nonDurable(instance.retryQueueName())
-                .autoDelete()
+    public Queue messageRetryQueue() {
+        return QueueBuilder.durable(RabbitConstants.RETRY_QUEUE)
                 .ttl(RabbitConstants.RETRY_TTL_MILLIS)
                 .deadLetterExchange(RabbitConstants.MESSAGE_EXCHANGE)
                 .build();
@@ -58,6 +61,15 @@ public class RabbitMqConfig {
     @Bean
     public Queue deadLetterQueue() {
         return QueueBuilder.durable(RabbitConstants.DEAD_LETTER_QUEUE).build();
+    }
+
+    @Bean
+    public Queue gatewayPushQueue(RabbitInstance instance) {
+        return QueueBuilder.nonDurable(instance.gatewayPushQueueName())
+                .autoDelete()
+                .deadLetterExchange(RabbitConstants.DEAD_LETTER_EXCHANGE)
+                .deadLetterRoutingKey(RabbitConstants.DEAD_ROUTING_KEY)
+                .build();
     }
 
     @Bean
@@ -82,6 +94,13 @@ public class RabbitMqConfig {
     public Binding retryGroupBinding(TopicExchange retryExchange, Queue messageRetryQueue) {
         return BindingBuilder.bind(messageRetryQueue).to(retryExchange)
                 .with(MessageEvents.GROUP_CREATED);
+    }
+
+    @Bean
+    public Binding gatewayPushBinding(TopicExchange gatewayExchange, Queue gatewayPushQueue,
+                                      RabbitInstance instance) {
+        return BindingBuilder.bind(gatewayPushQueue).to(gatewayExchange)
+                .with(instance.gatewayPushRoutingKey());
     }
 
     @Bean

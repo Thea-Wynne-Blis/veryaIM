@@ -2,7 +2,7 @@ package com.veryal.infrastructure.mq;
 
 import com.rabbitmq.client.Channel;
 import com.veryal.common.json.JsonUtils;
-import com.veryal.domain.delivery.RealtimeDeliveryPort;
+import com.veryal.domain.delivery.GatewayPushCommand;
 import com.veryal.domain.message.event.MessageCreatedEvent;
 import com.veryal.domain.message.event.MessageEvents;
 import lombok.RequiredArgsConstructor;
@@ -18,12 +18,14 @@ import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 /**
- * 消息投递消费者。每个实例消费自己的投递队列，只推送本节点在线连接。
+ * 消息投递消费者：消费全局单投递队列，按 Redis 连接路由拆分到各 Gateway 推送队列。
  *
- * <p>手动 ACK；失败时按有限次数转入实例级 TTL 重试队列，超过上限进入共享死信队列。
- * 消费端通过 {@link RealtimeDeliveryPort} 推送，不直接依赖 access 层。</p>
+ * <p>手动 ACK；失败时按有限次数转入 TTL 重试队列，超过上限进入死信队列。
+ * 只有消费到事件的实例负责路由，避免每实例重复消费。</p>
  */
 @Slf4j
 @Component
@@ -31,13 +33,12 @@ import java.io.IOException;
 @ConditionalOnProperty(prefix = "veryal.mq", name = "enabled", havingValue = "true")
 public class MessageDeliveryListener {
 
-    private final RealtimeDeliveryPort realtimeDeliveryPort;
+    private final GatewayRouter gatewayRouter;
     private final DeliveryDeduplicator deduplicator;
     private final RabbitTemplate rabbitTemplate;
-    private final RabbitInstance rabbitInstance;
     private final OutboxProperties properties;
 
-    @RabbitListener(queues = "#{@messageDeliveryQueue.name}", ackMode = "MANUAL")
+    @RabbitListener(queues = RabbitConstants.DELIVERY_QUEUE, ackMode = "MANUAL")
     public void onMessage(Message message, Channel channel,
                           @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag,
                           @Header(name = RabbitConstants.HEADER_RETRY_COUNT, required = false) Integer retryCount)
@@ -46,7 +47,7 @@ public class MessageDeliveryListener {
         try {
             event = JsonUtils.fromJson(message.getBody(), MessageCreatedEvent.class);
             if (deduplicator.firstSeen(event.eventId())) {
-                realtimeDeliveryPort.deliver(event);
+                route(event);
             }
             channel.basicAck(deliveryTag, false);
         } catch (Exception e) {
@@ -73,6 +74,27 @@ public class MessageDeliveryListener {
                 log.error("failed to schedule retry, requeue original message", retryFailure);
                 channel.basicNack(deliveryTag, false, true);
             }
+        }
+    }
+
+    private void route(MessageCreatedEvent event) {
+        Map<String, List<String>> routes = gatewayRouter.route(event);
+        if (routes.isEmpty()) {
+            log.debug("no online route for message: messageId={}", event.messageId());
+            return;
+        }
+        for (Map.Entry<String, List<String>> entry : routes.entrySet()) {
+            GatewayPushCommand command = new GatewayPushCommand(event.eventId(), entry.getKey(),
+                    entry.getValue(), event);
+            rabbitTemplate.convertAndSend(RabbitConstants.GATEWAY_EXCHANGE,
+                    RabbitConstants.GATEWAY_PUSH_ROUTING_PREFIX + entry.getKey(),
+                    JsonUtils.toJsonBytes(command), message -> {
+                        MessageProperties props = message.getMessageProperties();
+                        props.setMessageId(event.eventId());
+                        props.setContentType(MessageProperties.CONTENT_TYPE_JSON);
+                        props.setDeliveryMode(MessageDeliveryMode.PERSISTENT);
+                        return message;
+                    });
         }
     }
 }
