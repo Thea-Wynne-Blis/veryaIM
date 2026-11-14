@@ -47,13 +47,18 @@ class MessageTypeIntegrationTest {
 
         String conversationId = createConversation(alice, bob, aliceLogin.token());
 
-        long aliceFile = upload("image.png", "image/png", aliceLogin.token());
+        long aliceFile = upload("image.png", "image/png", aliceLogin.token(), conversationId);
         long bobFile = upload("other.png", "image/png", bobLogin.token());
 
         SendMessageResponse image = send(conversationId, "mt-image-" + suffix, "IMAGE",
                 JsonUtils.toJson(Map.of("fileId", aliceFile, "width", 100, "height", 200)),
                 aliceLogin.token(), 200);
         assertThat(image.message().type()).isEqualTo("IMAGE");
+
+        // 会话范围内上传的文件，其他成员可作为图片消息引用
+        SendMessageResponse sharedImage = send(conversationId, "mt-image-shared-" + suffix, "IMAGE",
+                JsonUtils.toJson(Map.of("fileId", aliceFile)), bobLogin.token(), 200);
+        assertThat(sharedImage.message().type()).isEqualTo("IMAGE");
 
         send(conversationId, "mt-image-missing-" + suffix, "IMAGE",
                 JsonUtils.toJson(Map.of("width", 100)), aliceLogin.token(), 400);
@@ -104,6 +109,10 @@ class MessageTypeIntegrationTest {
     }
 
     private long upload(String filename, String contentType, String token) {
+        return upload(filename, contentType, token, null);
+    }
+
+    private long upload(String filename, String contentType, String token, String conversationId) {
         byte[] content = ("binary-" + filename).getBytes(StandardCharsets.UTF_8);
         ByteArrayResource resource = new ByteArrayResource(content) {
             @Override
@@ -113,6 +122,9 @@ class MessageTypeIntegrationTest {
         };
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
         body.add("file", resource);
+        if (conversationId != null) {
+            body.add("conversationId", conversationId);
+        }
         HttpHeaders headers = headers(token);
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
 

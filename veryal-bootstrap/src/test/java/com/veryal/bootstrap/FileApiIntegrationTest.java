@@ -80,7 +80,44 @@ class FileApiIntegrationTest {
         assertThat(gone.getStatusCode().value()).isEqualTo(404);
     }
 
+    @Test
+    void conversationMembersCanDownloadScopedFile() {
+        String suffix = Long.toString(System.nanoTime());
+        UserResponse uploader = register("sc_file_user_" + suffix);
+        UserResponse member = register("sc_file_member_" + suffix);
+        UserResponse outsider = register("sc_file_outsider_" + suffix);
+        AuthResponse uploaderLogin = login("sc_file_user_" + suffix, "sc-a-" + suffix);
+        AuthResponse memberLogin = login("sc_file_member_" + suffix, "sc-b-" + suffix);
+        AuthResponse outsiderLogin = login("sc_file_outsider_" + suffix, "sc-c-" + suffix);
+
+        ApiResponse<com.veryal.access.http.dto.ConversationResponse> conversation = post(
+                "/api/v1/conversations", Map.of("peerUserId", member.userId()), uploaderLogin.token(),
+                new ParameterizedTypeReference<>() {
+                });
+        String conversationId = conversation.data().conversationId();
+        FileResponse uploaded = upload("scoped.txt".getBytes(StandardCharsets.UTF_8), "scoped.txt",
+                uploaderLogin.token(), conversationId);
+
+        ResponseEntity<byte[]> memberDownload = rest.exchange(
+                "/api/v1/files/" + uploaded.fileId() + "/content", HttpMethod.GET,
+                new HttpEntity<>(headers(memberLogin.token())), byte[].class);
+        assertThat(memberDownload.getStatusCode().is2xxSuccessful()).isTrue();
+        assertThat(memberDownload.getBody()).isEqualTo("scoped.txt".getBytes(StandardCharsets.UTF_8));
+
+        ResponseEntity<byte[]> outsiderDownload = rest.exchange(
+                "/api/v1/files/" + uploaded.fileId() + "/content", HttpMethod.GET,
+                new HttpEntity<>(headers(outsiderLogin.token())), byte[].class);
+        assertThat(outsiderDownload.getStatusCode().value()).isEqualTo(403);
+
+        delete("/api/v1/files/" + uploaded.fileId(), uploaderLogin.token());
+        assertThat(outsider.userId()).isPositive();
+    }
+
     private FileResponse upload(byte[] content, String filename, String token) {
+        return upload(content, filename, token, null);
+    }
+
+    private FileResponse upload(byte[] content, String filename, String token, String conversationId) {
         ByteArrayResource resource = new ByteArrayResource(content) {
             @Override
             public String getFilename() {
@@ -89,6 +126,9 @@ class FileApiIntegrationTest {
         };
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
         body.add("file", resource);
+        if (conversationId != null) {
+            body.add("conversationId", conversationId);
+        }
         HttpHeaders headers = headers(token);
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
 
