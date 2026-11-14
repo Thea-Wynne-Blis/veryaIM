@@ -48,8 +48,11 @@ class JwtTokenServiceTest {
         JwtTokenService service = new JwtTokenService(
                 new TokenProperties(SECRET, "veryal", Duration.ofMinutes(10)), TimeProvider.system());
         String token = service.issue(1001L, 1L, "device-1").token();
-        char last = token.charAt(token.length() - 1);
-        String tampered = token.substring(0, token.length() - 1) + (last == 'A' ? 'B' : 'A');
+        String[] parts = token.split("\\.");
+        // 改签名段首字符，确保解码后的签名字节一定变化（末尾 base64 字符含无用填充位）。
+        char[] signature = parts[2].toCharArray();
+        signature[0] = signature[0] == 'A' ? 'B' : 'A';
+        String tampered = parts[0] + "." + parts[1] + "." + new String(signature);
 
         assertThatThrownBy(() -> service.parse(tampered)).isInstanceOf(AuthenticationException.class);
     }
