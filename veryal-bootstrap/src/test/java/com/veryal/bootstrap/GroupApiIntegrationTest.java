@@ -10,6 +10,8 @@ import com.veryal.access.http.dto.SendMessageResponse;
 import com.veryal.access.http.dto.UserResponse;
 import com.veryal.common.core.ApiResponse;
 import com.veryal.common.exception.ErrorCode;
+import com.veryal.common.json.JsonUtils;
+import com.veryal.domain.message.event.MessageCreatedEvent;
 import com.veryal.infrastructure.mysql.mapper.OutboxMapper;
 import com.veryal.infrastructure.mysql.po.OutboxPO;
 import org.junit.jupiter.api.Test;
@@ -127,6 +129,10 @@ class GroupApiIntegrationTest {
                 .last("LIMIT 1"));
         assertThat(event).isNotNull();
         assertThat(event.eventType).isEqualTo("message.group.created");
+        MessageCreatedEvent payload = JsonUtils.fromJson(event.payload, MessageCreatedEvent.class);
+        assertThat(payload.eventType()).isEqualTo("message.group.created");
+        // 群消息事件不再携带接收者快照，由消费者/本地投递分页拉取
+        assertThat(payload.recipientUserIds()).isEmpty();
     }
 
     private UserResponse register(String username) {

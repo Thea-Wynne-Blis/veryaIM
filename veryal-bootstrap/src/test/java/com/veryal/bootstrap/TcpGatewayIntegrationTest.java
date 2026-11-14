@@ -3,6 +3,8 @@ package com.veryal.bootstrap;
 import com.google.protobuf.ByteString;
 import com.veryal.access.tcp.TcpGatewayServer;
 import com.veryal.application.conversation.ConversationApplicationService;
+import com.veryal.application.group.GroupApplicationService;
+import com.veryal.application.group.GroupView;
 import com.veryal.application.identity.AuthApplicationService;
 import com.veryal.application.identity.AuthResult;
 import com.veryal.application.identity.LoginCommand;
@@ -29,6 +31,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -46,6 +50,9 @@ class TcpGatewayIntegrationTest {
 
     @Autowired
     private ConversationApplicationService conversationApplicationService;
+
+    @Autowired
+    private GroupApplicationService groupApplicationService;
 
     @Autowired
     private MessageApplicationService messageApplicationService;
@@ -145,6 +152,50 @@ class TcpGatewayIntegrationTest {
                     .setDeviceId("device-x")
                     .build());
             assertThat(client.await(Command.ERROR)).isNotNull();
+        }
+    }
+
+    @Test
+    void groupMessageReachesOnlineMember() throws Exception {
+        String suffix = Long.toString(System.nanoTime());
+        String ownerName = "tcp_group_owner_" + suffix;
+        String memberName = "tcp_group_member_" + suffix;
+        UserProfile owner = authApplicationService.register(TenantIds.DEFAULT_TENANT_ID,
+                new RegisterCommand(ownerName, "password123", "Owner"));
+        UserProfile member = authApplicationService.register(TenantIds.DEFAULT_TENANT_ID,
+                new RegisterCommand(memberName, "password123", "Member"));
+        String ownerDevice = "tcp-group-owner-" + suffix;
+        String memberDevice = "tcp-group-member-" + suffix;
+        AuthResult ownerLogin = authApplicationService.login(TenantIds.DEFAULT_TENANT_ID,
+                new LoginCommand(ownerName, "password123", ownerDevice, "LINUX", "owner"));
+        AuthResult memberLogin = authApplicationService.login(TenantIds.DEFAULT_TENANT_ID,
+                new LoginCommand(memberName, "password123", memberDevice, "LINUX", "member"));
+        GroupView group = groupApplicationService.create(TenantIds.DEFAULT_TENANT_ID, owner.userId(),
+                "tcp-group-" + suffix, List.of(member.userId()));
+
+        try (TcpTestClient ownerClient = TcpTestClient.connect(tcpGatewayServer.boundPort());
+             TcpTestClient memberClient = TcpTestClient.connect(tcpGatewayServer.boundPort())) {
+            ownerClient.send(Command.LOGIN, LoginRequest.newBuilder()
+                    .setToken(ownerLogin.token()).setDeviceId(ownerDevice).setPlatform("LINUX").build());
+            assertThat(ownerClient.awaitPayload(Command.LOGIN_RESPONSE, LoginResponse.parser()).getCode())
+                    .isZero();
+            memberClient.send(Command.LOGIN, LoginRequest.newBuilder()
+                    .setToken(memberLogin.token()).setDeviceId(memberDevice).setPlatform("LINUX").build());
+            assertThat(memberClient.awaitPayload(Command.LOGIN_RESPONSE, LoginResponse.parser()).getCode())
+                    .isZero();
+
+            ownerClient.send(Command.SEND_MESSAGE, SendMessageRequest.newBuilder()
+                    .setClientMessageId("tcp-group-msg-" + suffix)
+                    .setConversationId(group.groupId())
+                    .setMessageType(MessageType.TEXT.code())
+                    .setContent(ByteString.copyFromUtf8("hello group tcp"))
+                    .build());
+            ServerAck ack = ownerClient.awaitPayload(Command.SERVER_ACK, ServerAck.parser());
+            assertThat(ack.getConversationSequence()).isEqualTo(1L);
+
+            MessageNotify notify = memberClient.awaitPayload(Command.MESSAGE_NOTIFY, MessageNotify.parser());
+            assertThat(notify.getConversationId()).isEqualTo(group.groupId());
+            assertThat(notify.getContent().toStringUtf8()).isEqualTo("hello group tcp");
         }
     }
 
