@@ -14,8 +14,8 @@ class MessageCreatedEventJsonTest {
 
     @Test
     void roundTripsEventThroughJsonForOutboxAndConsumer() {
-        MessageCreatedEvent event = new MessageCreatedEvent("event-1", 1L, "p_1_1001_1002",
-                9001L, 1001L, "device-a", 7L, 1,
+        MessageCreatedEvent event = new MessageCreatedEvent("event-1", "message.private.created",
+                1L, "p_1_1001_1002", 9001L, 1001L, "device-a", 7L, 1,
                 "hello".getBytes(StandardCharsets.UTF_8), Instant.parse("2026-01-01T00:00:00Z"),
                 "client-msg-1", List.of(1002L, 1003L));
 
@@ -23,6 +23,7 @@ class MessageCreatedEventJsonTest {
         MessageCreatedEvent decoded = JsonUtils.fromJson(payload, MessageCreatedEvent.class);
 
         assertThat(decoded.eventId()).isEqualTo(event.eventId());
+        assertThat(decoded.eventType()).isEqualTo("message.private.created");
         assertThat(decoded.tenantId()).isEqualTo(event.tenantId());
         assertThat(decoded.conversationId()).isEqualTo(event.conversationId());
         assertThat(decoded.messageId()).isEqualTo(event.messageId());
