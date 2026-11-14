@@ -1,0 +1,102 @@
+services:
+  mysql:
+    image: mysql:8.0.30
+    container_name: veryal-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: veryal_im
+      MYSQL_USER: ${VERYAL_DB_USER:-veryal}
+      MYSQL_PASSWORD: ${VERYAL_DB_PASSWORD:-veryal}
+      TZ: UTC
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --default-time-zone=+00:00
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    container_name: veryal-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: veryal-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${VERYAL_MQ_USER:-veryal}
+      RABBITMQ_DEFAULT_PASS: ${VERYAL_MQ_PASSWORD:-veryal}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  minio:
+    image: minio/minio:latest
+    container_name: veryal-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-veryal}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-veryal-secret}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+
+  veryal-app:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    container_name: veryal-app
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      VERYAL_DB_URL: jdbc:mysql://mysql:3306/veryal_im?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&rewriteBatchedStatements=true
+      VERYAL_DB_USER: ${VERYAL_DB_USER:-veryal}
+      VERYAL_DB_PASSWORD: ${VERYAL_DB_PASSWORD:-veryal}
+      VERYAL_TOKEN_SECRET: ${VERYAL_TOKEN_SECRET:?set VERYAL_TOKEN_SECRET in .env}
+      VERYAL_GATEWAY_ID: ${VERYAL_GATEWAY_ID:-gateway-1}
+      VERYAL_NODE_ID: ${VERYAL_NODE_ID:-1}
+      VERYAL_REDIS_ENABLED: "true"
+    ports:
+      - "8080:8080"
+      - "9098:9098"
+      - "9099:9099"
+
+volumes:
+  mysql-data:
+  redis-data:
+  rabbitmq-data:
+  minio-data:
