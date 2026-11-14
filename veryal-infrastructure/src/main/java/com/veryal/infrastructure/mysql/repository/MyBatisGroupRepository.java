@@ -38,6 +38,11 @@ public class MyBatisGroupRepository implements GroupRepository {
     }
 
     @Override
+    public void update(Group group) {
+        groupMapper.updateById(toPO(group));
+    }
+
+    @Override
     public void touch(String groupId, Instant updatedAt) {
         groupMapper.update(null, Wrappers.<GroupPO>lambdaUpdate()
                 .eq(GroupPO::getId, groupId)
@@ -65,6 +70,21 @@ public class MyBatisGroupRepository implements GroupRepository {
     @Override
     public void addMember(GroupMember member) {
         memberMapper.insertIgnore(toPO(member));
+    }
+
+    @Override
+    public void removeMember(String groupId, long userId) {
+        memberMapper.delete(Wrappers.<GroupMemberPO>lambdaQuery()
+                .eq(GroupMemberPO::getGroupId, groupId)
+                .eq(GroupMemberPO::getUserId, userId));
+    }
+
+    @Override
+    public void updateMemberRole(String groupId, long userId, GroupRole role) {
+        memberMapper.update(null, Wrappers.<GroupMemberPO>lambdaUpdate()
+                .eq(GroupMemberPO::getGroupId, groupId)
+                .eq(GroupMemberPO::getUserId, userId)
+                .set(GroupMemberPO::getRole, role.code()));
     }
 
     @Override

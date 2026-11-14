@@ -68,6 +68,13 @@ public class MyBatisConversationRepository implements ConversationRepository {
     }
 
     @Override
+    public void removeMember(String conversationId, long userId) {
+        memberMapper.delete(Wrappers.<ConversationMemberPO>lambdaQuery()
+                .eq(ConversationMemberPO::getConversationId, conversationId)
+                .eq(ConversationMemberPO::getUserId, userId));
+    }
+
+    @Override
     public void updateMemberCursor(ConversationMember member) {
         memberMapper.updateById(toPO(member));
     }

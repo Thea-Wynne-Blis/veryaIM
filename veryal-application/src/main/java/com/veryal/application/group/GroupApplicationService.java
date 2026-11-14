@@ -110,10 +110,87 @@ public class GroupApplicationService {
                 .toList();
     }
 
+    @Transactional
+    public GroupView rename(long tenantId, long operatorId, String groupId, String name) {
+        Group group = requireGroup(tenantId, groupId);
+        GroupMember operator = requireMember(groupId, operatorId);
+        if (!operator.role().manager()) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "only owner or admin can rename group");
+        }
+        Group renamed = group.rename(validateName(name), timeProvider.now());
+        groupRepository.update(renamed);
+        return view(renamed);
+    }
+
+    /**
+     * 退群。群主必须先转让群主或解散群，不能直接退出。
+     */
+    @Transactional
+    public void leave(long tenantId, long userId, String groupId) {
+        Group group = requireGroup(tenantId, groupId);
+        requireMember(groupId, userId);
+        if (group.ownerId() == userId) {
+            throw new BusinessException(ErrorCode.INVALID_ARGUMENT,
+                    "owner cannot leave group, transfer ownership first");
+        }
+        groupRepository.removeMember(groupId, userId);
+        conversationRepository.removeMember(groupId, userId);
+        groupRepository.touch(groupId, timeProvider.now());
+    }
+
+    /**
+     * 踢人。管理员不能踢管理员或群主，只有群主可以处理管理员。
+     */
+    @Transactional
+    public GroupView kick(long tenantId, long operatorId, String groupId, long targetUserId) {
+        Group group = requireGroup(tenantId, groupId);
+        GroupMember operator = requireMember(groupId, operatorId);
+        if (!operator.role().manager()) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "only owner or admin can remove members");
+        }
+        if (targetUserId == group.ownerId()) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "cannot remove group owner");
+        }
+        GroupMember target = requireMember(groupId, targetUserId);
+        if (operator.role() == GroupRole.ADMIN && target.role() == GroupRole.ADMIN) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "admin cannot remove another admin");
+        }
+        groupRepository.removeMember(groupId, targetUserId);
+        conversationRepository.removeMember(groupId, targetUserId);
+        groupRepository.touch(groupId, timeProvider.now());
+        return view(groupRepository.findById(groupId).orElseThrow());
+    }
+
+    /**
+     * 设置成员角色。只有群主可以设置管理员，且不能转移群主。
+     */
+    @Transactional
+    public GroupView changeRole(long tenantId, long operatorId, String groupId, long targetUserId,
+                                GroupRole role) {
+        Group group = requireGroup(tenantId, groupId);
+        GroupMember operator = requireMember(groupId, operatorId);
+        if (operator.role() != GroupRole.OWNER) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "only owner can change member role");
+        }
+        if (targetUserId == group.ownerId() || role == GroupRole.OWNER) {
+            throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "cannot change owner role");
+        }
+        requireMember(groupId, targetUserId);
+        groupRepository.updateMemberRole(groupId, targetUserId, role);
+        groupRepository.touch(groupId, timeProvider.now());
+        return view(groupRepository.findById(groupId).orElseThrow());
+    }
+
     private Group requireGroup(long tenantId, String groupId) {
         return groupRepository.findById(groupId)
                 .filter(group -> group.tenantId() == tenantId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "group not found"));
+    }
+
+    private GroupMember requireMember(String groupId, long userId) {
+        return groupRepository.findMember(groupId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CONVERSATION_MEMBER,
+                        "not a group member"));
     }
 
     private void addConversationMember(String conversationId, long userId, Instant now) {

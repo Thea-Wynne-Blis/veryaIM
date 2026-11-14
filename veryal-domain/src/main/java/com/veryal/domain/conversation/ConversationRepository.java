@@ -24,6 +24,8 @@ public interface ConversationRepository {
 
     void addMember(ConversationMember member);
 
+    void removeMember(String conversationId, long userId);
+
     void updateMemberCursor(ConversationMember member);
 
     /** 查询用户参与的会话，按更新时间倒序。 */

@@ -13,6 +13,8 @@ public interface GroupRepository {
 
     boolean saveIfAbsent(Group group);
 
+    void update(Group group);
+
     void touch(String groupId, Instant updatedAt);
 
     List<GroupMember> findMembers(String groupId);
@@ -20,6 +22,10 @@ public interface GroupRepository {
     Optional<GroupMember> findMember(String groupId, long userId);
 
     void addMember(GroupMember member);
+
+    void removeMember(String groupId, long userId);
+
+    void updateMemberRole(String groupId, long userId, GroupRole role);
 
     long countMembers(String groupId);
 
