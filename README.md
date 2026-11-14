@@ -9,7 +9,7 @@ VERYAL 是高性能、跨平台、可扩展的即时通讯基础设施。本仓�
 - 登录认证（HS256 JWT）、心跳租约、连接注册表、读空闲断开、命令分发、业务线程池隔离。
 - 用户 / 设备 / 单聊 / **群聊** / 消息 / 会话序号 / 历史消息 / 幂等发送 / Server ACK / Delivery ACK / Read ACK / 游标同步。
 - 群聊基础：建群、加成员、群主/管理员权限、群会话与群消息；群 ID 与群会话 ID 一致，消息权限复用会话成员校验。
-- 群管理：群主设置管理员、管理员/群主改名、踢人、成员退群；群主不可直接退群。
+- 群管理：群主设置管理员、管理员/群主改名、踢人、成员退群、**群主转让、解散群**；群主不可直接退群。
 - **Delivery ACK 持久化 + 投递查询**：按消息 + 设备记录投递序号，幂等且只前进；提供消息投递记录查询与会话未读数。
 - **Outbox + RabbitMQ 可靠投递**：消息与事件同事务落库，Publisher Confirm、指数退避重试、TTL 重试队列、死信队列。
 - **Redis 网关路由 + 单投递队列**：投递消费者按在线路由把连接按 gatewayId 分组，通过网关交换机定向推送到对应实例，支持多 Gateway 跨节点实时推送。
@@ -153,6 +153,8 @@ docker compose up -d --build
 | POST | `/api/v1/groups/{groupId}/leave` | 退群（群主不可直接退群） |
 | DELETE | `/api/v1/groups/{groupId}/members/{userId}` | 踢人（群主/管理员） |
 | PUT | `/api/v1/groups/{groupId}/members/{userId}/role` | 设置管理员/成员（仅群主） |
+| POST | `/api/v1/groups/{groupId}/transfer` | 转让群主（仅当前群主） |
+| DELETE | `/api/v1/groups/{groupId}` | 解散群（仅群主） |
 | GET | `/api/v1/conversations` | 会话列表（含读游标与最大序号） |
 | GET | `/api/v1/conversations/{id}` | 会话详情 |
 | POST | `/api/v1/conversations/{id}/messages` | 发送消息 |
@@ -214,7 +216,7 @@ mvn test
 ```
 
 - 单元测试：雪花 ID、Envelope 编解码、Netty 帧拆包/粘包/非法帧、JWT、PBKDF2、Outbox 事件 JSON 往返。
-- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群）、TCP 端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
+- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、TCP 端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
 
 集成测试使用 `test` profile，Netty Gateway 端口配置为 0（系统分配），不占用本机端口。
 
@@ -231,7 +233,7 @@ mvn test
 ## 后续路线
 
 - V0.3：已完成 Outbox + RabbitMQ + 重试/DLQ + 多实例实时投递；后续补充投递记录表与跨节点路由优化。
-- V0.4：群聊基础、群管理与 Redis 网关路由已完成；继续补充群主转让/解散、大群异步扇出、服务发现。
+- V0.4：群聊、群管理（含群主转让/解散）、Redis 网关路由已完成；继续补充大群异步扇出、服务发现与连接数限流。
 - V0.5：Caffeine 两级缓存完善、MinIO 文件服务、多租户、开放 API / SDK。
 - V1.0：管理后台、完整群聊/好友体系、监控告警、私有化部署。
 
