@@ -11,6 +11,8 @@ import com.veryal.domain.conversation.Conversation;
 import com.veryal.domain.conversation.ConversationMember;
 import com.veryal.domain.conversation.ConversationRepository;
 import com.veryal.domain.conversation.ConversationType;
+import com.veryal.domain.delivery.DeliveryRecord;
+import com.veryal.domain.delivery.DeliveryRepository;
 import com.veryal.domain.message.ConversationSequenceRepository;
 import com.veryal.domain.message.DuplicateMessageException;
 import com.veryal.domain.message.Message;
@@ -44,7 +46,7 @@ public class MessageApplicationService {
     private final ConversationSequenceRepository sequenceRepository;
     private final ConversationRepository conversationRepository;
     private final OutboxAppender outboxAppender;
-    private final DeliveryTracker deliveryTracker;
+    private final DeliveryRepository deliveryRepository;
     private final IdGenerator idGenerator;
     private final TimeProvider timeProvider;
 
@@ -103,16 +105,20 @@ public class MessageApplicationService {
     }
 
     /**
-     * 处理 Delivery ACK。V0.1 只做内存跟踪与指标，不改变消息持久化状态。
+     * 处理 Delivery ACK：持久化设备投递记录，并返回消息所属会话。
      *
      * @return 消息所属会话 ID
      */
-    public String acknowledgeDelivery(long tenantId, long userId, long messageId, String deviceId) {
+    public String acknowledgeDelivery(long tenantId, long userId, long messageId, String deviceId,
+                                      long deliveredSequence) {
         Message message = messageRepository.findById(messageId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MESSAGE_NOT_FOUND));
         requireMember(tenantId, message.conversationId(), userId);
-        deliveryTracker.record(message.id(), deviceId == null || deviceId.isBlank()
-                ? Long.toString(userId) : deviceId);
+        String normalizedDeviceId = deviceId == null || deviceId.isBlank()
+                ? Long.toString(userId) : deviceId;
+        deliveryRepository.record(new DeliveryRecord(idGenerator.nextId(), tenantId, message.id(),
+                message.conversationId(), userId, normalizedDeviceId, deliveredSequence,
+                timeProvider.now()));
         return message.conversationId();
     }
 

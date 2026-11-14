@@ -112,4 +112,19 @@ CREATE TABLE IF NOT EXISTS im_group_member
 CREATE UNIQUE INDEX IF NOT EXISTS uk_group_user ON im_group_member (group_id, user_id);
 CREATE INDEX IF NOT EXISTS idx_group_member_user ON im_group_member (user_id);
 
+CREATE TABLE IF NOT EXISTS im_message_delivery
+(
+    id                 BIGINT       NOT NULL PRIMARY KEY,
+    tenant_id          BIGINT       NOT NULL,
+    message_id         BIGINT       NOT NULL,
+    conversation_id    VARCHAR(64)  NOT NULL,
+    user_id            BIGINT       NOT NULL,
+    device_id          VARCHAR(64)  NOT NULL,
+    delivered_sequence BIGINT       NOT NULL DEFAULT 0,
+    delivered_at       TIMESTAMP(3) NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_delivery_message_device ON im_message_delivery (message_id, device_id);
+CREATE INDEX IF NOT EXISTS idx_delivery_conversation ON im_message_delivery (conversation_id, user_id);
+
+
 
