@@ -23,6 +23,7 @@ VERYAL 是高性能、跨平台、可扩展的即时通讯基础设施。本仓�
 - **可选 TLS**：TCP 与 WebSocket Gateway 支持 TLS 1.2/1.3（PEM 证书链 + 私钥）；HTTP 通过 Spring Boot `server.ssl` 开启。
 - **连接数治理**：单节点总连接数与单 IP 连接数可配置，准入处理器在 TLS/协议握手前拒绝超限连接，并输出拒绝指标。
 - **文件存储策略**：`local` / `minio` / `oss` 三种实现，`veryal.storage.type` 选择；文件本体不入 MySQL，元数据与 SHA-256 落库，支持上传、下载、删除、临时 URL。
+- **多消息类型**：TEXT / EMOJI / IMAGE / AUDIO / VIDEO / FILE / SYSTEM，采用策略 + 工厂校验内容格式与文件归属。
 - Lombok 消除样板代码，Hutool 提供 ID / 字符串等基础工具。
 
 ## 模块结构
@@ -88,7 +89,7 @@ com.veryal
 │   ├── identity        AuthApplicationService / SessionApplicationService / UserApplicationService / JwtTokenService
 │   ├── conversation    ConversationApplicationService / ConversationView / ConversationSummary
 │   ├── group           GroupApplicationService / GroupView / GroupSummary
-│   ├── message         MessageApplicationService / SendMessageCommand / SendMessageResult
+│   ├── message         MessageApplicationService / SendMessageCommand / SendMessageResult / strategy（多消息类型策略工厂）
 │   ├── ratelimit       RateLimitProperties / RateLimitConfig / RateLimitCleanupTask
 │   ├── audit           AuditRecorder
 │   ├── file            FileApplicationService / FileView
@@ -182,6 +183,22 @@ docker compose up -d --build
 | GET | `/api/v1/files/{fileId}/content` | 下载文件（仅上传者） |
 | GET | `/api/v1/files/{fileId}/url?ttlSeconds=600` | 临时访问 URL（MinIO/OSS 为预签名地址，本地为下载路径） |
 | DELETE | `/api/v1/files/{fileId}` | 删除文件（仅上传者） |
+
+### 消息类型
+
+消息类型由 `MessageTypeStrategyFactory` 按类型选择策略校验，文件类消息只允许引用发送者自己上传且未删除的文件。
+
+| type | code | content 格式 |
+|---|---|---|
+| `TEXT` | 1 | UTF-8 文本，最大 64KB |
+| `IMAGE` | 2 | JSON：`{"fileId":123,"width":1080,"height":1920}` |
+| `FILE` | 3 | JSON：`{"fileId":123,"fileName":"report.pdf"}` |
+| `AUDIO`（语音） | 4 | JSON：`{"fileId":123,"durationSeconds":12}` |
+| `VIDEO` | 5 | JSON：`{"fileId":123,"durationSeconds":30,"width":1080,"height":1920}` |
+| `EMOJI` | 6 | UTF-8 表情或短代码，最大 4KB |
+| `SYSTEM` | 9 | 服务端保留，客户端提交返回不支持 |
+
+图片/视频的 `width`、`height` 与语音/视频的 `durationSeconds` 为可选正数；`fileId` 必填。文本、表情以外的消息体最大 256KB。
 
 发送消息示例：
 
@@ -316,7 +333,7 @@ mvn test
 ```
 
 - 单元测试：雪花 ID、Envelope 编解码、Netty 帧拆包/粘包/非法帧、JWT、PBKDF2、Outbox 事件 JSON、限流算法（令牌桶/滑动窗口/固定窗口/注册表）、TLS 配置开关与快速失败、连接数限制、Caffeine 缓存配置、本地/云端存储策略。
-- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群消息分页扇出、限流 429、审计日志、连接数超限拒绝、文件上传/下载/权限/删除、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
+- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群消息分页扇出、限流 429、审计日志、连接数超限拒绝、文件上传/下载/权限/删除、多消息类型与文件归属校验、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
 
 集成测试使用 `test` profile，Netty Gateway 端口配置为 0（系统分配），不占用本机端口。
 
