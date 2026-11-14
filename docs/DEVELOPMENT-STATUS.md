@@ -74,7 +74,7 @@
 
 - [x] MySQL 8.0.30（MyBatis-Plus + Flyway DDL、UTC DATETIME(3)）
 - [x] Redis（在线状态 Hash，connectionId 校验防旧连接误删；生产 profile 启用）
-- [x] Caffeine（用户资料 L1 缓存，`@Cacheable` / `@CacheEvict`）
+- [x] Caffeine（用户资料 L1 缓存，代码显式配置：10 万条 / 10 分钟 / 统计；`@Cacheable` / `@CacheEvict`）
 - [x] RabbitMQ（Outbox 发布、每实例投递队列、重试队列、死信队列）
 - [ ] MinIO（部署文件已提供，文件域在 V0.5）
 - [x] Prometheus 指标（连接数、连接建立/关闭、心跳超时、消息接收、协议错误）
@@ -89,6 +89,7 @@
 - [x] TLS 配置测试：关闭时不加 SslHandler、开启但证书缺失时快速失败
 - [x] TLS 手工验证：自签证书下 TCP TLS 1.3 登录成功、WebSocket `wss://` 登录成功
 - [x] 连接数限制测试：单 IP 上限下第二个连接被拒绝，释放后可重新接入
+- [x] 缓存配置测试：用户缓存容量 10 万、过期时间 10 分钟
 - [x] HTTP 集成测试：注册→登录→建会话→发消息→幂等→历史→同步→已读→越权/未认证，并校验 Outbox 事件写入
 - [x] 群聊集成测试：建群、成员权限、群消息、群事件类型、非成员越权
 - [x] 群管理集成测试：管理员设置、改名、踢人、退群、群主/管理员权限边界
@@ -135,11 +136,11 @@
 
 - 环境：Windows 11、JDK 21.0.11、Maven 3.9.4。
 - `mvn -B -ntp verify`：6 个代码模块 + bootstrap + 父工程全部构建成功。
-- 测试共 48 个，全部通过：
+- 测试共 49 个，全部通过：
   - `veryal-common`：雪花 ID 唯一性/单调性/节点范围、限流算法（令牌桶/滑动窗口/固定窗口/注册表）（12）。
   - `veryal-protocol`：Envelope 编解码、未知指令、版本校验、帧头格式、半包/粘包、非法魔数、超大帧、指令不一致（12）。
   - `veryal-application`：JWT 签发/过期/篡改/错误密钥、PBKDF2、Outbox 事件 JSON（9）。
-  - `veryal-bootstrap`：HTTP 全流程（含 Outbox）、群聊、群管理、群生命周期、限流、审计、TLS 配置、连接限制、TCP 私聊/群聊端到端、WebSocket 端到端（15）。
+  - `veryal-bootstrap`：HTTP 全流程（含 Outbox）、群聊、群管理、群生命周期、限流、审计、TLS 配置、连接限制、缓存配置、TCP 私聊/群聊端到端、WebSocket 端到端（16）。
 - 可执行 jar 使用默认 `dev` profile 启动验证：H2 内存库 + 内存在线状态，`/actuator/health=UP`，注册接口返回成功。
 
 ### MySQL 8.0.30 + Redis 实际环境验证

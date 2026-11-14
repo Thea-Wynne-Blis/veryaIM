@@ -16,7 +16,7 @@ VERYAL 是高性能、跨平台、可扩展的即时通讯基础设施。本仓�
 - **Redis 网关路由 + 单投递队列**：投递消费者按在线路由把连接按 gatewayId 分组，通过网关交换机定向推送到对应实例，支持多 Gateway 跨节点实时推送。
 - HTTP API（8080）：注册、登录、资料、设备、会话、消息、同步。
 - MySQL 8.0.30 + MyBatis-Plus + Flyway；本地开发使用 H2（MySQL 兼容模式）零依赖启动。
-- Redis 在线状态（生产 profile）+ 内存实现（开发/测试 profile），Caffeine 用户资料缓存。
+- Redis 在线状态（生产 profile）+ 内存实现（开发/测试 profile）；Caffeine 用户资料缓存由 `CacheConfig` 在代码中显式配置（10 万条 / 10 分钟）。
 - Prometheus / Actuator 指标、统一日志字段（traceId / userId / connectionId 等）。
 - **策略模式限流**：令牌桶 / 滑动窗口 / 固定窗口可配置；HTTP 登录按 IP、HTTP API 按用户、TCP 登录按 IP、消息发送按用户。
 - **审计日志**：登录、建群/改名/成员变更/踢人/退群/转让/解散写入 `im_audit_log`，独立事务、失败不影响主业务。
@@ -246,6 +246,13 @@ veryal:
 
 环境变量：`VERYAL_GATEWAY_MAX_CONNECTIONS`、`VERYAL_GATEWAY_MAX_CONNECTIONS_PER_IP`。限制在 pipeline 最前端的 `ConnectionLimitHandler` 执行，超限连接直接关闭；拒绝次数记录在 `veryal.gateway.connections.rejected` 指标。
 
+### 本地缓存
+
+缓存策略集中写在 [CacheConfig.java](veryal-infrastructure/src/main/java/com/veryal/infrastructure/cache/CacheConfig.java)，不使用 `spring.cache.*` 自动配置：
+
+- `user`：`maximumSize=100000`、`expireAfterWrite=10m`、开启统计。
+- 用户资料读取使用 `@Cacheable`，资料更新使用 `@CacheEvict`；容量与 TTL 修改需显式改代码并经过评审。
+
 ## 一致性设计
 
 - 消息写入：校验成员 → 幂等检查 → 分配会话序号（`SELECT ... FOR UPDATE`）→ 插入消息 → 写入 Outbox → 更新会话时间，同一数据库事务内完成。
@@ -266,7 +273,7 @@ veryal:
 mvn test
 ```
 
-- 单元测试：雪花 ID、Envelope 编解码、Netty 帧拆包/粘包/非法帧、JWT、PBKDF2、Outbox 事件 JSON、限流算法（令牌桶/滑动窗口/固定窗口/注册表）、TLS 配置开关与快速失败、连接数限制。
+- 单元测试：雪花 ID、Envelope 编解码、Netty 帧拆包/粘包/非法帧、JWT、PBKDF2、Outbox 事件 JSON、限流算法（令牌桶/滑动窗口/固定窗口/注册表）、TLS 配置开关与快速失败、连接数限制、Caffeine 缓存配置。
 - 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群消息分页扇出、限流 429、审计日志、连接数超限拒绝、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
 
 集成测试使用 `test` profile，Netty Gateway 端口配置为 0（系统分配），不占用本机端口。
