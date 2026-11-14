@@ -7,7 +7,8 @@ VERYAL 是高性能、跨平台、可扩展的即时通讯基础设施。本仓�
 - 自定义 16 字节二进制协议帧 + Protobuf Envelope，TCP 与 WebSocket 共用。
 - Netty TCP Gateway（默认 9099）与 WebSocket Gateway（默认 9098，`/ws`）。
 - 登录认证（HS256 JWT）、心跳租约、连接注册表、读空闲断开、命令分发、业务线程池隔离。
-- 用户 / 设备 / 单聊会话 / 消息 / 会话序号 / 历史消息 / 幂等发送 / Server ACK / Delivery ACK / Read ACK / 游标同步。
+- 用户 / 设备 / 单聊 / **群聊** / 消息 / 会话序号 / 历史消息 / 幂等发送 / Server ACK / Delivery ACK / Read ACK / 游标同步。
+- 群聊基础：建群、加成员、群主/管理员权限、群会话与群消息；群 ID 与群会话 ID 一致，消息权限复用会话成员校验。
 - **Outbox + RabbitMQ 可靠投递**：消息与事件同事务落库，Publisher Confirm、指数退避重试、TTL 重试队列、死信队列；每个 Gateway 实例独立队列，保证多实例实时推送。
 - HTTP API（8080）：注册、登录、资料、设备、会话、消息、同步。
 - MySQL 8.0.30 + MyBatis-Plus + Flyway；本地开发使用 H2（MySQL 兼容模式）零依赖启动。
@@ -68,17 +69,19 @@ com.veryal
 │   ├── message         Message / MessageType / MessagePolicy / Repository / 序号端口
 │   │   ├── event       MessageCreatedEvent / MessageEvents
 │   │   └── outbox      OutboxMessage / OutboxAppender
+│   ├── group           Group / GroupMember / GroupRole / GroupRepository
 │   ├── delivery        RealtimeDeliveryPort
 │   └── presence        PresenceRecord / PresenceRepository
 ├── application
 │   ├── identity        AuthApplicationService / SessionApplicationService / UserApplicationService / JwtTokenService
 │   ├── conversation    ConversationApplicationService / ConversationView / ConversationSummary
+│   ├── group           GroupApplicationService / GroupView / GroupSummary
 │   ├── message         MessageApplicationService / SendMessageCommand / SendMessageResult / DeliveryTracker
 │   └── sync            SyncApplicationService
 ├── infrastructure
 │   ├── mysql
-│   │   ├── mapper      UserMapper / DeviceMapper / ConversationMapper / ConversationMemberMapper / MessageMapper / ConversationSequenceMapper / OutboxMapper
-│   │   ├── po          UserPO / DevicePO / ConversationPO / ConversationMemberPO / MessagePO / OutboxPO
+│   │   ├── mapper      UserMapper / DeviceMapper / ConversationMapper / GroupMapper / MessageMapper / OutboxMapper / ...
+│   │   ├── po          UserPO / DevicePO / ConversationPO / GroupPO / MessagePO / OutboxPO / ...
 │   │   ├── repository  MyBatis*Repository / MyBatisOutboxAppender
 │   │   ├── MyBatisPlusConfig / SqlTime
 │   ├── redis           RedisKeys / RedisPresenceRepository / InMemoryPresenceRepository
@@ -139,6 +142,10 @@ docker compose up -d --build
 | GET / PUT | `/api/v1/users/me` | 查询 / 修改资料 |
 | GET | `/api/v1/users/me/devices` | 设备列表 |
 | POST | `/api/v1/conversations` | 创建单聊 `{"peerUserId":1002}` |
+| POST | `/api/v1/groups` | 创建群 `{"name":"...","memberIds":[1002,1003]}` |
+| GET | `/api/v1/groups` | 我的群列表 |
+| GET | `/api/v1/groups/{groupId}` | 群详情 |
+| POST | `/api/v1/groups/{groupId}/members` | 添加群成员（群主/管理员） |
 | GET | `/api/v1/conversations` | 会话列表（含读游标与最大序号） |
 | GET | `/api/v1/conversations/{id}` | 会话详情 |
 | POST | `/api/v1/conversations/{id}/messages` | 发送消息 |
@@ -187,6 +194,8 @@ connect → (10s 内) LOGIN(token, deviceId) → LOGIN_RESPONSE
 - 消息持久化先于 ACK；事务提交后才由 Outbox Publisher 发布事件，投递失败不影响消息可靠性，客户端通过同步游标补偿。
 - 发布端：条件 UPDATE 抢占 Outbox 记录，Publisher Confirm 后置为已发布；失败按指数退避重试，超过上限进入失败状态，节点宕机遗留的 PUBLISHING 记录会被回收。
 - 消费端：手动 ACK，eventId 窗口去重；失败进入实例级 TTL 重试队列，超过上限进入死信队列。每个 Gateway 实例声明独立投递队列，实现多实例实时推送。
+- 群 ID 与群会话 ID 保持一致；建群/加成员同时写群成员表与会话成员表，消息权限只校验会话成员。
+- 消息事件按会话类型使用 `message.private.created` / `message.group.created`，重试时保留原始 routing key。
 - Delivery ACK 推进成员同步游标，Read ACK 推进读游标，游标只前进。
 
 ## 测试
@@ -196,7 +205,7 @@ mvn test
 ```
 
 - 单元测试：雪花 ID、Envelope 编解码、Netty 帧拆包/粘包/非法帧、JWT、PBKDF2、Outbox 事件 JSON 往返。
-- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、TCP 端到端（登录/心跳/发送/实时推送/回执）、WebSocket 握手与登录心跳。
+- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、群建群/成员权限/群消息、TCP 端到端（登录/心跳/发送/实时推送/回执）、WebSocket 握手与登录心跳。
 
 集成测试使用 `test` profile，Netty Gateway 端口配置为 0（系统分配），不占用本机端口。
 
@@ -213,7 +222,7 @@ mvn test
 ## 后续路线
 
 - V0.3：已完成 Outbox + RabbitMQ + 重试/DLQ + 多实例实时投递；后续补充投递记录表与跨节点路由优化。
-- V0.4：多 Gateway 路由收敛到 Redis + 单投递队列、服务发现、群消息异步扇出。
+- V0.4：群聊基础已完成；继续补充退群/踢人/管理员、Redis 路由 + 单投递队列、服务发现与大规模群异步扇出。
 - V0.5：Caffeine 两级缓存完善、MinIO 文件服务、多租户、开放 API / SDK。
 - V1.0：管理后台、完整群聊/好友体系、监控告警、私有化部署。
 
