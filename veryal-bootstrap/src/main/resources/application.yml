@@ -1,6 +1,8 @@
 server:
   port: 8080
   shutdown: graceful
+  ssl:
+    enabled: ${SERVER_SSL_ENABLED:false}
 
 spring:
   application:
@@ -86,6 +88,11 @@ veryal:
       enabled: true
       port: 9098
       path: /ws
+    tls:
+      enabled: ${VERYAL_TLS_ENABLED:false}
+      cert-path: ${VERYAL_TLS_CERT:}
+      key-path: ${VERYAL_TLS_KEY:}
+      key-password: ${VERYAL_TLS_KEY_PASSWORD:}
   security:
     token:
       issuer: veryal

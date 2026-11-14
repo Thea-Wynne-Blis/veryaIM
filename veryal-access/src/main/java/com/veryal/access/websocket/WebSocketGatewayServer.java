@@ -2,6 +2,7 @@ package com.veryal.access.websocket;
 
 import com.veryal.access.core.GatewayHandlers;
 import com.veryal.access.core.config.GatewayProperties;
+import com.veryal.access.core.tls.GatewaySslContextFactory;
 import com.veryal.access.websocket.codec.WebSocketFrameEncoder;
 import com.veryal.access.websocket.codec.WebSocketFrameToByteBufDecoder;
 import com.veryal.common.exception.ErrorCode;
@@ -24,6 +25,7 @@ import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.websocketx.WebSocketFrameAggregator;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.handler.timeout.IdleStateHandler;
+import io.netty.handler.ssl.SslHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -48,6 +50,7 @@ public class WebSocketGatewayServer implements SmartLifecycle {
     private final WebSocketGatewayProperties properties;
     private final GatewayProperties gatewayProperties;
     private final GatewayHandlers gatewayHandlers;
+    private final GatewaySslContextFactory sslContextFactory;
 
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
@@ -71,6 +74,10 @@ public class WebSocketGatewayServer implements SmartLifecycle {
                     @Override
                     protected void initChannel(SocketChannel channel) {
                         ChannelPipeline pipeline = channel.pipeline();
+                        SslHandler sslHandler = sslContextFactory.newHandler(channel.alloc());
+                        if (sslHandler != null) {
+                            pipeline.addLast("tls", sslHandler);
+                        }
                         pipeline.addLast("http-codec", new HttpServerCodec());
                         pipeline.addLast("http-aggregator", new HttpObjectAggregator(properties.getMaxHttpContentLength()));
                         pipeline.addLast("ws-protocol", new WebSocketServerProtocolHandler(properties.getPath(), null,

@@ -2,6 +2,7 @@ package com.veryal.access.tcp;
 
 import com.veryal.access.core.GatewayHandlers;
 import com.veryal.access.core.config.GatewayProperties;
+import com.veryal.access.core.tls.GatewaySslContextFactory;
 import com.veryal.common.exception.ErrorCode;
 import com.veryal.common.exception.SystemException;
 import com.veryal.protocol.netty.EnvelopeDecoder;
@@ -19,6 +20,7 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.timeout.IdleStateHandler;
+import io.netty.handler.ssl.SslHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -44,6 +46,7 @@ public class TcpGatewayServer implements SmartLifecycle {
     private final TcpGatewayProperties properties;
     private final GatewayProperties gatewayProperties;
     private final GatewayHandlers gatewayHandlers;
+    private final GatewaySslContextFactory sslContextFactory;
 
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
@@ -67,6 +70,10 @@ public class TcpGatewayServer implements SmartLifecycle {
                     @Override
                     protected void initChannel(SocketChannel channel) {
                         ChannelPipeline pipeline = channel.pipeline();
+                        SslHandler sslHandler = sslContextFactory.newHandler(channel.alloc());
+                        if (sslHandler != null) {
+                            pipeline.addLast("tls", sslHandler);
+                        }
                         pipeline.addLast("veryal-idle",
                                 new IdleStateHandler((int) gatewayProperties.getHeartbeatIdle().toSeconds(), 0, 0));
                         pipeline.addLast("veryal-frame-decoder",
