@@ -93,6 +93,8 @@ veryal:
       cert-path: ${VERYAL_TLS_CERT:}
       key-path: ${VERYAL_TLS_KEY:}
       key-password: ${VERYAL_TLS_KEY_PASSWORD:}
+    max-connections: ${VERYAL_GATEWAY_MAX_CONNECTIONS:0}
+    max-connections-per-ip: ${VERYAL_GATEWAY_MAX_CONNECTIONS_PER_IP:0}
   security:
     token:
       issuer: veryal

@@ -2,6 +2,9 @@ package com.veryal.access.tcp;
 
 import com.veryal.access.core.GatewayHandlers;
 import com.veryal.access.core.config.GatewayProperties;
+import com.veryal.access.core.limit.ConnectionLimitHandler;
+import com.veryal.access.core.limit.ConnectionLimiter;
+import com.veryal.access.core.metrics.GatewayMetrics;
 import com.veryal.access.core.tls.GatewaySslContextFactory;
 import com.veryal.common.exception.ErrorCode;
 import com.veryal.common.exception.SystemException;
@@ -47,6 +50,8 @@ public class TcpGatewayServer implements SmartLifecycle {
     private final GatewayProperties gatewayProperties;
     private final GatewayHandlers gatewayHandlers;
     private final GatewaySslContextFactory sslContextFactory;
+    private final ConnectionLimiter connectionLimiter;
+    private final GatewayMetrics metrics;
 
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
@@ -70,6 +75,8 @@ public class TcpGatewayServer implements SmartLifecycle {
                     @Override
                     protected void initChannel(SocketChannel channel) {
                         ChannelPipeline pipeline = channel.pipeline();
+                        pipeline.addLast("connection-limit",
+                                new ConnectionLimitHandler(connectionLimiter, metrics));
                         SslHandler sslHandler = sslContextFactory.newHandler(channel.alloc());
                         if (sslHandler != null) {
                             pipeline.addLast("tls", sslHandler);

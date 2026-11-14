@@ -19,6 +19,7 @@ public class GatewayMetrics {
     private final AtomicInteger activeConnections = new AtomicInteger();
     private final Counter connectionsCreated;
     private final Counter connectionsClosed;
+    private final Counter connectionsRejected;
     private final Counter heartbeatTimeouts;
     private final Counter errors;
 
@@ -26,6 +27,7 @@ public class GatewayMetrics {
         this.registry = registry;
         this.connectionsCreated = Counter.builder(MetricNames.CONNECTIONS_CREATED).register(registry);
         this.connectionsClosed = Counter.builder(MetricNames.CONNECTIONS_CLOSED).register(registry);
+        this.connectionsRejected = Counter.builder("veryal.gateway.connections.rejected").register(registry);
         this.heartbeatTimeouts = Counter.builder(MetricNames.HEARTBEAT_TIMEOUT).register(registry);
         this.errors = Counter.builder("veryal.gateway.protocol.errors").register(registry);
     }
@@ -43,6 +45,11 @@ public class GatewayMetrics {
     public void connectionClosed() {
         activeConnections.updateAndGet(value -> Math.max(0, value - 1));
         connectionsClosed.increment();
+    }
+
+    public void connectionRejected(String reason) {
+        registry.counter("veryal.gateway.connections.rejected", "reason", reason).increment();
+        connectionsRejected.increment();
     }
 
     public void heartbeatTimeout() {

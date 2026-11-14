@@ -31,4 +31,10 @@ public class GatewayProperties {
 
     /** 业务队列容量，必须有界。 */
     private int businessQueueCapacity = 10_000;
+
+    /** 单节点最大连接数，0 表示不限制。 */
+    private int maxConnections = 0;
+
+    /** 单 IP 最大连接数，0 表示不限制。 */
+    private int maxConnectionsPerIp = 0;
 }
