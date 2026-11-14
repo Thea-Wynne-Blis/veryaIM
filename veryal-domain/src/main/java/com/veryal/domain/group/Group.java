@@ -39,4 +39,11 @@ public record Group(String id, long tenantId, String name, long ownerId,
     public Group rename(String newName, Instant now) {
         return new Group(id, tenantId, newName, ownerId, createdAt, now);
     }
+
+    public Group transferOwner(long newOwnerId, Instant now) {
+        if (newOwnerId <= 0 || newOwnerId == ownerId) {
+            throw new IllegalArgumentException("invalid new owner");
+        }
+        return new Group(id, tenantId, name, newOwnerId, createdAt, now);
+    }
 }

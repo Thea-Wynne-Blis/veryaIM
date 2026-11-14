@@ -5,6 +5,7 @@ import com.veryal.access.http.dto.CreateGroupRequest;
 import com.veryal.access.http.dto.GroupResponse;
 import com.veryal.access.http.dto.GroupRoleRequest;
 import com.veryal.access.http.dto.GroupSummaryResponse;
+import com.veryal.access.http.dto.TransferGroupRequest;
 import com.veryal.access.http.dto.UpdateGroupRequest;
 import com.veryal.access.http.security.CurrentUser;
 import com.veryal.application.group.GroupApplicationService;
@@ -95,6 +96,21 @@ public class GroupController {
                                                  @Valid @RequestBody GroupRoleRequest request) {
         return ApiResponse.ok(GroupResponse.from(groupApplicationService.changeRole(
                 user.tenantId(), user.userId(), groupId, userId, parseRole(request.role()))));
+    }
+
+    @PostMapping("/{groupId}/transfer")
+    public ApiResponse<GroupResponse> transfer(@CurrentUser AuthenticatedUser user,
+                                               @PathVariable String groupId,
+                                               @Valid @RequestBody TransferGroupRequest request) {
+        return ApiResponse.ok(GroupResponse.from(groupApplicationService.transferOwner(
+                user.tenantId(), user.userId(), groupId, request.newOwnerId())));
+    }
+
+    @DeleteMapping("/{groupId}")
+    public ApiResponse<Void> disband(@CurrentUser AuthenticatedUser user,
+                                     @PathVariable String groupId) {
+        groupApplicationService.disband(user.tenantId(), user.userId(), groupId);
+        return ApiResponse.ok();
     }
 
     private GroupRole parseRole(String role) {

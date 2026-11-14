@@ -84,6 +84,13 @@ public class MyBatisConversationRepository implements ConversationRepository {
         return conversationMapper.selectByUser(tenantId, userId).stream().map(this::toDomain).toList();
     }
 
+    @Override
+    public void delete(String conversationId) {
+        memberMapper.delete(Wrappers.<ConversationMemberPO>lambdaQuery()
+                .eq(ConversationMemberPO::getConversationId, conversationId));
+        conversationMapper.deleteById(conversationId);
+    }
+
     private Conversation toDomain(ConversationPO po) {
         return new Conversation(po.id, po.tenantId, ConversationType.fromCode(po.conversationType),
                 SqlTime.toInstant(po.createdAt), SqlTime.toInstant(po.updatedAt));

@@ -181,6 +181,43 @@ public class GroupApplicationService {
         return view(groupRepository.findById(groupId).orElseThrow());
     }
 
+    /**
+     * 转让群主：原群主降为管理员，新群主必须是群成员。
+     */
+    @Transactional
+    public GroupView transferOwner(long tenantId, long currentOwnerId, String groupId, long newOwnerId) {
+        Group group = requireGroup(tenantId, groupId);
+        GroupMember operator = requireMember(groupId, currentOwnerId);
+        if (operator.role() != GroupRole.OWNER) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "only owner can transfer ownership");
+        }
+        if (newOwnerId == currentOwnerId) {
+            throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "already group owner");
+        }
+        requireMember(groupId, newOwnerId);
+        Instant now = timeProvider.now();
+        Group transferred = group.transferOwner(newOwnerId, now);
+        groupRepository.update(transferred);
+        groupRepository.updateMemberRole(groupId, newOwnerId, GroupRole.OWNER);
+        groupRepository.updateMemberRole(groupId, currentOwnerId, GroupRole.ADMIN);
+        groupRepository.touch(groupId, now);
+        return view(transferred);
+    }
+
+    /**
+     * 解散群：仅群主可操作，删除群、群成员、会话与会话成员；历史消息保留。
+     */
+    @Transactional
+    public void disband(long tenantId, long ownerId, String groupId) {
+        requireGroup(tenantId, groupId);
+        GroupMember operator = requireMember(groupId, ownerId);
+        if (operator.role() != GroupRole.OWNER) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "only owner can disband group");
+        }
+        conversationRepository.delete(groupId);
+        groupRepository.delete(groupId);
+    }
+
     private Group requireGroup(long tenantId, String groupId) {
         return groupRepository.findById(groupId)
                 .filter(group -> group.tenantId() == tenantId)

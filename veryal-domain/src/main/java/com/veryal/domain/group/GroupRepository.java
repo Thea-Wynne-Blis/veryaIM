@@ -30,4 +30,9 @@ public interface GroupRepository {
     long countMembers(String groupId);
 
     List<Group> findByUser(long tenantId, long userId);
+
+    /**
+     * 解散群：删除群与全部群成员。
+     */
+    void delete(String groupId);
 }

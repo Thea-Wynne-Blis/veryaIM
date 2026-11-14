@@ -99,6 +99,13 @@ public class MyBatisGroupRepository implements GroupRepository {
         return groupMapper.selectByUser(tenantId, userId).stream().map(this::toDomain).toList();
     }
 
+    @Override
+    public void delete(String groupId) {
+        memberMapper.delete(Wrappers.<GroupMemberPO>lambdaQuery()
+                .eq(GroupMemberPO::getGroupId, groupId));
+        groupMapper.deleteById(groupId);
+    }
+
     private Group toDomain(GroupPO po) {
         return new Group(po.id, po.tenantId, po.name, po.ownerId,
                 SqlTime.toInstant(po.createdAt), SqlTime.toInstant(po.updatedAt));
