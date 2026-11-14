@@ -12,7 +12,7 @@
 | V0.2 | 基础 IM（用户 / 设备 / 单聊 / 群聊 / 会话 / 消息持久化 / ACK / 幂等 / 历史） | 单聊、群聊基础与游标同步已实现 |
 | V0.3 | 可靠性（RabbitMQ / Outbox / 重试 / DLQ / 跨节点投递） | Outbox + RabbitMQ 投递/重试/DLQ/多实例广播已实现；Redis 路由优化待 V0.4 |
 | V0.4 | 分布式集群（多 Gateway / Redis 路由 / 群聊扇出） | 群聊、群管理、群消息分页扇出、Redis 网关路由、策略模式限流、审计日志、TLS、连接数上限已实现；审计查询、大群压测待继续 |
-| V0.5 | 性能与商业化（文件、多租户、SDK、开放平台） | 未开始 |
+| V0.5 | 性能与商业化（文件、多租户、SDK、开放平台） | 文件存储（local/MinIO/OSS）已实现；分片/断点续传、多租户、SDK 未开始 |
 
 ## 二、第一交付清单对照
 
@@ -75,8 +75,8 @@
 - [x] MySQL 8.0.30（MyBatis-Plus + Flyway DDL、UTC DATETIME(3)）
 - [x] Redis（在线状态 Hash，connectionId 校验防旧连接误删；生产 profile 启用）
 - [x] Caffeine（用户资料 L1 缓存，代码显式配置：10 万条 / 10 分钟 / 统计；`@Cacheable` / `@CacheEvict`）
-- [x] RabbitMQ（Outbox 发布、每实例投递队列、重试队列、死信队列）
-- [ ] MinIO（部署文件已提供，文件域在 V0.5）
+- [x] RabbitMQ（Outbox 发布、单投递队列 + Redis 路由、重试队列、死信队列）
+- [x] 文件存储策略（local / MinIO / 阿里云 OSS；上传、下载、删除、临时 URL、SHA-256、元数据落库）
 - [x] Prometheus 指标（连接数、连接建立/关闭、心跳超时、消息接收、协议错误）
 - [ ] Grafana（按部署环境接入）
 - [x] Actuator health / info / metrics
@@ -90,6 +90,7 @@
 - [x] TLS 手工验证：自签证书下 TCP TLS 1.3 登录成功、WebSocket `wss://` 登录成功
 - [x] 连接数限制测试：单 IP 上限下第二个连接被拒绝，释放后可重新接入
 - [x] 缓存配置测试：用户缓存容量 10 万、过期时间 10 分钟
+- [x] 文件测试：本地存储读写/删除/路径穿越、文件 API 上传下载权限删除、策略选择与 OSS 预签名
 - [x] HTTP 集成测试：注册→登录→建会话→发消息→幂等→历史→同步→已读→越权/未认证，并校验 Outbox 事件写入
 - [x] 群聊集成测试：建群、成员权限、群消息、群事件类型、非成员越权
 - [x] 群管理集成测试：管理员设置、改名、踢人、退群、群主/管理员权限边界
@@ -129,6 +130,7 @@
 11. **dev/test 会累积 Outbox**：MQ 关闭时 Outbox 只写不发，便于本地排查；生产环境正常发布。
 12. **审计缺少查询与归档**：审计日志已写入，但暂无管理查询接口、保留策略与归档任务。
 13. **TLS 暂不支持热加载与双向认证**：证书在首次连接时构建，更新证书需重启；暂未实现 mTLS。
+14. **文件能力仍是基础版**：仅上传者可下载/删除，未接入会话文件消息；未实现分片上传、断点续传、病毒扫描与 CDN；阿里云 OSS 仅完成预签名单测，未做真实凭证联调。
 
 ## 五、验证记录（2026-11-14）
 
@@ -136,11 +138,11 @@
 
 - 环境：Windows 11、JDK 21.0.11、Maven 3.9.4。
 - `mvn -B -ntp verify`：6 个代码模块 + bootstrap + 父工程全部构建成功。
-- 测试共 49 个，全部通过：
+- 测试共 54 个，全部通过：
   - `veryal-common`：雪花 ID 唯一性/单调性/节点范围、限流算法（令牌桶/滑动窗口/固定窗口/注册表）（12）。
   - `veryal-protocol`：Envelope 编解码、未知指令、版本校验、帧头格式、半包/粘包、非法魔数、超大帧、指令不一致（12）。
   - `veryal-application`：JWT 签发/过期/篡改/错误密钥、PBKDF2、Outbox 事件 JSON（9）。
-  - `veryal-bootstrap`：HTTP 全流程（含 Outbox）、群聊、群管理、群生命周期、限流、审计、TLS 配置、连接限制、缓存配置、TCP 私聊/群聊端到端、WebSocket 端到端（16）。
+  - `veryal-bootstrap`：HTTP 全流程（含 Outbox）、群聊、群管理、群生命周期、限流、审计、TLS 配置、连接限制、缓存配置、文件 API、存储策略、TCP 私聊/群聊端到端、WebSocket 端到端（21）。
 - 可执行 jar 使用默认 `dev` profile 启动验证：H2 内存库 + 内存在线状态，`/actuator/health=UP`，注册接口返回成功。
 
 ### MySQL 8.0.30 + Redis 实际环境验证
@@ -148,7 +150,7 @@
 使用 MySQL 8.0.30 与 Redis 7.4 容器（`prod` profile，经 SSH 隧道连接）启动打包产物：
 
 - 数据访问层切换 MyBatis-Plus 后重新回归：注册、登录、创建会话、发送消息、幂等重发、历史查询链路在 MySQL 8.0.30 上全部通过。
-- Flyway 自动执行 `V1__init.sql`、`V2__outbox.sql`、`V3__group.sql`、`V4__message_delivery.sql`、`V5__audit_log.sql`。
+- Flyway 自动执行 `V1__init.sql`、`V2__outbox.sql`、`V3__group.sql`、`V4__message_delivery.sql`、`V5__audit_log.sql`、`V6__file.sql`。
 - `GET /actuator/health` 返回 `UP`（MySQL + Redis）。
 - HTTP 流程验证通过：注册 → 登录 → 创建单聊 → 发送消息（seq=1）→ 重复发送命中幂等（`duplicate=true`，同 messageId/seq）→ 历史消息 1 条 → 同步 1 条 → 已读上报。
 - 数据库核对：`im_user`、`im_conversation_sequence.last_seq=1`、`im_message` 记录存在。
@@ -193,11 +195,19 @@
 - WebSocket 客户端通过 `wss://127.0.0.1:9444/ws` 完成 TLS 握手并登录成功。
 - 证书缺失时应用快速失败；未开启 TLS 时原有明文测试全部通过。
 
+### MinIO 文件存储验证
+
+- 服务器启动 MinIO 容器，应用配置 `VERYAL_STORAGE_TYPE=minio` 指向该实例。
+- HTTP 上传 `minio.txt` → 元数据写入 `im_file` → 应用下载内容一致 → 预签名 URL 直接 GET 成功 → 删除后下载返回 404。
+- 本地存储策略在集成测试中覆盖：上传、下载、403 越权、临时 URL 回退、删除后 404、路径穿越拒绝。
+- 阿里云 OSS：使用测试凭证生成本地预签名 URL（不访问外网）；真实 OSS 联调待提供凭证。
+
 > 验证用容器与数据库不包含仓库代码，仅用于确认 MySQL 方言、Flyway、Redis 在线状态与 RabbitMQ 投递链路在真实环境可用。
 
 ## 六、下一步计划（建议顺序）
 
-1. 放开群成员上限，批量建群/加成员与大群压测。
-2. 审计查询/归档、TLS 证书热加载与 mTLS。
-3. Testcontainers 集成测试矩阵 + 压测脚本（连接数、吞吐、P99）。
-4. 集群级限流（Redis 计数/滑动窗口）与按用户连接数限制。
+1. 文件服务增强：分片上传/断点续传、会话文件消息与成员访问、CDN、病毒扫描。
+2. 放开群成员上限，批量建群/加成员与大群压测。
+3. 审计查询/归档、TLS 证书热加载与 mTLS。
+4. Testcontainers 集成测试矩阵 + 压测脚本（连接数、吞吐、P99）。
+5. 集群级限流（Redis 计数/滑动窗口）与按用户连接数限制。

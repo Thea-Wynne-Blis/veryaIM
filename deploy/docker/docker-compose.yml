@@ -83,6 +83,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      minio:
+        condition: service_started
     environment:
       SPRING_PROFILES_ACTIVE: prod
       VERYAL_DB_URL: jdbc:mysql://mysql:3306/veryal_im?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&rewriteBatchedStatements=true
@@ -93,6 +95,11 @@ services:
       VERYAL_NODE_ID: ${VERYAL_NODE_ID:-1}
       VERYAL_REDIS_ENABLED: "true"
       VERYAL_MQ_ENABLED: "true"
+      VERYAL_STORAGE_TYPE: ${VERYAL_STORAGE_TYPE:-minio}
+      VERYAL_MINIO_ENDPOINT: http://minio:9000
+      VERYAL_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-veryal}
+      VERYAL_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-veryal-secret}
+      VERYAL_MINIO_BUCKET: ${VERYAL_MINIO_BUCKET:-veryal}
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: "5672"
       SPRING_RABBITMQ_USERNAME: ${VERYAL_MQ_USER:-veryal}

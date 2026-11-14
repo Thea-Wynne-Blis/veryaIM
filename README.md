@@ -22,6 +22,7 @@ VERYAL 是高性能、跨平台、可扩展的即时通讯基础设施。本仓�
 - **审计日志**：登录、建群/改名/成员变更/踢人/退群/转让/解散写入 `im_audit_log`，独立事务、失败不影响主业务。
 - **可选 TLS**：TCP 与 WebSocket Gateway 支持 TLS 1.2/1.3（PEM 证书链 + 私钥）；HTTP 通过 Spring Boot `server.ssl` 开启。
 - **连接数治理**：单节点总连接数与单 IP 连接数可配置，准入处理器在 TLS/协议握手前拒绝超限连接，并输出拒绝指标。
+- **文件存储策略**：`local` / `minio` / `oss` 三种实现，`veryal.storage.type` 选择；文件本体不入 MySQL，元数据与 SHA-256 落库，支持上传、下载、删除、临时 URL。
 - Lombok 消除样板代码，Hutool 提供 ID / 字符串等基础工具。
 
 ## 模块结构
@@ -80,6 +81,7 @@ com.veryal
 │   │   └── outbox      OutboxMessage / OutboxAppender
 │   ├── group           Group / GroupMember / GroupRole / GroupRepository
 │   ├── audit           AuditAction / AuditLog / AuditRepository
+│   ├── file            StoredFile / FileStatus / FileStorage / FileStorageProvider / FileRepository / StorageType
 │   ├── delivery        DeliveryRecord / DeliveryRepository / GatewayPushCommand / GatewayPushPort / RealtimeDeliveryPort
 │   └── presence        PresenceRecord / PresenceRepository
 ├── application
@@ -89,6 +91,7 @@ com.veryal
 │   ├── message         MessageApplicationService / SendMessageCommand / SendMessageResult
 │   ├── ratelimit       RateLimitProperties / RateLimitConfig / RateLimitCleanupTask
 │   ├── audit           AuditRecorder
+│   ├── file            FileApplicationService / FileView
 │   └── sync            SyncApplicationService
 ├── infrastructure
 │   ├── mysql
@@ -98,6 +101,7 @@ com.veryal
 │   │   ├── MyBatisPlusConfig / SqlTime
 │   ├── redis           RedisKeys / RedisPresenceRepository / InMemoryPresenceRepository
 │   ├── cache           CacheConfig
+│   ├── storage         StorageProperties / LocalFileStorage / MinioFileStorage / AliyunOssFileStorage / FileStorageProviderImpl
 │   └── mq              RabbitMqConfig / OutboxPublisher / MessageDeliveryListener / GatewayRouter / GatewayPushListener / RabbitInstance
 ├── access
 │   ├── core            Connection / ConnectionRegistry / GatewayHandlers / handler / protocol / push（RealtimeDelivery + LocalGatewayPush）/ tls / metrics
@@ -127,7 +131,7 @@ curl -s -X POST http://127.0.0.1:8080/api/v1/auth/register \
   -d '{"username":"alice","password":"password123","nickname":"Alice"}'
 ```
 
-## 使用 Docker（MySQL 8.0.30 + Redis + RabbitMQ）
+## 使用 Docker（MySQL 8.0.30 + Redis + RabbitMQ + MinIO）
 
 ```bash
 cd deploy/docker
@@ -173,6 +177,11 @@ docker compose up -d --build
 | GET | `/api/v1/conversations/{id}/messages/{messageId}/deliveries` | 消息设备投递记录 |
 | POST | `/api/v1/conversations/{id}/read` | 上报已读序号 |
 | GET | `/api/v1/sync/messages?conversationId=...&cursor=...&limit=...` | 离线同步 |
+| POST | `/api/v1/files` | 上传文件（multipart，字段 `file`） |
+| GET | `/api/v1/files/{fileId}` | 文件元数据 |
+| GET | `/api/v1/files/{fileId}/content` | 下载文件（仅上传者） |
+| GET | `/api/v1/files/{fileId}/url?ttlSeconds=600` | 临时访问 URL（MinIO/OSS 为预签名地址，本地为下载路径） |
+| DELETE | `/api/v1/files/{fileId}` | 删除文件（仅上传者） |
 
 发送消息示例：
 
@@ -253,6 +262,39 @@ veryal:
 - `user`：`maximumSize=100000`、`expireAfterWrite=10m`、开启统计。
 - 用户资料读取使用 `@Cacheable`，资料更新使用 `@CacheEvict`；容量与 TTL 修改需显式改代码并经过评审。
 
+### 文件存储
+
+`FileStorage` 是策略接口，`FileStorageProvider` 按 `veryal.storage.type` 选择实现：
+
+| type | 实现 | 说明 |
+|---|---|---|
+| `local` | `LocalFileStorage` | 本地磁盘，默认 `./data/files`，适合开发/单机 |
+| `minio` | `MinioFileStorage` | MinIO / S3 兼容对象存储，自动创建 bucket，支持预签名 URL |
+| `oss` | `AliyunOssFileStorage` | 阿里云 OSS，支持预签名 URL |
+
+```yaml
+veryal:
+  storage:
+    type: ${VERYAL_STORAGE_TYPE:local}
+    local:
+      root-path: ${VERYAL_STORAGE_LOCAL_ROOT:./data/files}
+    minio:
+      endpoint: ${VERYAL_MINIO_ENDPOINT:}
+      access-key: ${VERYAL_MINIO_ACCESS_KEY:}
+      secret-key: ${VERYAL_MINIO_SECRET_KEY:}
+      bucket: ${VERYAL_MINIO_BUCKET:veryal}
+    oss:
+      endpoint: ${VERYAL_OSS_ENDPOINT:}
+      access-key-id: ${VERYAL_OSS_ACCESS_KEY_ID:}
+      access-key-secret: ${VERYAL_OSS_ACCESS_KEY_SECRET:}
+      bucket: ${VERYAL_OSS_BUCKET:veryal}
+```
+
+- 文件大小上限 20MB（Spring multipart 与应用双重校验）。
+- 对象键：`tenant/{tenantId}/{yyyy/MM/dd}/{fileId}.{ext}`；文件名做路径穿越与控制字符清理。
+- 上传先写对象存储，再写 `im_file`；元数据失败会补偿删除对象。
+- 当前仅上传者可下载/删除；后续接入会话文件消息时再扩展成员权限。
+
 ## 一致性设计
 
 - 消息写入：校验成员 → 幂等检查 → 分配会话序号（`SELECT ... FOR UPDATE`）→ 插入消息 → 写入 Outbox → 更新会话时间，同一数据库事务内完成。
@@ -273,8 +315,8 @@ veryal:
 mvn test
 ```
 
-- 单元测试：雪花 ID、Envelope 编解码、Netty 帧拆包/粘包/非法帧、JWT、PBKDF2、Outbox 事件 JSON、限流算法（令牌桶/滑动窗口/固定窗口/注册表）、TLS 配置开关与快速失败、连接数限制、Caffeine 缓存配置。
-- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群消息分页扇出、限流 429、审计日志、连接数超限拒绝、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
+- 单元测试：雪花 ID、Envelope 编解码、Netty 帧拆包/粘包/非法帧、JWT、PBKDF2、Outbox 事件 JSON、限流算法（令牌桶/滑动窗口/固定窗口/注册表）、TLS 配置开关与快速失败、连接数限制、Caffeine 缓存配置、本地/云端存储策略。
+- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群消息分页扇出、限流 429、审计日志、连接数超限拒绝、文件上传/下载/权限/删除、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
 
 集成测试使用 `test` profile，Netty Gateway 端口配置为 0（系统分配），不占用本机端口。
 
@@ -293,7 +335,7 @@ mvn test
 
 - V0.3：已完成 Outbox + RabbitMQ + 重试/DLQ + 多实例实时投递；后续补充投递记录表与跨节点路由优化。
 - V0.4：群聊、群管理（含群主转让/解散）、群消息分页扇出、Redis 网关路由、策略模式限流、审计日志、可选 TLS、连接数上限已完成；继续补充审计查询与大群压测。
-- V0.5：Caffeine 两级缓存完善、MinIO 文件服务、多租户、开放 API / SDK。
+- V0.5：Caffeine 两级缓存完善、文件存储（local/MinIO/OSS）、多租户、开放 API / SDK。
 - V1.0：管理后台、完整群聊/好友体系、监控告警、私有化部署。
 
 详细进度与差距见 [docs/DEVELOPMENT-STATUS.md](docs/DEVELOPMENT-STATUS.md)。
