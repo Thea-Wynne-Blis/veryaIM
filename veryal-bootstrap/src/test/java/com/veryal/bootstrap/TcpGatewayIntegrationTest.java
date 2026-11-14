@@ -12,6 +12,7 @@ import com.veryal.application.message.MessageApplicationService;
 import com.veryal.bootstrap.support.TcpTestClient;
 import com.veryal.common.core.CursorPage;
 import com.veryal.common.core.TenantIds;
+import com.veryal.domain.delivery.DeliveryRepository;
 import com.veryal.domain.message.Message;
 import com.veryal.domain.message.MessageType;
 import com.veryal.protocol.api.Command;
@@ -48,6 +49,9 @@ class TcpGatewayIntegrationTest {
 
     @Autowired
     private MessageApplicationService messageApplicationService;
+
+    @Autowired
+    private DeliveryRepository deliveryRepository;
 
     @Test
     void clientCanLoginSendAndPeerReceivesNotification() throws Exception {
@@ -116,6 +120,7 @@ class TcpGatewayIntegrationTest {
                     .setDeviceId("tcp-device-b-" + suffix)
                     .setDeliveredSequence(1L)
                     .build());
+            awaitDeliveryRecord(Long.parseLong(ack.getServerMessageId()), "tcp-device-b-" + suffix);
             bobClient.send(Command.READ_ACK, ReadAck.newBuilder()
                     .setConversationId(conversationId)
                     .setReadSequence(1L)
@@ -149,5 +154,14 @@ class TcpGatewayIntegrationTest {
                     conversationId, 0, 10);
         }
         return history;
+    }
+
+    private void awaitDeliveryRecord(long messageId, String deviceId) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 3000;
+        while (deliveryRepository.find(messageId, deviceId).isEmpty()
+                && System.currentTimeMillis() < deadline) {
+            Thread.sleep(50);
+        }
+        assertThat(deliveryRepository.find(messageId, deviceId)).isPresent();
     }
 }
