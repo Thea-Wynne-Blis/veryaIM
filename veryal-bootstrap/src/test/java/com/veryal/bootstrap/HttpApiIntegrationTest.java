@@ -8,6 +8,9 @@ import com.veryal.access.http.dto.SendMessageResponse;
 import com.veryal.access.http.dto.UserResponse;
 import com.veryal.common.core.ApiResponse;
 import com.veryal.common.exception.ErrorCode;
+import com.veryal.infrastructure.mysql.mapper.OutboxMapper;
+import com.veryal.infrastructure.mysql.po.OutboxPO;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -34,6 +37,9 @@ class HttpApiIntegrationTest {
 
     @Autowired
     private TestRestTemplate rest;
+
+    @Autowired
+    private OutboxMapper outboxMapper;
 
     @Test
     void completeMessagingFlow() {
@@ -71,6 +77,19 @@ class HttpApiIntegrationTest {
 
         SendMessageResponse second = sendMessage(conversationId, "client-msg-2", "second", aliceLogin.token());
         assertThat(second.message().sequence()).isEqualTo(2);
+
+        // 每条新消息在同一事务内写入一条 Outbox 事件；幂等重发不新增事件
+        Long outboxCount = outboxMapper.selectCount(Wrappers.<OutboxPO>lambdaQuery()
+                .eq(OutboxPO::getAggregateId, conversationId));
+        assertThat(outboxCount).isEqualTo(2L);
+        OutboxPO firstEvent = outboxMapper.selectOne(Wrappers.<OutboxPO>lambdaQuery()
+                .eq(OutboxPO::getAggregateId, conversationId)
+                .eq(OutboxPO::getEventType, "message.private.created")
+                .orderByAsc(OutboxPO::getId)
+                .last("LIMIT 1"));
+        assertThat(firstEvent).isNotNull();
+        assertThat(firstEvent.status).isZero();
+        assertThat(firstEvent.payload).isNotEmpty();
 
         ApiResponse<MessagePageResponse> history = get(
                 "/api/v1/conversations/" + conversationId + "/messages?cursor=0&limit=10", aliceLogin.token(),
