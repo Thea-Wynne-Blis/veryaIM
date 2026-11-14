@@ -1,0 +1,83 @@
+server:
+  port: 8080
+  shutdown: graceful
+
+spring:
+  application:
+    name: veryal
+  profiles:
+    default: dev
+  lifecycle:
+    timeout-per-shutdown-phase: 15s
+  jackson:
+    time-zone: UTC
+    serialization:
+      write-dates-as-timestamps: false
+  cache:
+    type: caffeine
+    cache-names: user
+    caffeine:
+      spec: maximumSize=100000,expireAfterWrite=10m,recordStats
+  datasource:
+    url: jdbc:mysql://localhost:3306/veryal_im?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+    username: veryal
+    password: veryal
+    hikari:
+      maximum-pool-size: 32
+      minimum-idle: 8
+      connection-timeout: 3000
+      pool-name: veryal-hikari
+  sql:
+    init:
+      mode: never
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    validate-on-migrate: true
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    default-fetch-size: 100
+  global-config:
+    banner: false
+    db-config:
+      id-type: input
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: when_authorized
+
+veryal:
+  node-id: ${VERYAL_NODE_ID:1}
+  gateway:
+    id: ${VERYAL_GATEWAY_ID:gateway-local}
+    max-frame-length: 1048576
+    heartbeat-idle: 90s
+    login-timeout: 10s
+    business-threads: 16
+    business-queue-capacity: 10000
+    tcp:
+      enabled: true
+      port: 9099
+    websocket:
+      enabled: true
+      port: 9098
+      path: /ws
+  security:
+    token:
+      issuer: veryal
+      ttl: 7d
+  redis:
+    enabled: ${VERYAL_REDIS_ENABLED:true}
+
+logging:
+  level:
+    root: INFO
+    com.veryal: INFO

@@ -1,0 +1,41 @@
+# 集成测试 profile：H2 + 随机端口，避免占用本机端口。
+spring:
+  datasource:
+    url: jdbc:h2:mem:veryal_test;MODE=MySQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:db/h2/schema.sql
+  flyway:
+    enabled: false
+
+management:
+  health:
+    redis:
+      enabled: false
+
+veryal:
+  node-id: 99
+  redis:
+    enabled: false
+  security:
+    token:
+      secret: test-only-secret-please-change-0123456789abcdef
+  gateway:
+    id: gateway-test
+    heartbeat-idle: 30s
+    login-timeout: 5s
+    business-threads: 4
+    business-queue-capacity: 1000
+    tcp:
+      port: 0
+    websocket:
+      port: 0
+
+logging:
+  level:
+    root: WARN
+    com.veryal: INFO
