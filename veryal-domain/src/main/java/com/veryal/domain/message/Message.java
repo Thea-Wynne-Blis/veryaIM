@@ -2,6 +2,7 @@ package com.veryal.domain.message;
 
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * 消息聚合根。
@@ -9,7 +10,8 @@ import java.util.Arrays;
  * <p>客户端消息 ID 用于幂等；会话序号由服务端分配，是消息排序的唯一依据。</p>
  */
 public record Message(long id, long tenantId, String conversationId, long senderId, String clientMsgId,
-                      long seq, MessageType type, byte[] content, Instant createdAt) {
+                      long seq, MessageType type, byte[] content, Instant createdAt,
+                      Instant recalledAt, Long recalledBy) {
 
     public Message {
         if (id <= 0) {
@@ -39,11 +41,27 @@ public record Message(long id, long tenantId, String conversationId, long sender
         if (createdAt == null) {
             throw new IllegalArgumentException("createdAt must not be null");
         }
+        if ((recalledAt == null) != (recalledBy == null)) {
+            throw new IllegalArgumentException("recalledAt and recalledBy must both be set or both be null");
+        }
     }
 
     public static Message create(long id, long tenantId, String conversationId, long senderId,
                                  String clientMsgId, long seq, MessageType type, byte[] content, Instant now) {
-        return new Message(id, tenantId, conversationId, senderId, clientMsgId, seq, type, content, now);
+        return new Message(id, tenantId, conversationId, senderId, clientMsgId, seq, type, content, now,
+                null, null);
+    }
+
+    public Message recall(long operatorId, Instant now) {
+        if (recalledAt != null) {
+            return this;
+        }
+        return new Message(id, tenantId, conversationId, senderId, clientMsgId, seq, type, content,
+                createdAt, now, operatorId);
+    }
+
+    public boolean recalled() {
+        return recalledAt != null;
     }
 
     public String textContent() {
@@ -61,7 +79,9 @@ public record Message(long id, long tenantId, String conversationId, long sender
         return id == message.id && tenantId == message.tenantId && conversationId.equals(message.conversationId)
                 && senderId == message.senderId && clientMsgId.equals(message.clientMsgId)
                 && seq == message.seq && type == message.type && Arrays.equals(content, message.content)
-                && createdAt.equals(message.createdAt);
+                && createdAt.equals(message.createdAt)
+                && Objects.equals(recalledAt, message.recalledAt)
+                && Objects.equals(recalledBy, message.recalledBy);
     }
 
     @Override
@@ -70,6 +90,7 @@ public record Message(long id, long tenantId, String conversationId, long sender
         result = 31 * result + conversationId.hashCode();
         result = 31 * result + Long.hashCode(seq);
         result = 31 * result + Arrays.hashCode(content);
+        result = 31 * result + Objects.hashCode(recalledAt);
         return result;
     }
 }

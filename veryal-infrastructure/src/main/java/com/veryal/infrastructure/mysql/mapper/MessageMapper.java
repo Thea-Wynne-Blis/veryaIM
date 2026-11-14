@@ -13,7 +13,7 @@ import java.util.List;
 public interface MessageMapper extends BaseMapper<MessagePO> {
 
     @Select("""
-            SELECT id, tenant_id, conversation_id, sender_id, client_msg_id, seq, msg_type, content, created_at
+            SELECT id, tenant_id, conversation_id, sender_id, client_msg_id, seq, msg_type, content, created_at, recalled_at, recalled_by
             FROM im_message
             WHERE tenant_id = #{tenantId}
               AND conversation_id = #{conversationId}

@@ -74,9 +74,20 @@ public class MyBatisMessageRepository implements MessageRepository {
         return messageMapper.selectMaxSeq(tenantId, conversationId);
     }
 
+    @Override
+    public void markRecalled(long tenantId, long messageId, long recalledBy, java.time.Instant recalledAt) {
+        messageMapper.update(null, Wrappers.<MessagePO>lambdaUpdate()
+                .eq(MessagePO::getTenantId, tenantId)
+                .eq(MessagePO::getId, messageId)
+                .isNull(MessagePO::getRecalledAt)
+                .set(MessagePO::getRecalledAt, SqlTime.toLocal(recalledAt))
+                .set(MessagePO::getRecalledBy, recalledBy));
+    }
+
     private Message toDomain(MessagePO po) {
         return new Message(po.id, po.tenantId, po.conversationId, po.senderId, po.clientMsgId, po.seq,
-                MessageType.fromCode(po.msgType), po.content, SqlTime.toInstant(po.createdAt));
+                MessageType.fromCode(po.msgType), po.content, SqlTime.toInstant(po.createdAt),
+                po.recalledAt == null ? null : SqlTime.toInstant(po.recalledAt), po.recalledBy);
     }
 
     private MessagePO toPO(Message message) {

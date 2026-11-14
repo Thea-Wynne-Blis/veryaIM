@@ -1,5 +1,6 @@
 package com.veryal.application.message;
 
+import com.veryal.application.audit.AuditRecorder;
 import com.veryal.application.message.strategy.MessageContentContext;
 import com.veryal.application.message.strategy.MessageTypeStrategyFactory;
 import com.veryal.common.core.CursorPage;
@@ -11,6 +12,7 @@ import com.veryal.common.id.IdGenerator;
 import com.veryal.common.json.JsonUtils;
 import com.veryal.common.ratelimit.RateLimitResult;
 import com.veryal.common.ratelimit.RateLimiterRegistry;
+import com.veryal.domain.audit.AuditAction;
 import com.veryal.domain.conversation.Conversation;
 import com.veryal.domain.conversation.ConversationMember;
 import com.veryal.domain.conversation.ConversationRepository;
@@ -45,6 +47,7 @@ import java.util.Optional;
 public class MessageApplicationService {
 
     private static final int MAX_HISTORY_LIMIT = 200;
+    private static final java.time.Duration RECALL_WINDOW = java.time.Duration.ofMinutes(2);
 
     private final MessageRepository messageRepository;
     private final ConversationSequenceRepository sequenceRepository;
@@ -53,6 +56,7 @@ public class MessageApplicationService {
     private final DeliveryRepository deliveryRepository;
     private final RateLimiterRegistry rateLimiterRegistry;
     private final MessageTypeStrategyFactory messageTypeStrategyFactory;
+    private final AuditRecorder auditRecorder;
     private final IdGenerator idGenerator;
     private final TimeProvider timeProvider;
 
@@ -62,7 +66,7 @@ public class MessageApplicationService {
         MessagePolicy.validateClientMessageId(command.clientMessageId());
         MessagePolicy.validate(command.messageType(), command.content());
         messageTypeStrategyFactory.validate(new MessageContentContext(command.tenantId(),
-                command.senderId(), command.messageType(), command.content()));
+                command.senderId(), command.conversationId(), command.messageType(), command.content()));
 
         Conversation conversation = conversationRepository.findById(command.conversationId())
                 .filter(item -> item.tenantId() == command.tenantId())
@@ -141,6 +145,32 @@ public class MessageApplicationService {
     @Transactional(readOnly = true)
     public long latestSequence(long tenantId, String conversationId) {
         return messageRepository.maxSeq(tenantId, conversationId);
+    }
+
+    /**
+     * 撤回消息：仅发送者本人，且必须在发送后 2 分钟内；重复撤回保持幂等。
+     */
+    @Transactional
+    public Message recall(long tenantId, long userId, String conversationId, long messageId) {
+        requireMember(tenantId, conversationId, userId);
+        Message message = messageRepository.findById(messageId)
+                .filter(item -> item.tenantId() == tenantId)
+                .filter(item -> item.conversationId().equals(conversationId))
+                .orElseThrow(() -> new BusinessException(ErrorCode.MESSAGE_NOT_FOUND));
+        if (message.senderId() != userId) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "only sender can recall message");
+        }
+        if (message.recalled()) {
+            return message;
+        }
+        Instant now = timeProvider.now();
+        if (now.isAfter(message.createdAt().plus(RECALL_WINDOW))) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "recall window expired");
+        }
+        messageRepository.markRecalled(tenantId, messageId, userId, now);
+        auditRecorder.record(tenantId, userId, AuditAction.MESSAGE_RECALL, "message",
+                Long.toString(messageId), "conversation=" + conversationId);
+        return message.recall(userId, now);
     }
 
     /**

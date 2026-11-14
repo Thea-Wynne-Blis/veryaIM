@@ -24,4 +24,6 @@ public class MessagePO {
     public int msgType;
     public byte[] content;
     public LocalDateTime createdAt;
+    public LocalDateTime recalledAt;
+    public Long recalledBy;
 }

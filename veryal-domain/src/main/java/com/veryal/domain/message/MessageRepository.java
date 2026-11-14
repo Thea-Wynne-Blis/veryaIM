@@ -1,5 +1,6 @@
 package com.veryal.domain.message;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,4 +22,9 @@ public interface MessageRepository {
     Optional<Message> findLatest(long tenantId, String conversationId);
 
     long maxSeq(long tenantId, String conversationId);
+
+    /**
+     * 标记消息撤回；幂等，已撤回时保持原值。
+     */
+    void markRecalled(long tenantId, long messageId, long recalledBy, Instant recalledAt);
 }

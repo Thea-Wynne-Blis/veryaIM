@@ -4,6 +4,7 @@ import com.veryal.access.http.dto.ConversationResponse;
 import com.veryal.access.http.dto.CreateConversationRequest;
 import com.veryal.access.http.dto.DeliveryResponse;
 import com.veryal.access.http.dto.MessagePageResponse;
+import com.veryal.access.http.dto.MessageResponse;
 import com.veryal.access.http.dto.ReadRequest;
 import com.veryal.access.http.dto.SendMessageRequest;
 import com.veryal.access.http.dto.SendMessageResponse;
@@ -92,6 +93,14 @@ public class ConversationController {
         conversationApplicationService.markRead(user.tenantId(), user.userId(), conversationId,
                 request.readSequence());
         return ApiResponse.ok();
+    }
+
+    @PostMapping("/{conversationId}/messages/{messageId}/recall")
+    public ApiResponse<MessageResponse> recall(@CurrentUser AuthenticatedUser user,
+                                               @PathVariable String conversationId,
+                                               @PathVariable long messageId) {
+        return ApiResponse.ok(MessageResponse.from(messageApplicationService.recall(
+                user.tenantId(), user.userId(), conversationId, messageId)));
     }
 
     @GetMapping("/{conversationId}/messages/{messageId}/deliveries")

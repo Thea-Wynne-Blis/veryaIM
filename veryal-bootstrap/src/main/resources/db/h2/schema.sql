@@ -66,7 +66,9 @@ CREATE TABLE IF NOT EXISTS im_message
     seq             BIGINT       NOT NULL,
     msg_type        SMALLINT     NOT NULL,
     content         BLOB         NOT NULL,
-    created_at      TIMESTAMP(3) NOT NULL
+    created_at      TIMESTAMP(3) NOT NULL,
+    recalled_at     TIMESTAMP(3) NULL,
+    recalled_by     BIGINT       NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uk_sender_client_msg ON im_message (tenant_id, sender_id, client_msg_id);
 CREATE UNIQUE INDEX IF NOT EXISTS uk_conversation_seq ON im_message (tenant_id, conversation_id, seq);
@@ -153,10 +155,12 @@ CREATE TABLE IF NOT EXISTS im_file
     storage_type  VARCHAR(16)  NOT NULL,
     status        TINYINT      NOT NULL DEFAULT 0,
     created_at    TIMESTAMP(3) NOT NULL,
-    deleted_at    TIMESTAMP(3) NULL
+    deleted_at    TIMESTAMP(3) NULL,
+    conversation_id VARCHAR(64) NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uk_file_object_key ON im_file (object_key);
 CREATE INDEX IF NOT EXISTS idx_file_tenant_uploader ON im_file (tenant_id, uploader_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_file_conversation ON im_file (conversation_id);
 
 
 
