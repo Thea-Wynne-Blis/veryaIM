@@ -4,6 +4,7 @@ import com.veryal.common.core.TimeProvider;
 import com.veryal.common.exception.BusinessException;
 import com.veryal.common.exception.ErrorCode;
 import com.veryal.common.id.IdGenerator;
+import com.veryal.domain.conversation.ConversationRepository;
 import com.veryal.domain.file.FileRepository;
 import com.veryal.domain.file.FileStatus;
 import com.veryal.domain.file.FileStorage;
@@ -41,11 +42,17 @@ public class FileApplicationService {
 
     private final FileRepository fileRepository;
     private final FileStorageProvider storageProvider;
+    private final ConversationRepository conversationRepository;
     private final IdGenerator idGenerator;
     private final TimeProvider timeProvider;
 
     public FileView upload(long tenantId, long uploaderId, String filename, String contentType,
                            byte[] content) {
+        return upload(tenantId, uploaderId, null, filename, contentType, content);
+    }
+
+    public FileView upload(long tenantId, long uploaderId, String conversationId, String filename,
+                           String contentType, byte[] content) {
         if (content == null || content.length == 0) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "file must not be empty");
         }
@@ -56,6 +63,7 @@ public class FileApplicationService {
         String safeName = sanitizeName(filename);
         String normalizedType = normalizeContentType(contentType);
         String extension = extension(safeName);
+        String scopedConversationId = scopeConversation(tenantId, uploaderId, conversationId);
         Instant now = timeProvider.now();
         long fileId = idGenerator.nextId();
         String objectKey = "tenant/" + tenantId + "/" + DATE_PATH.format(now) + "/"
@@ -63,7 +71,8 @@ public class FileApplicationService {
         String sha256 = sha256(content);
         FileStorage storage = storageProvider.current();
         StoredFile file = new StoredFile(fileId, tenantId, uploaderId, objectKey, safeName,
-                normalizedType, content.length, sha256, storage.type(), FileStatus.ACTIVE, now, null);
+                normalizedType, content.length, sha256, storage.type(), FileStatus.ACTIVE, now, null,
+                scopedConversationId);
 
         storage.put(objectKey, content, normalizedType);
         try {
@@ -76,13 +85,13 @@ public class FileApplicationService {
     }
 
     public FileContent download(long tenantId, long userId, long fileId) {
-        StoredFile file = requireOwned(tenantId, userId, fileId);
+        StoredFile file = requireAccessible(tenantId, userId, fileId);
         byte[] content = storageProvider.get(file.storageType()).get(file.objectKey());
         return new FileContent(file, content);
     }
 
     public FileView get(long tenantId, long userId, long fileId) {
-        return FileView.from(requireOwned(tenantId, userId, fileId));
+        return FileView.from(requireAccessible(tenantId, userId, fileId));
     }
 
     public void delete(long tenantId, long userId, long fileId) {
@@ -98,8 +107,36 @@ public class FileApplicationService {
      * 返回临时 URL；本地存储没有签名 URL，返回 null 由接入层回退到下载接口。
      */
     public String presignedUrl(long tenantId, long userId, long fileId, Duration ttl) {
-        StoredFile file = requireOwned(tenantId, userId, fileId);
+        StoredFile file = requireAccessible(tenantId, userId, fileId);
         return storageProvider.get(file.storageType()).presignedUrl(file.objectKey(), ttl);
+    }
+
+    private String scopeConversation(long tenantId, long uploaderId, String conversationId) {
+        if (conversationId == null || conversationId.isBlank()) {
+            return null;
+        }
+        conversationRepository.findById(conversationId)
+                .filter(item -> item.tenantId() == tenantId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND));
+        conversationRepository.findMember(conversationId, uploaderId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CONVERSATION_MEMBER));
+        return conversationId;
+    }
+
+    private StoredFile requireAccessible(long tenantId, long userId, long fileId) {
+        StoredFile file = fileRepository.findById(tenantId, fileId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.FILE_NOT_FOUND, "file not found"));
+        if (file.status() == FileStatus.DELETED) {
+            throw new BusinessException(ErrorCode.FILE_NOT_FOUND, "file not found");
+        }
+        if (file.uploaderId() == userId) {
+            return file;
+        }
+        if (file.conversationId() != null
+                && conversationRepository.findMember(file.conversationId(), userId).isPresent()) {
+            return file;
+        }
+        throw new BusinessException(ErrorCode.FORBIDDEN, "file is not accessible");
     }
 
     private StoredFile requireOwned(long tenantId, long userId, long fileId) {

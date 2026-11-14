@@ -43,7 +43,10 @@ public abstract class AbstractFileMessageStrategy implements MessageTypeStrategy
                 .orElseThrow(() -> new BusinessException(ErrorCode.FILE_NOT_FOUND,
                         "file not found: " + fileId));
         if (file.uploaderId() != context.senderId()) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "file does not belong to sender");
+            if (file.conversationId() == null
+                    || !file.conversationId().equals(context.conversationId())) {
+                throw new BusinessException(ErrorCode.FORBIDDEN, "file does not belong to sender");
+            }
         }
         return file;
     }

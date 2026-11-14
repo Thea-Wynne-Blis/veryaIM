@@ -8,7 +8,7 @@ import java.time.Instant;
 public record StoredFile(long id, long tenantId, long uploaderId, String objectKey,
                          String originalName, String contentType, long sizeBytes, String sha256,
                          StorageType storageType, FileStatus status, Instant createdAt,
-                         Instant deletedAt) {
+                         Instant deletedAt, String conversationId) {
 
     public StoredFile {
         if (id <= 0 || tenantId <= 0 || uploaderId <= 0) {

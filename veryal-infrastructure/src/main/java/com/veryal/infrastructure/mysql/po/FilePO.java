@@ -27,4 +27,5 @@ public class FilePO {
     public int status;
     public LocalDateTime createdAt;
     public LocalDateTime deletedAt;
+    public String conversationId;
 }

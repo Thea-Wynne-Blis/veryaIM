@@ -38,6 +38,7 @@ public class MyBatisFileRepository implements FileRepository {
         po.status = file.status().code();
         po.createdAt = SqlTime.toLocal(file.createdAt());
         po.deletedAt = file.deletedAt() == null ? null : SqlTime.toLocal(file.deletedAt());
+        po.conversationId = file.conversationId();
         fileMapper.insert(po);
     }
 
@@ -62,6 +63,6 @@ public class MyBatisFileRepository implements FileRepository {
         return new StoredFile(po.id, po.tenantId, po.uploaderId, po.objectKey, po.originalName,
                 po.contentType, po.sizeBytes, po.sha256, StorageType.valueOf(po.storageType),
                 FileStatus.fromCode(po.status), SqlTime.toInstant(po.createdAt),
-                po.deletedAt == null ? null : SqlTime.toInstant(po.deletedAt));
+                po.deletedAt == null ? null : SqlTime.toInstant(po.deletedAt), po.conversationId);
     }
 }

@@ -40,7 +40,9 @@ public class FileController {
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<FileResponse> upload(@CurrentUser AuthenticatedUser user,
-                                            @RequestParam("file") MultipartFile file) {
+                                            @RequestParam("file") MultipartFile file,
+                                            @RequestParam(value = "conversationId", required = false)
+                                            String conversationId) {
         byte[] content;
         try {
             content = file.getBytes();
@@ -48,7 +50,7 @@ public class FileController {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "failed to read uploaded file");
         }
         return ApiResponse.ok(FileResponse.from(fileApplicationService.upload(user.tenantId(),
-                user.userId(), file.getOriginalFilename(), file.getContentType(), content)));
+                user.userId(), conversationId, file.getOriginalFilename(), file.getContentType(), content)));
     }
 
     @GetMapping("/{fileId}")
