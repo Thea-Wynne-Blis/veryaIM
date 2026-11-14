@@ -11,7 +11,8 @@ VERYAL 是高性能、跨平台、可扩展的即时通讯基础设施。本仓�
 - 群聊基础：建群、加成员、群主/管理员权限、群会话与群消息；群 ID 与群会话 ID 一致，消息权限复用会话成员校验。
 - 群管理：群主设置管理员、管理员/群主改名、踢人、成员退群；群主不可直接退群。
 - **Delivery ACK 持久化 + 投递查询**：按消息 + 设备记录投递序号，幂等且只前进；提供消息投递记录查询与会话未读数。
-- **Outbox + RabbitMQ 可靠投递**：消息与事件同事务落库，Publisher Confirm、指数退避重试、TTL 重试队列、死信队列；每个 Gateway 实例独立队列，保证多实例实时推送。
+- **Outbox + RabbitMQ 可靠投递**：消息与事件同事务落库，Publisher Confirm、指数退避重试、TTL 重试队列、死信队列。
+- **Redis 网关路由 + 单投递队列**：投递消费者按在线路由把连接按 gatewayId 分组，通过网关交换机定向推送到对应实例，支持多 Gateway 跨节点实时推送。
 - HTTP API（8080）：注册、登录、资料、设备、会话、消息、同步。
 - MySQL 8.0.30 + MyBatis-Plus + Flyway；本地开发使用 H2（MySQL 兼容模式）零依赖启动。
 - Redis 在线状态（生产 profile）+ 内存实现（开发/测试 profile），Caffeine 用户资料缓存。
@@ -72,7 +73,7 @@ com.veryal
 │   │   ├── event       MessageCreatedEvent / MessageEvents
 │   │   └── outbox      OutboxMessage / OutboxAppender
 │   ├── group           Group / GroupMember / GroupRole / GroupRepository
-│   ├── delivery        DeliveryRecord / DeliveryRepository / RealtimeDeliveryPort
+│   ├── delivery        DeliveryRecord / DeliveryRepository / GatewayPushCommand / GatewayPushPort / RealtimeDeliveryPort
 │   └── presence        PresenceRecord / PresenceRepository
 ├── application
 │   ├── identity        AuthApplicationService / SessionApplicationService / UserApplicationService / JwtTokenService
@@ -88,9 +89,9 @@ com.veryal
 │   │   ├── MyBatisPlusConfig / SqlTime
 │   ├── redis           RedisKeys / RedisPresenceRepository / InMemoryPresenceRepository
 │   ├── cache           CacheConfig
-│   └── mq              RabbitMqConfig / OutboxPublisher / MessageDeliveryListener / RabbitInstance
+│   └── mq              RabbitMqConfig / OutboxPublisher / MessageDeliveryListener / GatewayRouter / GatewayPushListener / RabbitInstance
 ├── access
-│   ├── core            Connection / ConnectionRegistry / GatewayHandlers / handler / protocol / push / metrics
+│   ├── core            Connection / ConnectionRegistry / GatewayHandlers / handler / protocol / push（RealtimeDelivery + LocalGatewayPush）/ metrics
 │   ├── tcp             TcpGatewayServer / TcpGatewayProperties
 │   ├── websocket       WebSocketGatewayServer / codec
 │   └── http            controller / dto / security / error / config
@@ -200,7 +201,8 @@ connect → (10s 内) LOGIN(token, deviceId) → LOGIN_RESPONSE
 - 消息 ID 使用雪花 ID；单聊会话 ID 由 `(tenant, userA, userB)` 确定性生成，保证一对用户只有一个会话。
 - 消息持久化先于 ACK；事务提交后才由 Outbox Publisher 发布事件，投递失败不影响消息可靠性，客户端通过同步游标补偿。
 - 发布端：条件 UPDATE 抢占 Outbox 记录，Publisher Confirm 后置为已发布；失败按指数退避重试，超过上限进入失败状态，节点宕机遗留的 PUBLISHING 记录会被回收。
-- 消费端：手动 ACK，eventId 窗口去重；失败进入实例级 TTL 重试队列，超过上限进入死信队列。每个 Gateway 实例声明独立投递队列，实现多实例实时推送。
+- 消费端：单投递队列手动 ACK，eventId 窗口去重；失败进入共享 TTL 重试队列，超过上限进入死信队列。
+- 路由：投递消费者读取 Redis presence 的 `deviceId → gatewayId/connectionId`，按 gatewayId 分组，通过 `veryal.gateway.exchange` 的 `gateway.push.{gatewayId}` 发送推送命令；各实例只消费自己的网关队列并向本节点连接写 Channel。
 - 群 ID 与群会话 ID 保持一致；建群/加成员同时写群成员表与会话成员表，消息权限只校验会话成员。
 - 消息事件按会话类型使用 `message.private.created` / `message.group.created`，重试时保留原始 routing key。
 - Delivery ACK 按 `(message_id, device_id)` 幂等持久化，投递序号只前进，并推进成员同步游标；Read ACK 推进读游标。
@@ -229,7 +231,7 @@ mvn test
 ## 后续路线
 
 - V0.3：已完成 Outbox + RabbitMQ + 重试/DLQ + 多实例实时投递；后续补充投递记录表与跨节点路由优化。
-- V0.4：群聊基础已完成；继续补充退群/踢人/管理员、Redis 路由 + 单投递队列、服务发现与大规模群异步扇出。
+- V0.4：群聊基础、群管理与 Redis 网关路由已完成；继续补充群主转让/解散、大群异步扇出、服务发现。
 - V0.5：Caffeine 两级缓存完善、MinIO 文件服务、多租户、开放 API / SDK。
 - V1.0：管理后台、完整群聊/好友体系、监控告警、私有化部署。
 
