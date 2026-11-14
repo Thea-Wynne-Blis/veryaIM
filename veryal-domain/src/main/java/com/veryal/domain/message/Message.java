@@ -1,0 +1,75 @@
+package com.veryal.domain.message;
+
+import java.time.Instant;
+import java.util.Arrays;
+
+/**
+ * 消息聚合根。
+ *
+ * <p>客户端消息 ID 用于幂等；会话序号由服务端分配，是消息排序的唯一依据。</p>
+ */
+public record Message(long id, long tenantId, String conversationId, long senderId, String clientMsgId,
+                      long seq, MessageType type, byte[] content, Instant createdAt) {
+
+    public Message {
+        if (id <= 0) {
+            throw new IllegalArgumentException("message id must be positive");
+        }
+        if (tenantId <= 0) {
+            throw new IllegalArgumentException("tenant id must be positive");
+        }
+        if (conversationId == null || conversationId.isBlank()) {
+            throw new IllegalArgumentException("conversation id must not be blank");
+        }
+        if (senderId <= 0) {
+            throw new IllegalArgumentException("sender id must be positive");
+        }
+        if (clientMsgId == null || clientMsgId.isBlank()) {
+            throw new IllegalArgumentException("client message id must not be blank");
+        }
+        if (seq <= 0) {
+            throw new IllegalArgumentException("sequence must be positive");
+        }
+        if (type == null) {
+            throw new IllegalArgumentException("message type must not be null");
+        }
+        if (content == null) {
+            throw new IllegalArgumentException("content must not be null");
+        }
+        if (createdAt == null) {
+            throw new IllegalArgumentException("createdAt must not be null");
+        }
+    }
+
+    public static Message create(long id, long tenantId, String conversationId, long senderId,
+                                 String clientMsgId, long seq, MessageType type, byte[] content, Instant now) {
+        return new Message(id, tenantId, conversationId, senderId, clientMsgId, seq, type, content, now);
+    }
+
+    public String textContent() {
+        return new String(content, java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+        if (!(other instanceof Message message)) {
+            return false;
+        }
+        return id == message.id && tenantId == message.tenantId && conversationId.equals(message.conversationId)
+                && senderId == message.senderId && clientMsgId.equals(message.clientMsgId)
+                && seq == message.seq && type == message.type && Arrays.equals(content, message.content)
+                && createdAt.equals(message.createdAt);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Long.hashCode(id);
+        result = 31 * result + conversationId.hashCode();
+        result = 31 * result + Long.hashCode(seq);
+        result = 31 * result + Arrays.hashCode(content);
+        return result;
+    }
+}
