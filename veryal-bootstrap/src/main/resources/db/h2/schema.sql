@@ -126,5 +126,20 @@ CREATE TABLE IF NOT EXISTS im_message_delivery
 CREATE UNIQUE INDEX IF NOT EXISTS uk_delivery_message_device ON im_message_delivery (message_id, device_id);
 CREATE INDEX IF NOT EXISTS idx_delivery_conversation ON im_message_delivery (conversation_id, user_id);
 
+CREATE TABLE IF NOT EXISTS im_audit_log
+(
+    id          BIGINT       NOT NULL PRIMARY KEY,
+    tenant_id   BIGINT       NOT NULL,
+    operator_id BIGINT       NOT NULL,
+    action      VARCHAR(64)  NOT NULL,
+    target_type VARCHAR(64)  NOT NULL,
+    target_id   VARCHAR(128) NOT NULL,
+    detail      VARCHAR(512),
+    created_at  TIMESTAMP(3) NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_audit_tenant_operator ON im_audit_log (tenant_id, operator_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_action ON im_audit_log (tenant_id, action, created_at);
+
+
 
 

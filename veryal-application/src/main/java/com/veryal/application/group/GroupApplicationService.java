@@ -1,9 +1,11 @@
 package com.veryal.application.group;
 
+import com.veryal.application.audit.AuditRecorder;
 import com.veryal.common.core.TimeProvider;
 import com.veryal.common.exception.BusinessException;
 import com.veryal.common.exception.ErrorCode;
 import com.veryal.common.id.IdGenerator;
+import com.veryal.domain.audit.AuditAction;
 import com.veryal.domain.conversation.Conversation;
 import com.veryal.domain.conversation.ConversationMember;
 import com.veryal.domain.conversation.ConversationRepository;
@@ -37,6 +39,7 @@ public class GroupApplicationService {
     private final UserRepository userRepository;
     private final IdGenerator idGenerator;
     private final TimeProvider timeProvider;
+    private final AuditRecorder auditRecorder;
 
     @Transactional
     public GroupView create(long tenantId, long ownerId, String name, List<Long> memberIds) {
@@ -64,6 +67,8 @@ public class GroupApplicationService {
             groupRepository.addMember(GroupMember.join(idGenerator.nextId(), group.id(), invitee,
                     GroupRole.MEMBER, now));
         }
+        auditRecorder.record(tenantId, ownerId, AuditAction.GROUP_CREATE, "group", group.id(),
+                "members=" + (1 + invitees.size()) + ",name=" + validName);
         return view(group);
     }
 
@@ -90,6 +95,8 @@ public class GroupApplicationService {
                     GroupRole.MEMBER, now));
         }
         groupRepository.touch(groupId, now);
+        auditRecorder.record(tenantId, operatorId, AuditAction.GROUP_MEMBER_ADD, "group", groupId,
+                "members=" + invitees.size());
         return view(groupRepository.findById(groupId).orElseThrow());
     }
 
@@ -119,6 +126,8 @@ public class GroupApplicationService {
         }
         Group renamed = group.rename(validateName(name), timeProvider.now());
         groupRepository.update(renamed);
+        auditRecorder.record(tenantId, operatorId, AuditAction.GROUP_RENAME, "group", groupId,
+                "name=" + renamed.name());
         return view(renamed);
     }
 
@@ -136,6 +145,8 @@ public class GroupApplicationService {
         groupRepository.removeMember(groupId, userId);
         conversationRepository.removeMember(groupId, userId);
         groupRepository.touch(groupId, timeProvider.now());
+        auditRecorder.record(tenantId, userId, AuditAction.GROUP_MEMBER_LEAVE, "group", groupId,
+                "userId=" + userId);
     }
 
     /**
@@ -158,6 +169,8 @@ public class GroupApplicationService {
         groupRepository.removeMember(groupId, targetUserId);
         conversationRepository.removeMember(groupId, targetUserId);
         groupRepository.touch(groupId, timeProvider.now());
+        auditRecorder.record(tenantId, operatorId, AuditAction.GROUP_MEMBER_REMOVE, "group", groupId,
+                "userId=" + targetUserId);
         return view(groupRepository.findById(groupId).orElseThrow());
     }
 
@@ -178,6 +191,8 @@ public class GroupApplicationService {
         requireMember(groupId, targetUserId);
         groupRepository.updateMemberRole(groupId, targetUserId, role);
         groupRepository.touch(groupId, timeProvider.now());
+        auditRecorder.record(tenantId, operatorId, AuditAction.GROUP_ROLE_CHANGE, "group_member",
+                groupId + ":" + targetUserId, "role=" + role.name());
         return view(groupRepository.findById(groupId).orElseThrow());
     }
 
@@ -201,6 +216,8 @@ public class GroupApplicationService {
         groupRepository.updateMemberRole(groupId, newOwnerId, GroupRole.OWNER);
         groupRepository.updateMemberRole(groupId, currentOwnerId, GroupRole.ADMIN);
         groupRepository.touch(groupId, now);
+        auditRecorder.record(tenantId, currentOwnerId, AuditAction.GROUP_OWNER_TRANSFER, "group", groupId,
+                "newOwner=" + newOwnerId);
         return view(transferred);
     }
 
@@ -214,6 +231,7 @@ public class GroupApplicationService {
         if (operator.role() != GroupRole.OWNER) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "only owner can disband group");
         }
+        auditRecorder.record(tenantId, ownerId, AuditAction.GROUP_DISBAND, "group", groupId, null);
         conversationRepository.delete(groupId);
         groupRepository.delete(groupId);
     }

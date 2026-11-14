@@ -1,10 +1,12 @@
 package com.veryal.application.identity;
 
+import com.veryal.application.audit.AuditRecorder;
 import com.veryal.common.core.TimeProvider;
 import com.veryal.common.exception.AuthenticationException;
 import com.veryal.common.exception.BusinessException;
 import com.veryal.common.exception.ErrorCode;
 import com.veryal.common.id.IdGenerator;
+import com.veryal.domain.audit.AuditAction;
 import com.veryal.domain.device.Device;
 import com.veryal.domain.device.DeviceRepository;
 import com.veryal.domain.device.Platform;
@@ -38,6 +40,7 @@ public class AuthApplicationService {
     private final JwtTokenService tokenService;
     private final IdGenerator idGenerator;
     private final TimeProvider timeProvider;
+    private final AuditRecorder auditRecorder;
 
     @Transactional
     public UserProfile register(long tenantId, RegisterCommand command) {
@@ -76,6 +79,8 @@ public class AuthApplicationService {
         Instant now = timeProvider.now();
         Device device = bindDevice(user.id(), command, now);
         IssuedToken issuedToken = tokenService.issue(user.id(), tenantId, device.deviceId());
+        auditRecorder.record(tenantId, user.id(), AuditAction.LOGIN, "user",
+                Long.toString(user.id()), "device=" + device.deviceId());
         return new AuthResult(UserProfile.from(user), device.deviceId(), issuedToken.token(),
                 issuedToken.expiresAt().getEpochSecond() - now.getEpochSecond());
     }
