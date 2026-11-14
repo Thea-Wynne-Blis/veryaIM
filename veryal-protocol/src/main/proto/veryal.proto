@@ -1,0 +1,104 @@
+syntax = "proto3";
+
+package veryal.protocol;
+
+option java_package = "com.veryal.protocol.protobuf";
+option java_multiple_files = true;
+option java_outer_classname = "VeryalProtocol";
+
+// 统一协议信封，TCP 与 WebSocket 共用。
+// 注意：字段编号一经发布不可复用。
+message Envelope {
+  uint32 protocol_version = 1;
+  string request_id = 2;
+  string trace_id = 3;
+  uint32 command = 4;
+  bytes payload = 5;
+}
+
+// ---------------------------------------------------------------------------
+// 认证
+// ---------------------------------------------------------------------------
+
+message LoginRequest {
+  string token = 1;
+  string device_id = 2;
+  string platform = 3;
+  string client_version = 4;
+}
+
+message LoginResponse {
+  uint32 code = 1;
+  string message = 2;
+  uint64 user_id = 3;
+  string nickname = 4;
+  string device_id = 5;
+  int64 server_time = 6;
+}
+
+message LogoutRequest {
+  string device_id = 1;
+}
+
+// ---------------------------------------------------------------------------
+// 心跳
+// ---------------------------------------------------------------------------
+
+message HeartbeatRequest {
+  int64 client_time = 1;
+}
+
+message HeartbeatResponse {
+  int64 server_time = 1;
+}
+
+// ---------------------------------------------------------------------------
+// 消息
+// ---------------------------------------------------------------------------
+
+message SendMessageRequest {
+  string client_message_id = 1;
+  string conversation_id = 2;
+  uint32 message_type = 3;
+  bytes content = 4;
+  uint64 client_sequence = 5;
+}
+
+message ServerAck {
+  string client_message_id = 1;
+  string server_message_id = 2;
+  uint64 conversation_sequence = 3;
+  uint32 status = 4;
+}
+
+message MessageNotify {
+  uint64 message_id = 1;
+  string conversation_id = 2;
+  uint64 sender_id = 3;
+  uint64 sequence = 4;
+  uint32 message_type = 5;
+  bytes content = 6;
+  int64 created_at = 7;
+  string client_message_id = 8;
+}
+
+message DeliveryAck {
+  string message_id = 1;
+  string device_id = 2;
+  uint64 delivered_sequence = 3;
+}
+
+message ReadAck {
+  string conversation_id = 1;
+  uint64 read_sequence = 2;
+}
+
+// ---------------------------------------------------------------------------
+// 错误
+// ---------------------------------------------------------------------------
+
+message ErrorResponse {
+  uint32 code = 1;
+  string message = 2;
+  string request_id = 3;
+}
