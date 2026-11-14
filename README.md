@@ -9,6 +9,7 @@ VERYAL 是高性能、跨平台、可扩展的即时通讯基础设施。本仓�
 - 登录认证（HS256 JWT）、心跳租约、连接注册表、读空闲断开、命令分发、业务线程池隔离。
 - 用户 / 设备 / 单聊 / **群聊** / 消息 / 会话序号 / 历史消息 / 幂等发送 / Server ACK / Delivery ACK / Read ACK / 游标同步。
 - 群聊基础：建群、加成员、群主/管理员权限、群会话与群消息；群 ID 与群会话 ID 一致，消息权限复用会话成员校验。
+- **Delivery ACK 持久化**：按消息 + 设备记录投递序号，幂等且只前进，为多端已读/未读统计提供数据基础。
 - **Outbox + RabbitMQ 可靠投递**：消息与事件同事务落库，Publisher Confirm、指数退避重试、TTL 重试队列、死信队列；每个 Gateway 实例独立队列，保证多实例实时推送。
 - HTTP API（8080）：注册、登录、资料、设备、会话、消息、同步。
 - MySQL 8.0.30 + MyBatis-Plus + Flyway；本地开发使用 H2（MySQL 兼容模式）零依赖启动。
@@ -70,18 +71,18 @@ com.veryal
 │   │   ├── event       MessageCreatedEvent / MessageEvents
 │   │   └── outbox      OutboxMessage / OutboxAppender
 │   ├── group           Group / GroupMember / GroupRole / GroupRepository
-│   ├── delivery        RealtimeDeliveryPort
+│   ├── delivery        DeliveryRecord / DeliveryRepository / RealtimeDeliveryPort
 │   └── presence        PresenceRecord / PresenceRepository
 ├── application
 │   ├── identity        AuthApplicationService / SessionApplicationService / UserApplicationService / JwtTokenService
 │   ├── conversation    ConversationApplicationService / ConversationView / ConversationSummary
 │   ├── group           GroupApplicationService / GroupView / GroupSummary
-│   ├── message         MessageApplicationService / SendMessageCommand / SendMessageResult / DeliveryTracker
+│   ├── message         MessageApplicationService / SendMessageCommand / SendMessageResult
 │   └── sync            SyncApplicationService
 ├── infrastructure
 │   ├── mysql
-│   │   ├── mapper      UserMapper / DeviceMapper / ConversationMapper / GroupMapper / MessageMapper / OutboxMapper / ...
-│   │   ├── po          UserPO / DevicePO / ConversationPO / GroupPO / MessagePO / OutboxPO / ...
+│   │   ├── mapper      UserMapper / DeviceMapper / ConversationMapper / GroupMapper / MessageMapper / DeliveryMapper / OutboxMapper / ...
+│   │   ├── po          UserPO / DevicePO / ConversationPO / GroupPO / MessagePO / DeliveryPO / OutboxPO / ...
 │   │   ├── repository  MyBatis*Repository / MyBatisOutboxAppender
 │   │   ├── MyBatisPlusConfig / SqlTime
 │   ├── redis           RedisKeys / RedisPresenceRepository / InMemoryPresenceRepository
@@ -196,7 +197,7 @@ connect → (10s 内) LOGIN(token, deviceId) → LOGIN_RESPONSE
 - 消费端：手动 ACK，eventId 窗口去重；失败进入实例级 TTL 重试队列，超过上限进入死信队列。每个 Gateway 实例声明独立投递队列，实现多实例实时推送。
 - 群 ID 与群会话 ID 保持一致；建群/加成员同时写群成员表与会话成员表，消息权限只校验会话成员。
 - 消息事件按会话类型使用 `message.private.created` / `message.group.created`，重试时保留原始 routing key。
-- Delivery ACK 推进成员同步游标，Read ACK 推进读游标，游标只前进。
+- Delivery ACK 按 `(message_id, device_id)` 幂等持久化，投递序号只前进，并推进成员同步游标；Read ACK 推进读游标。
 
 ## 测试
 
@@ -205,7 +206,7 @@ mvn test
 ```
 
 - 单元测试：雪花 ID、Envelope 编解码、Netty 帧拆包/粘包/非法帧、JWT、PBKDF2、Outbox 事件 JSON 往返。
-- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、群建群/成员权限/群消息、TCP 端到端（登录/心跳/发送/实时推送/回执）、WebSocket 握手与登录心跳。
+- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、群建群/成员权限/群消息、TCP 端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
 
 集成测试使用 `test` profile，Netty Gateway 端口配置为 0（系统分配），不占用本机端口。
 

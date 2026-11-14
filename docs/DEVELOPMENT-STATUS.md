@@ -55,7 +55,7 @@
 ### 可靠性
 
 - [x] Server ACK（持久化后返回）
-- [x] Delivery ACK（内存投递跟踪 + 推进同步游标）
+- [x] Delivery ACK（设备投递记录持久化 + 推进同步游标）
 - [x] Read ACK（推进读游标，只前进）
 - [x] 消息幂等（客户端消息 ID + 唯一索引兜底）
 - [x] Outbox（消息与事件同事务写入，发布器抢占 + Publisher Confirm）
@@ -94,6 +94,7 @@
 | `im_user.password_hash` | 文档核心表未包含认证字段，V0.1 需要账号密码登录；后续可拆分为独立凭证表 |
 | 群 ID = 群会话 ID | 群与群会话一一对应，建群/加成员同时写群成员与会话成员；消息权限统一由会话成员校验 |
 | 群成员上限 200 | V1 群消息采用接收者快照事件；超过上限的大群后续改为消费者分页拉取 + 异步扇出 |
+| 投递记录表 | 文档未定义投递表，新增 `im_message_delivery`（message_id + device_id 唯一），投递序号只前进 |
 | 单机实时推送 | 未开启 MQ 时，发送方在持久化后直接向本节点在线连接推送；开启 MQ 后统一由 Outbox 消费投递 |
 | 每实例独立投递队列 | 为在多 Gateway 部署下命中接收者所在节点，每个实例声明临时队列接收全部事件；后续可改为 Redis 路由 + 单队列减少重复消费 |
 | Delivery ACK 内存跟踪 | 文档未定义投递记录表；当前使用内存 `DeliveryTracker`，后续替换为投递记录表 |
@@ -108,7 +109,7 @@
 6. **群管理能力不完整**：暂不支持退群、踢人、管理员设置、群资料修改；群成员上限 200，大群异步扇出未实现。
 7. **Docker 未在开发机验证**：开发环境无 Docker，`deploy/docker` 为交付文件，需在具备 Docker 的机器上执行 `docker compose up` 验证。
 8. **会话列表存在 N+1 查询**：`list` 对每个会话查询一次最大序号，后续改为批量聚合查询。
-9. **投递状态未持久化**：Delivery ACK 仍为内存跟踪，重启后丢失；待投递记录表落地。
+9. **投递记录查询能力缺失**：投递状态已持久化，但尚无查询接口与未读数聚合；后续补充。
 10. **dev/test 会累积 Outbox**：MQ 关闭时 Outbox 只写不发，便于本地排查；生产环境正常发布。
 
 ## 五、验证记录（2026-11-14）
@@ -129,7 +130,7 @@
 使用 MySQL 8.0.30 与 Redis 7.4 容器（`prod` profile，经 SSH 隧道连接）启动打包产物：
 
 - 数据访问层切换 MyBatis-Plus 后重新回归：注册、登录、创建会话、发送消息、幂等重发、历史查询链路在 MySQL 8.0.30 上全部通过。
-- Flyway 自动执行 `V1__init.sql` 与 `V2__outbox.sql`，`flyway_schema_history` 记录 version=2、success=1。
+- Flyway 自动执行 `V1__init.sql`、`V2__outbox.sql`、`V3__group.sql`、`V4__message_delivery.sql`。
 - `GET /actuator/health` 返回 `UP`（MySQL + Redis）。
 - HTTP 流程验证通过：注册 → 登录 → 创建单聊 → 发送消息（seq=1）→ 重复发送命中幂等（`duplicate=true`，同 messageId/seq）→ 历史消息 1 条 → 同步 1 条 → 已读上报。
 - 数据库核对：`im_user`、`im_conversation_sequence.last_seq=1`、`im_message` 记录存在。
@@ -156,7 +157,7 @@
 
 ## 六、下一步计划（建议顺序）
 
-1. 投递记录表与 Delivery ACK 持久化；将每实例广播收敛为 Redis 路由 + 单投递队列。
+1. 将每实例广播收敛为 Redis 路由 + 单投递队列；补充投递记录查询与未读数统计。
 2. 群管理完善：退群、踢人、管理员设置、群资料修改；大群异步扇出。
 3. 限流（连接数、登录、发送）、TLS、审计日志。
 4. Testcontainers 集成测试矩阵 + 压测脚本（连接数、吞吐、P99）。
