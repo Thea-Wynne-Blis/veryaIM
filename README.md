@@ -9,7 +9,8 @@ VERYAL 是高性能、跨平台、可扩展的即时通讯基础设施。本仓�
 - 登录认证（HS256 JWT）、心跳租约、连接注册表、读空闲断开、命令分发、业务线程池隔离。
 - 用户 / 设备 / 单聊 / **群聊** / 消息 / 会话序号 / 历史消息 / 幂等发送 / Server ACK / Delivery ACK / Read ACK / 游标同步。
 - 群聊基础：建群、加成员、群主/管理员权限、群会话与群消息；群 ID 与群会话 ID 一致，消息权限复用会话成员校验。
-- **Delivery ACK 持久化**：按消息 + 设备记录投递序号，幂等且只前进，为多端已读/未读统计提供数据基础。
+- 群管理：群主设置管理员、管理员/群主改名、踢人、成员退群；群主不可直接退群。
+- **Delivery ACK 持久化 + 投递查询**：按消息 + 设备记录投递序号，幂等且只前进；提供消息投递记录查询与会话未读数。
 - **Outbox + RabbitMQ 可靠投递**：消息与事件同事务落库，Publisher Confirm、指数退避重试、TTL 重试队列、死信队列；每个 Gateway 实例独立队列，保证多实例实时推送。
 - HTTP API（8080）：注册、登录、资料、设备、会话、消息、同步。
 - MySQL 8.0.30 + MyBatis-Plus + Flyway；本地开发使用 H2（MySQL 兼容模式）零依赖启动。
@@ -147,10 +148,15 @@ docker compose up -d --build
 | GET | `/api/v1/groups` | 我的群列表 |
 | GET | `/api/v1/groups/{groupId}` | 群详情 |
 | POST | `/api/v1/groups/{groupId}/members` | 添加群成员（群主/管理员） |
+| PUT | `/api/v1/groups/{groupId}` | 修改群名（群主/管理员） |
+| POST | `/api/v1/groups/{groupId}/leave` | 退群（群主不可直接退群） |
+| DELETE | `/api/v1/groups/{groupId}/members/{userId}` | 踢人（群主/管理员） |
+| PUT | `/api/v1/groups/{groupId}/members/{userId}/role` | 设置管理员/成员（仅群主） |
 | GET | `/api/v1/conversations` | 会话列表（含读游标与最大序号） |
 | GET | `/api/v1/conversations/{id}` | 会话详情 |
 | POST | `/api/v1/conversations/{id}/messages` | 发送消息 |
 | GET | `/api/v1/conversations/{id}/messages?cursor=0&limit=50` | 历史消息（游标） |
+| GET | `/api/v1/conversations/{id}/messages/{messageId}/deliveries` | 消息设备投递记录 |
 | POST | `/api/v1/conversations/{id}/read` | 上报已读序号 |
 | GET | `/api/v1/sync/messages?conversationId=...&cursor=...&limit=...` | 离线同步 |
 
@@ -206,7 +212,7 @@ mvn test
 ```
 
 - 单元测试：雪花 ID、Envelope 编解码、Netty 帧拆包/粘包/非法帧、JWT、PBKDF2、Outbox 事件 JSON 往返。
-- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、群建群/成员权限/群消息、TCP 端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
+- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群）、TCP 端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
 
 集成测试使用 `test` profile，Netty Gateway 端口配置为 0（系统分配），不占用本机端口。
 
