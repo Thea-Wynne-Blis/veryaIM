@@ -33,8 +33,4 @@ public class RabbitInstance {
     public String retryQueueName() {
         return RabbitConstants.RETRY_QUEUE + "." + instanceId;
     }
-
-    public String retryRoutingKey() {
-        return RabbitConstants.RETRY_ROUTING_KEY + "." + instanceId;
-    }
 }

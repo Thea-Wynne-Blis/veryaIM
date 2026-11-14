@@ -90,3 +90,26 @@ CREATE TABLE IF NOT EXISTS im_outbox
 CREATE UNIQUE INDEX IF NOT EXISTS uk_outbox_event_id ON im_outbox (event_id);
 CREATE INDEX IF NOT EXISTS idx_outbox_status_retry ON im_outbox (status, next_retry_at);
 
+CREATE TABLE IF NOT EXISTS im_group
+(
+    id         VARCHAR(64)  NOT NULL PRIMARY KEY,
+    tenant_id  BIGINT       NOT NULL,
+    name       VARCHAR(128) NOT NULL,
+    owner_id   BIGINT       NOT NULL,
+    created_at TIMESTAMP(3) NOT NULL,
+    updated_at TIMESTAMP(3) NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_group_tenant ON im_group (tenant_id);
+
+CREATE TABLE IF NOT EXISTS im_group_member
+(
+    id        BIGINT       NOT NULL PRIMARY KEY,
+    group_id  VARCHAR(64)  NOT NULL,
+    user_id   BIGINT       NOT NULL,
+    role      TINYINT      NOT NULL DEFAULT 0,
+    joined_at TIMESTAMP(3) NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_group_user ON im_group_member (group_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_group_member_user ON im_group_member (user_id);
+
+

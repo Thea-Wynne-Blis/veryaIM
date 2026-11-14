@@ -10,6 +10,7 @@ import com.veryal.common.json.JsonUtils;
 import com.veryal.domain.conversation.Conversation;
 import com.veryal.domain.conversation.ConversationMember;
 import com.veryal.domain.conversation.ConversationRepository;
+import com.veryal.domain.conversation.ConversationType;
 import com.veryal.domain.message.ConversationSequenceRepository;
 import com.veryal.domain.message.DuplicateMessageException;
 import com.veryal.domain.message.Message;
@@ -80,9 +81,9 @@ public class MessageApplicationService {
             return new SendMessageResult(duplicate, null, true);
         }
 
-        MessageCreatedEvent event = createEvent(command, message, now);
+        MessageCreatedEvent event = createEvent(command, message, conversation, now);
         outboxAppender.append(new OutboxMessage(event.eventId(), conversation.id(),
-                MessageEvents.PRIVATE_CREATED, JsonUtils.toJsonBytes(event), now));
+                event.eventType(), JsonUtils.toJsonBytes(event), now));
         conversationRepository.touch(conversation.id(), now);
         return new SendMessageResult(message, event, false);
     }
@@ -129,12 +130,16 @@ public class MessageApplicationService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CONVERSATION_MEMBER));
     }
 
-    private MessageCreatedEvent createEvent(SendMessageCommand command, Message message, Instant now) {
+    private MessageCreatedEvent createEvent(SendMessageCommand command, Message message,
+                                            Conversation conversation, Instant now) {
         List<Long> recipients = conversationRepository.findMembers(message.conversationId()).stream()
                 .map(ConversationMember::userId)
                 .filter(userId -> userId != command.senderId())
                 .toList();
-        return new MessageCreatedEvent(RandomIds.newId(), message.tenantId(),
+        String eventType = conversation.type() == ConversationType.GROUP
+                ? MessageEvents.GROUP_CREATED
+                : MessageEvents.PRIVATE_CREATED;
+        return new MessageCreatedEvent(RandomIds.newId(), eventType, message.tenantId(),
                 message.conversationId(), message.id(), message.senderId(), command.senderDeviceId(),
                 message.seq(), message.type().code(), message.content(), now,
                 message.clientMsgId(), recipients);

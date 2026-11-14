@@ -4,6 +4,7 @@ import com.rabbitmq.client.Channel;
 import com.veryal.common.json.JsonUtils;
 import com.veryal.domain.delivery.RealtimeDeliveryPort;
 import com.veryal.domain.message.event.MessageCreatedEvent;
+import com.veryal.domain.message.event.MessageEvents;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Message;
@@ -41,14 +42,16 @@ public class MessageDeliveryListener {
                           @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag,
                           @Header(name = RabbitConstants.HEADER_RETRY_COUNT, required = false) Integer retryCount)
             throws IOException {
+        MessageCreatedEvent event = null;
         try {
-            MessageCreatedEvent event = JsonUtils.fromJson(message.getBody(), MessageCreatedEvent.class);
+            event = JsonUtils.fromJson(message.getBody(), MessageCreatedEvent.class);
             if (deduplicator.firstSeen(event.eventId())) {
                 realtimeDeliveryPort.deliver(event);
             }
             channel.basicAck(deliveryTag, false);
         } catch (Exception e) {
             int attempt = retryCount == null ? 0 : retryCount;
+            String retryRoutingKey = event == null ? MessageEvents.PRIVATE_CREATED : event.eventType();
             log.warn("message delivery failed: attempt={}, reason={}", attempt, e.getMessage());
             try {
                 if (attempt >= properties.getMaxRetries()) {
@@ -57,7 +60,7 @@ public class MessageDeliveryListener {
                     log.error("message delivery moved to dead letter queue after {} attempts", attempt);
                 } else {
                     rabbitTemplate.convertAndSend(RabbitConstants.RETRY_EXCHANGE,
-                            rabbitInstance.retryRoutingKey(), message.getBody(), retryMessage -> {
+                            retryRoutingKey, message.getBody(), retryMessage -> {
                                 MessageProperties props = retryMessage.getMessageProperties();
                                 props.setHeader(RabbitConstants.HEADER_RETRY_COUNT, attempt + 1);
                                 props.setContentType(MessageProperties.CONTENT_TYPE_JSON);

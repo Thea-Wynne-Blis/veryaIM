@@ -28,8 +28,8 @@ public class RabbitMqConfig {
     }
 
     @Bean
-    public DirectExchange retryExchange() {
-        return new DirectExchange(RabbitConstants.RETRY_EXCHANGE, true, false);
+    public TopicExchange retryExchange() {
+        return new TopicExchange(RabbitConstants.RETRY_EXCHANGE, true, false);
     }
 
     @Bean
@@ -40,7 +40,6 @@ public class RabbitMqConfig {
     @Bean
     public Queue messageDeliveryQueue(RabbitInstance instance) {
         return QueueBuilder.nonDurable(instance.deliveryQueueName())
-                .exclusive()
                 .autoDelete()
                 .deadLetterExchange(RabbitConstants.DEAD_LETTER_EXCHANGE)
                 .deadLetterRoutingKey(RabbitConstants.DEAD_ROUTING_KEY)
@@ -50,11 +49,9 @@ public class RabbitMqConfig {
     @Bean
     public Queue messageRetryQueue(RabbitInstance instance) {
         return QueueBuilder.nonDurable(instance.retryQueueName())
-                .exclusive()
                 .autoDelete()
                 .ttl(RabbitConstants.RETRY_TTL_MILLIS)
                 .deadLetterExchange(RabbitConstants.MESSAGE_EXCHANGE)
-                .deadLetterRoutingKey(MessageEvents.PRIVATE_CREATED)
                 .build();
     }
 
@@ -76,9 +73,15 @@ public class RabbitMqConfig {
     }
 
     @Bean
-    public Binding retryBinding(DirectExchange retryExchange, Queue messageRetryQueue, RabbitInstance instance) {
+    public Binding retryPrivateBinding(TopicExchange retryExchange, Queue messageRetryQueue) {
         return BindingBuilder.bind(messageRetryQueue).to(retryExchange)
-                .with(instance.retryRoutingKey());
+                .with(MessageEvents.PRIVATE_CREATED);
+    }
+
+    @Bean
+    public Binding retryGroupBinding(TopicExchange retryExchange, Queue messageRetryQueue) {
+        return BindingBuilder.bind(messageRetryQueue).to(retryExchange)
+                .with(MessageEvents.GROUP_CREATED);
     }
 
     @Bean
