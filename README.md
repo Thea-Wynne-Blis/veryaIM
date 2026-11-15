@@ -1,6 +1,13 @@
 # VERYAL Backend
 
-VERYAL 是高性能、跨平台、可扩展的即时通讯基础设施。本仓库是服务端实现，采用 Java 21 + Netty + Spring Boot + Protobuf + MyBatis-Plus + MySQL + Redis + RabbitMQ + Caffeine + Lombok + Hutool，按照 `docs/VERYAL-V1.0-技术架构与开发设计文档.md` 的模块与分层约束落地。
+VERYAL 是面向个人用户的消费级社交即时通讯产品（类微信 / QQ），当前仓库为服务端实现，采用 Java 21 + Netty + Spring Boot + Protobuf + MyBatis-Plus + MySQL + Redis + RabbitMQ + Caffeine + Lombok + Hutool，按照 [`docs/VERYAL-V1.0-技术架构与开发设计文档.md`](docs/VERYAL-V1.0-技术架构与开发设计文档.md) V1.1 的模块与分层约束落地。
+
+> **产品方向（V1.1）**
+>
+> - VERYAL 定位为消费级社交 IM：账号、好友、单聊、群聊、富媒体、多端同步、离线推送、隐私与举报、运营后台。
+> - **不做多租户 / 企业组织 / 飞书式协作 / 开放平台 / 私有化交付。**
+> - 现有代码中的租户表、租户码、平台租户管理等属于历史实现，后续按总开发文档逐步清理；不应继续扩展。
+> - 前端设计见 [`docs/FRONTEND-ARCHITECTURE.md`](docs/FRONTEND-ARCHITECTURE.md)（IM 客户端 + 运营后台）。
 
 当前版本完成了 **V0.1 通信核心**、**V0.2 基础 IM 业务** 与 **V0.3 消息可靠性核心** 的可运行纵向切片：
 
@@ -24,7 +31,7 @@ VERYAL 是高性能、跨平台、可扩展的即时通讯基础设施。本仓�
 - **连接数治理**：单节点总连接数与单 IP 连接数可配置，准入处理器在 TLS/协议握手前拒绝超限连接，并输出拒绝指标。
 - **文件存储策略**：`local` / `minio` / `oss` 三种实现，`veryal.storage.type` 选择；文件本体不入 MySQL，元数据与 SHA-256 落库，支持上传、下载、删除、临时 URL。
 - **分片上传/断点续传**：初始化会话 → 逐片上传 → 查询已上传分片 → 完成后合并；图片上传自动缩放/压缩。
-- **多租户**：`im_tenant` 租户表、租户码登录/注册、用户/群/存储基础配额、平台侧开通/停用；读写按 `tenant_id` 隔离。
+- **多租户（历史实现，待清理）**：`im_tenant` 租户表、租户码登录/注册、用户/群/存储基础配额、平台侧开通/停用；读写按 `tenant_id` 隔离。
 - **好友/黑名单/通讯录**：好友申请（发送/接受/拒绝/取消）、好友备注/删除、黑名单拦截私聊、通讯录聚合好友/群/待处理申请。
 - **多消息类型**：TEXT / EMOJI / IMAGE / AUDIO / VIDEO / FILE / SYSTEM，采用策略 + 工厂校验内容格式与文件归属。
 - Lombok 消除样板代码，Hutool 提供 ID / 字符串等基础工具。
@@ -165,7 +172,7 @@ docker compose up -d --build
 @RateLimit(policy = "http-login", dimension = RateLimitDimension.IP)
 public ApiResponse<AuthResponse> login(...) { ... }
 
-// 消息发送：按租户 + 发送者
+// 消息发送：按发送者
 @RateLimit(policy = "message-send", key = "#p0 + ':' + #p1")
 public void acquire(long tenantId, long senderId) { ... }
 ```
@@ -177,10 +184,15 @@ public void acquire(long tenantId, long senderId) { ... }
 - 登录由注解限流，`RateLimitFilter` 不再重复处理登录路径；
 - 超限统一抛 `BusinessException(RATE_LIMITED)`，由全局异常处理返回 429。
 
+> **接口说明（V1.1）**
+>
+> 下表包含当前代码已实现的历史接口，其中 `/api/v1/platform/tenants/*`、`/api/v1/tenant/*`、`X-Admin-Token` 以及注册/登录的 `tenantCode` 属于多租户历史实现。
+> 新方向不再扩展这些接口，后续清理；前端一期不展示租户概念，也不使用租户后台。
+
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| POST | `/api/v1/auth/register` | 注册（可选 `tenantCode`，默认 `default`） |
-| POST | `/api/v1/auth/login` | 登录并绑定设备（可选 `tenantCode`） |
+| POST | `/api/v1/auth/register` | 注册（`tenantCode` 为历史参数，前端不展示） |
+| POST | `/api/v1/auth/login` | 登录并绑定设备（`tenantCode` 为历史参数） |
 | GET | `/api/v1/auth/me` | 当前用户 |
 | POST | `/api/v1/platform/auth/login` | 平台管理员登录（可带 `mfaCode`，返回 `scope=PLATFORM` + `role`） |
 | POST | `/api/v1/platform/auth/refresh` | 刷新平台 Token（Refresh Token 轮换） |
@@ -552,8 +564,10 @@ mvn test
 ## 后续路线
 
 - V0.3：已完成 Outbox + RabbitMQ + 重试/DLQ + 多实例实时投递；后续补充投递记录表与跨节点路由优化。
-- V0.4：群聊、群管理（含群主转让/解散）、群消息分页扇出、Redis 网关路由、策略模式限流、审计日志/查询、可选 TLS、连接数上限已完成；继续补充大群压测。
-- V0.5：Caffeine 两级缓存完善、文件存储（local/MinIO/OSS）、分片上传/图片压缩、多租户（基础）、平台管理员账号/CRUD/审计、好友/黑名单/通讯录与实时通知、多消息类型、消息撤回/搜索/已读回执、开放 API / SDK。
-- V1.0：管理后台、完整群聊/好友体系、监控告警、私有化部署。
+- V0.4：群聊、群管理（含群主转让/解散）、群消息分页扇出、Redis 网关路由、策略模式限流、审计日志/查询、可选 TLS、连接数上限已完成；1000 人容量与 100 并发冒烟已通过，独立压测待补。
+- V0.5：文件/图片/语音/视频、分片上传、多消息类型、好友/黑名单/通讯录、群公告/禁言/@、离线推送抽象、隐私/举报、运营后台基础。
+- V1.0：移动端 + Web 客户端、真实 APNs/FCM/厂商推送、运营后台完善、内容审核、压测与长稳。
+
+**V1.1 明确不做：** 多租户、企业组织、飞书式协作、开放平台/SDK、私有化部署控制台、支付/发票。
 
 详细进度与差距见 [docs/DEVELOPMENT-STATUS.md](docs/DEVELOPMENT-STATUS.md)。

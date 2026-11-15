@@ -5,9 +5,9 @@
 | 文档属性 | 内容 |
 |---|---|
 | 项目名称 | VERYAL |
-| 项目类型 | 即时通讯基础设施 / IM Platform |
-| 文档版本 | V1.0 |
-| 文档状态 | 开发基线 |
+| 项目类型 | 消费级社交即时通讯（类微信 / QQ） |
+| 文档版本 | V1.1 |
+| 文档状态 | 产品方向修订版 |
 | 核心语言 | Java |
 | JDK | Java 21 LTS |
 | 网络框架 | Netty |
@@ -20,6 +20,29 @@
 | 文件存储 | MinIO / S3 |
 | 构建工具 | Maven |
 | 部署方式 | Docker，后续支持 Kubernetes |
+| 产品范围 | 单平台、单用户体系、无多租户 |
+| 最后更新 | 2026-11-15 |
+
+## 修订记录
+
+| 版本 | 日期 | 说明 |
+|---|---|---|
+| V1.0 | 2026-11-14 | 初始开发基线，偏企业协作 / 多租户 / 开放平台方向 |
+| V1.1 | 2026-11-15 | 产品方向调整为微信 / QQ 类消费级社交 IM；多租户、企业组织、OA 协作、开放平台移出一期范围 |
+
+> **方向说明**
+>
+> 本版明确 VERYAL 做的是**面向个人用户的社交聊天产品**，不是飞书 / 企业微信类的组织协作平台。
+>
+> 因此：
+>
+> - 不再把多租户、企业组织架构、部门、审批、日历、文档协作作为产品能力；
+> - 不再以“IM 开放平台 / SDK / 私有化部署”作为一期目标；
+> - 现有代码中已经存在的多租户、平台租户管理等能力，视为**历史实现**，后续按本版逐步清理，不作为产品承诺。
+>
+> 本版重点：账号、好友关系、单聊、群聊、富媒体消息、离线推送、多端同步、隐私与举报、运营后台。
+>
+> 配套前端设计：[FRONTEND-ARCHITECTURE.md](FRONTEND-ARCHITECTURE.md)
 
 ---
 
@@ -53,20 +76,56 @@
 
 # 第一章：项目定位与设计目标
 
-## 1.1 项目介绍
+## 1.1 项目定位
 
-VERYAL 是一个自主研发的高性能、跨平台、可扩展即时通讯系统。
+VERYAL 是一个面向个人用户的消费级即时通讯产品，产品形态参考微信和 QQ。
 
-项目目标不是简单开发一个聊天程序，而是构建一套独立的 IM 通信基础设施。
+核心体验：
 
-VERYAL 未来需要具备两种产品形态：
+- 注册 / 登录，维护个人资料；
+- 加好友、好友申请、备注、拉黑；
+- 单聊；
+- 群聊；
+- 发送文字、表情、图片、语音、视频、文件；
+- 多端同时在线与消息同步；
+- 离线消息、离线推送；
+- 隐私设置、举报、运营审核；
+- 运营后台管理用户、群、内容和举报。
 
-1. 独立 IM 产品：提供完整的聊天客户端、用户体系、会话、群组、消息、文件等功能。
-2. IM 开放平台：提供 SDK、API、Webhook 和服务端能力，供其他开发者集成。
+VERYAL 不是企业协作平台，不是飞书 / 企业微信的替代品。
 
-系统需要支持不同平台、不同业务系统和不同部署环境。
+## 1.2 明确不做的产品方向
 
-## 1.2 核心设计目标
+以下能力不属于 VERYAL 一期范围：
+
+- 企业组织架构、部门、员工通讯录；
+- 审批、日历、在线文档、会议、OKR；
+- 多租户 SaaS、租户开通、租户配额、租户计费；
+- 平台租户管理员、租户数据导出 / 删除；
+- 开放平台、第三方应用、机器人市场；
+- 私有化部署作为商业交付形态。
+
+> 多租户能力在现有代码中已经实现过一部分，但本版将其标记为**非目标**。
+> 后续代码整理时，应移除租户字段、租户接口和平台租户管理，不继续扩展。
+
+## 1.3 产品形态
+
+一期产品由三部分组成：
+
+1. **移动端客户端**：iOS / Android，主聊天入口；
+2. **Web 客户端**：浏览器聊天、文件、群管理；
+3. **运营后台**：用户管理、群管理、内容审核、举报处理、数据统计。
+
+未来可选：
+
+- 朋友圈 / 动态；
+- 语音通话 / 视频通话；
+- 频道 / 公众号；
+- 小程序 / 开放能力。
+
+这些不进入一期。
+
+## 1.4 核心设计目标
 
 ### 性能目标
 
@@ -89,15 +148,26 @@ VERYAL 未来需要具备两种产品形态：
 - 节点故障自动恢复。
 - 消息顺序可追踪。
 
-### 可扩展目标
+### 社交产品目标
 
-- 支持多平台客户端。
-- 支持多语言 SDK。
-- 支持多租户。
-- 支持私有化部署。
-- 支持消息存储扩展。
-- 支持不同传输协议。
-- 支持未来独立拆分服务。
+- 好友关系双向确认。
+- 好友申请、接受、拒绝、取消。
+- 好友备注、删除好友。
+- 黑名单、消息拒收。
+- 群成员、群主、群管理员。
+- 群公告、全员禁言、成员禁言、@ 成员。
+- 隐私设置：是否允许手机号搜索、是否允许陌生人加好友。
+- 举报、拉黑、内容审核。
+
+### 账号安全目标
+
+- 手机号 / 用户名 + 密码登录。
+- 短信验证码登录（后续）。
+- 设备管理、设备撤销。
+- 登录风控、异常登录提醒。
+- Token 过期与刷新。
+- 密码错误锁定。
+- 敏感操作二次确认。
 
 ### 可维护目标
 
@@ -109,20 +179,95 @@ VERYAL 未来需要具备两种产品形态：
 - 统一数据库访问规范。
 - 统一监控体系。
 
-## 1.3 第一阶段不做的事情
+## 1.5 第一阶段功能边界
 
-为了避免过度设计，第一版暂时不实现：
+一期必须完成：
 
-- 完整端到端加密体系。
-- 视频会议和实时音视频。
-- 超大规模直播聊天室。
-- 跨地域多活。
-- 多种数据库同时支持。
-- 多种消息队列同时支持。
-- 复杂的分布式事务。
+### 账号
+
+- 注册；
+- 登录；
+- 退出；
+- 个人资料；
+- 头像；
+- 设备列表。
+
+### 好友
+
+- 搜索用户；
+- 发送好友申请；
+- 接受 / 拒绝 / 取消；
+- 好友列表；
+- 好友备注；
+- 删除好友；
+- 拉黑 / 解除拉黑。
+
+### 单聊
+
+- 创建单聊；
+- 文本、表情、图片、语音、视频、文件；
+- 消息历史；
+- 已读 / 未读；
+- 撤回；
+- 断线同步。
+
+### 群聊
+
+- 建群；
+- 邀请成员；
+- 群主 / 管理员；
+- 踢人、退群、转让群主、解散群；
+- 群公告；
+- 全员禁言 / 成员禁言；
+- @ 成员；
+- 群文件。
+
+### 实时与多端
+
+- WebSocket 长连接；
+- 心跳；
+- 多设备在线；
+- 离线消息；
+- 离线推送（APNs / FCM / 厂商通道）；
+- 消息去重、顺序、ACK。
+
+### 运营
+
+- 用户管理；
+- 群管理；
+- 内容审核；
+- 举报处理；
+- 敏感词 / 风控（基础）；
+- 运营数据统计。
+
+## 1.6 第一阶段不做
+
+为了控制范围，一期不做：
+
+- 多租户、SaaS、企业组织架构；
+- 审批、日历、文档、会议；
+- 朋友圈 / 动态；
+- 语音通话、视频通话；
+- 红包、支付、转账；
+- 直播、频道、公众号；
+- 小程序、机器人、开放平台；
+- 端到端加密；
+- 跨地域多活；
 - 自研分布式存储引擎。
 
-但架构需要预留扩展接口。
+但架构需要为这些能力预留扩展点，不影响一期交付。
+
+## 1.7 产品角色
+
+| 角色 | 说明 |
+|---|---|
+| 普通用户 | 聊天、好友、群、文件、个人设置 |
+| 群主 | 群最高权限，可转让 / 解散群 |
+| 群管理员 | 协助群主管理成员、公告、禁言 |
+| 运营人员 | 平台后台，处理用户、群、内容、举报 |
+| 平台管理员 | 运营后台最高权限，管理运营账号与系统配置 |
+
+> 没有“租户管理员”角色。平台只有一个运营后台，服务所有用户。
 
 ---
 
@@ -163,7 +308,7 @@ VERYAL 未来需要具备两种产品形态：
 
 ## 2.2 为什么选择 Java + Netty
 
-Java 具有成熟的企业级生态。
+Java 具有成熟的工程生态。
 
 Netty 提供：
 
@@ -216,7 +361,7 @@ RabbitMQ 作为 VERYAL 唯一的消息中间件。
 - 消息异步分发。
 - 群聊消息扇出。
 - 推送任务。
-- AI Bot 事件。
+- 好友 / 拉黑 / 举报事件。
 - 系统事件。
 - 审计任务。
 - 文件处理任务。
@@ -272,6 +417,7 @@ flowchart TB
     APP --> MESSAGE[Message Domain]
     APP --> GROUP[Group Domain]
     APP --> CONV[Conversation Domain]
+    APP --> FRIEND[Friend / Social Domain]
     APP --> SYNC[Sync Domain]
     APP --> MEDIA[Media Domain]
 
@@ -279,6 +425,7 @@ flowchart TB
     MESSAGE --> MYSQL
     GROUP --> MYSQL
     CONV --> MYSQL
+    FRIEND --> MYSQL
     SYNC --> MYSQL
 
     APP --> CACHE[Caffeine]
@@ -289,7 +436,7 @@ flowchart TB
 
     MQ --> DELIVERY[Delivery Consumer]
     MQ --> PUSH[Push Consumer]
-    MQ --> BOT[Bot Consumer]
+    MQ --> SOCIAL[Social Consumer]
 
     DELIVERY --> ROUTER[Gateway Router]
     ROUTER --> TCP
@@ -410,6 +557,8 @@ veryal/
 │   ├── application-message/
 │   ├── application-conversation/
 │   ├── application-group/
+│   ├── application-friend/
+│   ├── application-moderation/
 │   ├── application-sync/
 │   └── application-delivery/
 │
@@ -424,10 +573,6 @@ veryal/
 ├── veryal-bootstrap/
 │
 ├── veryal-admin/
-│
-├── veryal-sdk/
-│   ├── sdk-java/
-│   └── sdk-docs/
 │
 ├── veryal-test/
 │
@@ -451,7 +596,7 @@ veryal/
 
 维护 Protobuf 协议文件。
 
-所有客户端 SDK 从这里生成协议代码。
+客户端、移动端和 Web 端从这里生成协议代码；不对外提供第三方 SDK。
 
 ### access-tcp
 
@@ -632,7 +777,7 @@ public class TextMessageHandler
 - AudioMessageHandler。
 - VideoMessageHandler。
 - SystemMessageHandler。
-- BotMessageHandler。
+- StickerMessageHandler。
 
 统一业务流程由 MessageApplicationService 编排。
 
@@ -1059,6 +1204,190 @@ limit=100
 5. 更新客户端游标。
 6. 恢复实时接收。
 
+## 8.7 好友关系设计
+
+好友关系是消费级 IM 的核心，不依附于组织架构。
+
+### 申请状态机
+
+```text
+PENDING
+  ├── ACCEPTED
+  ├── REJECTED
+  ├── CANCELED
+  └── EXPIRED
+
+REJECTED / CANCELED / EXPIRED
+  └── 可重新发起申请
+```
+
+规则：
+
+- 不能添加自己；
+- 已是好友不能重复申请；
+- 同一对用户同一时间只允许一条待处理申请；
+- 对方拒绝或自己取消后，允许重新申请；
+- 拉黑后不能发起申请；
+- 好友关系建立后，双方各写一条好友记录，便于各自备注、删除和查询。
+
+### 好友数据
+
+- 好友申请：`from_user_id`、`to_user_id`、附言、状态、时间；
+- 好友关系：`user_id`、`friend_id`、备注、来源、时间；
+- 黑名单：`user_id`、`blocked_user_id`、时间。
+
+好友列表查询只查当前用户自己的好友记录，不做全表扫描。
+
+### 好友事件
+
+通过 Outbox 发布：
+
+```text
+friend.requested
+friend.accepted
+friend.rejected
+friend.canceled
+friend.blocked
+friend.unblocked
+```
+
+在线用户实时推送 `FRIEND_NOTIFY`；离线用户通过同步接口补拉申请列表。
+
+## 8.8 黑名单、隐私与举报
+
+### 黑名单
+
+黑名单是单向关系：
+
+- A 拉黑 B，B 不一定是 A 的黑名单；
+- A 拉黑 B 后，自动解除好友关系；
+- B 发给 A 的私聊消息被拒绝；
+- A 仍然可以在群聊中看到 B 的群消息（群聊不做个人黑名单过滤）；
+- 解除拉黑不会自动恢复好友关系。
+
+### 隐私设置
+
+用户可配置：
+
+- 是否允许通过手机号搜索到我；
+- 是否允许通过用户名搜索到我；
+- 是否允许陌生人加好友；
+- 是否展示在线状态；
+- 是否展示已读回执；
+- 是否允许被邀请进群；
+- 加好友验证方式：直接通过 / 需要验证 / 拒绝。
+
+隐私判断在服务端完成，不能只依赖客户端。
+
+### 举报与内容审核
+
+- 用户可举报消息、用户、群；
+- 举报写入审核表，进入运营后台；
+- 运营可警告、禁言、封号、解散群；
+- 敏感词、图片内容审核作为后续能力；
+- 审核操作必须审计。
+
+## 8.9 群聊产品设计
+
+### 群角色
+
+| 角色 | 权限 |
+|---|---|
+| 群主 | 全部权限，转让、解散、设置管理员 |
+| 管理员 | 踢人、禁言、公告、审核入群 |
+| 成员 | 发消息、看历史、退群 |
+
+### 群规则
+
+- 群人数上限一期 1000；
+- 群主不能直接退群，必须先转让；
+- 管理员不能踢群主或其他管理员；
+- 全员禁言时，群主 / 管理员仍可发言；
+- 成员禁言到期自动恢复；
+- @ 成员必须是本群成员；
+- 群公告、禁言、@ 的变更需要实时或同步可见。
+
+### 群与会话
+
+群 ID 与群会话 ID 保持一致，简化消息权限与历史查询。
+
+群消息只持久化一次，投递时按成员分页扇出，不在一个事务里循环所有成员。
+
+### 群文件
+
+- 文件绑定群会话；
+- 群成员可访问；
+- 未绑定会话的文件仅上传者可见；
+- 文件消息引用文件 ID，不直接携带文件本体。
+
+## 8.10 离线推送与多端同步
+
+消费级 IM 必须支持用户离线时收到提醒。
+
+### 推送通道
+
+一期至少支持：
+
+- APNs；
+- FCM；
+- 国内 Android 厂商通道（华为 / 小米 / OPPO / vivo，按接入优先级）；
+- Web Push 可选。
+
+### 设备 token
+
+- 客户端登录后注册推送 token；
+- token 与 userId、deviceId、platform 绑定；
+- token 失效时标记失效，不继续投递；
+- 用户退出 / 卸载时注销。
+
+### 推送内容
+
+只推送摘要，不推送完整敏感内容：
+
+```json
+{
+  "type": "MESSAGE",
+  "conversationId": "c_1001_1002",
+  "senderId": 1001,
+  "title": "新消息",
+  "body": "你好",
+  "unreadCount": 3
+}
+```
+
+点击通知后进入对应会话，再通过同步接口拉取完整消息。
+
+### 多端同步
+
+- 同一账号允许多设备在线；
+- 每个设备独立投递游标；
+- 任一设备已读，其他设备同步已读状态；
+- 新设备登录后从最近游标开始同步；
+- 不使用“最后登录设备覆盖”模型。
+
+## 8.11 消费级 IM 的消息类型
+
+一期支持：
+
+| 类型 | 说明 |
+|---|---|
+| TEXT | 文本 |
+| EMOJI | 表情 / 贴纸 |
+| IMAGE | 图片 |
+| AUDIO | 语音 |
+| VIDEO | 视频 |
+| FILE | 文件 |
+| SYSTEM | 系统提示 |
+
+后续可选：
+
+- 位置；
+- 名片；
+- 红包 / 转账；
+- 引用；
+- 合并转发；
+- 动态表情。
+
 ---
 
 # 第九章：MySQL 数据库设计
@@ -1107,20 +1436,28 @@ UTC
 ```sql
 CREATE TABLE im_user (
     id BIGINT NOT NULL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL,
     username VARCHAR(64) NOT NULL,
+    phone VARCHAR(32),
+    email VARCHAR(128),
+    password_hash VARCHAR(255) NOT NULL,
     nickname VARCHAR(128),
     avatar VARCHAR(512),
     status TINYINT NOT NULL DEFAULT 1,
     created_at DATETIME(3) NOT NULL,
     updated_at DATETIME(3) NOT NULL,
 
-    UNIQUE KEY uk_tenant_username (
-        tenant_id,
-        username
-    )
+    UNIQUE KEY uk_username (username),
+    UNIQUE KEY uk_phone (phone),
+    UNIQUE KEY uk_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
+
+说明：
+
+- 用户名全局唯一；
+- 手机号、邮箱可为空，但非空时全局唯一；
+- 密码只存哈希，不存明文；
+- 消费级产品不引入 `tenant_id`。
 
 ### 设备表
 
@@ -1139,20 +1476,135 @@ CREATE TABLE im_device (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
+### 好友申请表
+
+```sql
+CREATE TABLE im_friend_request (
+    id BIGINT NOT NULL PRIMARY KEY,
+    from_user_id BIGINT NOT NULL,
+    to_user_id BIGINT NOT NULL,
+    message VARCHAR(255),
+    status TINYINT NOT NULL DEFAULT 0,
+    created_at DATETIME(3) NOT NULL,
+    updated_at DATETIME(3) NOT NULL,
+
+    KEY idx_to_status (to_user_id, status, created_at),
+    KEY idx_from_status (from_user_id, status, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+状态：
+
+- 0：待处理；
+- 1：已接受；
+- 2：已拒绝；
+- 3：已取消；
+- 4：已过期。
+
+“同一对用户只允许一条待处理申请”由应用层事务 + 查询保证；MySQL 不支持部分唯一索引。
+
+### 好友关系表
+
+```sql
+CREATE TABLE im_friend (
+    id BIGINT NOT NULL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    friend_id BIGINT NOT NULL,
+    remark VARCHAR(64),
+    source VARCHAR(32),
+    created_at DATETIME(3) NOT NULL,
+    updated_at DATETIME(3) NOT NULL,
+
+    UNIQUE KEY uk_user_friend (user_id, friend_id),
+    KEY idx_friend_id (friend_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+好友关系双向写入两条记录：
+
+```text
+A -> B
+B -> A
+```
+
+这样每个用户都可以独立设置备注、删除好友，不影响对方的历史数据。
+
+### 黑名单表
+
+```sql
+CREATE TABLE im_blacklist (
+    id BIGINT NOT NULL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    blocked_user_id BIGINT NOT NULL,
+    created_at DATETIME(3) NOT NULL,
+
+    UNIQUE KEY uk_user_blocked (user_id, blocked_user_id),
+    KEY idx_blocked_user (blocked_user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+黑名单是单向关系，只影响被拉黑者发给拉黑者的私聊消息。
+
+### 用户隐私设置表
+
+```sql
+CREATE TABLE im_user_privacy (
+    user_id BIGINT NOT NULL PRIMARY KEY,
+    search_by_phone TINYINT NOT NULL DEFAULT 1,
+    search_by_username TINYINT NOT NULL DEFAULT 1,
+    friend_policy TINYINT NOT NULL DEFAULT 1,
+    show_online TINYINT NOT NULL DEFAULT 1,
+    read_receipt TINYINT NOT NULL DEFAULT 1,
+    invited_to_group TINYINT NOT NULL DEFAULT 1,
+    updated_at DATETIME(3) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+`friend_policy`：
+
+- 0：拒绝任何人；
+- 1：需要验证；
+- 2：允许直接添加。
+
+### 举报表
+
+```sql
+CREATE TABLE im_report (
+    id BIGINT NOT NULL PRIMARY KEY,
+    reporter_id BIGINT NOT NULL,
+    target_type VARCHAR(16) NOT NULL,
+    target_id VARCHAR(64) NOT NULL,
+    reason VARCHAR(64) NOT NULL,
+    detail VARCHAR(512),
+    status TINYINT NOT NULL DEFAULT 0,
+    handled_by BIGINT,
+    handled_at DATETIME(3),
+    created_at DATETIME(3) NOT NULL,
+
+    KEY idx_report_status (status, created_at),
+    KEY idx_report_target (target_type, target_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+`target_type`：`USER` / `GROUP` / `MESSAGE`。
+
+状态：
+
+- 0：待处理；
+- 1：处理中；
+- 2：已处理；
+- 3：已驳回。
+
 ### 会话表
 
 ```sql
 CREATE TABLE im_conversation (
     id VARCHAR(64) NOT NULL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL,
     conversation_type TINYINT NOT NULL,
     created_at DATETIME(3) NOT NULL,
     updated_at DATETIME(3) NOT NULL,
 
-    KEY idx_tenant_type (
-        tenant_id,
-        conversation_type
-    )
+    KEY idx_type (conversation_type, updated_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
@@ -1181,7 +1633,6 @@ CREATE TABLE im_conversation_member (
 ```sql
 CREATE TABLE im_message (
     id BIGINT NOT NULL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL,
     conversation_id VARCHAR(64) NOT NULL,
     sender_id BIGINT NOT NULL,
     client_msg_id VARCHAR(64) NOT NULL,
@@ -1189,15 +1640,15 @@ CREATE TABLE im_message (
     msg_type SMALLINT NOT NULL,
     content MEDIUMBLOB NOT NULL,
     created_at DATETIME(3) NOT NULL,
+    recalled_at DATETIME(3),
+    recalled_by BIGINT,
 
     UNIQUE KEY uk_sender_client_msg (
-        tenant_id,
         sender_id,
         client_msg_id
     ),
 
     UNIQUE KEY uk_conversation_seq (
-        tenant_id,
         conversation_id,
         seq
     ),
@@ -1218,6 +1669,69 @@ CREATE TABLE im_message (
 - 大文件只保存引用，不保存文件本体。
 
 生产版本需要根据实际分片方案确定唯一索引和主键结构。
+
+### 群表
+
+```sql
+CREATE TABLE im_group (
+    id VARCHAR(64) NOT NULL PRIMARY KEY,
+    name VARCHAR(128) NOT NULL,
+    owner_id BIGINT NOT NULL,
+    max_members INT NOT NULL DEFAULT 1000,
+    created_at DATETIME(3) NOT NULL,
+    updated_at DATETIME(3) NOT NULL,
+
+    KEY idx_owner (owner_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+群 ID 与群会话 ID 一致。
+
+### 群成员表
+
+```sql
+CREATE TABLE im_group_member (
+    id BIGINT NOT NULL PRIMARY KEY,
+    group_id VARCHAR(64) NOT NULL,
+    user_id BIGINT NOT NULL,
+    role TINYINT NOT NULL DEFAULT 0,
+    joined_at DATETIME(3) NOT NULL,
+
+    UNIQUE KEY uk_group_user (group_id, user_id),
+    KEY idx_group_member_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+角色：
+
+- 0：成员；
+- 1：管理员；
+- 2：群主。
+
+### 群设置表
+
+```sql
+CREATE TABLE im_group_setting (
+    group_id VARCHAR(64) NOT NULL PRIMARY KEY,
+    announcement TEXT,
+    mute_all TINYINT NOT NULL DEFAULT 0,
+    updated_at DATETIME(3) NOT NULL,
+    updated_by BIGINT NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+### 群成员禁言表
+
+```sql
+CREATE TABLE im_group_mute (
+    group_id VARCHAR(64) NOT NULL,
+    user_id BIGINT NOT NULL,
+    muted_until DATETIME(3) NOT NULL,
+    created_at DATETIME(3) NOT NULL,
+
+    PRIMARY KEY (group_id, user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
 
 ### Outbox 表
 
@@ -1289,7 +1803,7 @@ COMMIT
 
 第三阶段：
 
-- 按 tenant_id 或 conversation_id 分片。
+- 按 conversation_id 哈希分片。
 - 建立独立消息存储节点。
 - 实施冷热数据分层。
 
@@ -1314,6 +1828,7 @@ RabbitMQ 是 VERYAL 的异步事件总线。
 | Exchange | 类型 | 作用 |
 |---|---|---|
 | veryal.message.exchange | Topic | 消息事件 |
+| veryal.social.exchange | Topic | 好友、拉黑、举报事件 |
 | veryal.group.exchange | Topic | 群组事件 |
 | veryal.push.exchange | Topic | 推送事件 |
 | veryal.system.exchange | Topic | 系统事件 |
@@ -1329,12 +1844,17 @@ message.group.created
 message.delivery.requested
 message.delivery.failed
 
+friend.requested
+friend.accepted
+friend.rejected
+friend.canceled
+friend.blocked
+friend.unblocked
+
 group.member.joined
 group.member.left
 
 push.notification.requested
-
-bot.message.received
 
 system.user.online
 system.user.offline
@@ -1345,8 +1865,8 @@ system.user.offline
 ```text
 veryal-message-delivery-queue
 veryal-group-fanout-queue
+veryal-social-queue
 veryal-push-queue
-veryal-bot-queue
 veryal-audit-queue
 veryal-dead-letter-queue
 ```
@@ -1719,12 +2239,15 @@ RabbitMQ 关键队列使用 Quorum Queue 时，需要根据节点数量和副本
 
 ## 16.1 用户认证
 
+- 用户名 / 手机号 + 密码登录。
+- 短信验证码登录（后续）。
 - Token 认证。
-- Token 过期。
-- Token 刷新。
+- Token 过期与刷新。
 - 设备身份。
 - 设备撤销。
 - 登录风控。
+- 密码错误锁定。
+- 异常登录提醒。
 
 ## 16.2 通信安全
 
@@ -1738,20 +2261,43 @@ RabbitMQ 关键队列使用 Quorum Queue 时，需要根据节点数量和副本
 ## 16.3 消息安全
 
 - 发送权限校验。
+- 会话成员校验。
 - 群成员校验。
 - 黑名单校验。
 - 消息长度限制。
 - 内容校验。
 - 消息撤回权限。
 - 文件访问权限。
+- 举报入口。
 
 ## 16.4 管理安全
 
-- 管理员权限分级。
+- 运营后台独立认证。
+- 运营角色分级。
 - 操作日志。
 - 敏感操作审计。
 - API 限流。
-- 管理后台独立认证。
+- 封号、禁言、解散群等操作二次确认。
+
+## 16.5 隐私保护
+
+- 手机号、邮箱默认不公开。
+- 用户可关闭手机号 / 用户名搜索。
+- 用户可设置陌生人加好友策略。
+- 用户可隐藏在线状态。
+- 用户可关闭已读回执。
+- 拉黑后不接收对方私聊。
+- 举报信息仅运营可见。
+- 数据导出、账号注销作为后续能力。
+
+## 16.6 内容与账号风控
+
+- 敏感词基础过滤。
+- 图片 / 视频内容审核（后续）。
+- 频繁加好友、频繁建群、批量发送限流。
+- 异常设备、异常地区登录提醒。
+- 被举报次数过多的账号进入人工审核。
+- 未成年人保护作为后续独立合规项目。
 
 端到端加密作为后续独立安全项目设计，不能简单等同于 TLS。
 
@@ -1912,14 +2458,17 @@ timestamp
 - 连接管理。
 - 基础压测。
 
-## V0.2：基础 IM 业务
+## V0.2：账号与社交基础
 
 功能：
 
-- 用户。
-- 设备。
+- 用户注册 / 登录 / 资料。
+- 设备管理。
+- 好友申请、接受、拒绝、取消。
+- 好友列表、备注、删除。
+- 黑名单、拉黑 / 解除。
+- 通讯录。
 - 单聊。
-- 群聊。
 - 会话。
 - 消息持久化。
 - ACK。
@@ -1938,7 +2487,7 @@ timestamp
 - 多端同步。
 - 消息补偿。
 
-## V0.4：分布式集群
+## V0.4：群聊与分布式集群
 
 功能：
 
@@ -1947,8 +2496,13 @@ timestamp
 - 服务发现。
 - Gateway 故障恢复。
 - 群消息异步扇出。
+- 建群 / 加成员 / 踢人 / 退群。
+- 群主转让 / 解散群。
+- 群公告。
+- 全员禁言 / 成员禁言。
+- @ 成员。
 
-## V0.5：性能和商业化
+## V0.5：媒体、推送与客户端体验
 
 功能：
 
@@ -1956,26 +2510,39 @@ timestamp
 - GC 优化。
 - 消息分片。
 - 文件服务。
-- 多租户。
-- 开放 API。
-- SDK。
-- 私有化部署。
+- 图片压缩。
+- 分片上传 / 断点续传。
+- APNs / FCM / 厂商离线推送。
+- 设备 token 管理。
+- 隐私设置。
+- 举报与基础内容审核。
+- 运营后台。
+- 消息撤回 / 搜索 / 已读回执。
 
-## V1.0：正式产品
+## V1.0：正式消费级产品
 
 具备：
 
 - 完整用户体系。
+- 好友与通讯录。
 - 单聊。
 - 群聊。
 - 多端同步。
-- 文件消息。
-- 离线消息。
-- 管理后台。
-- SDK。
-- 开放接口。
-- 私有化部署。
+- 文件 / 图片 / 语音 / 视频消息。
+- 离线消息与离线推送。
+- 隐私、拉黑、举报。
+- 运营后台。
 - 监控与运维。
+- 移动端 + Web 客户端。
+- 压测与长稳。
+
+**不再包含：**
+
+- 多租户；
+- 企业组织架构；
+- 审批 / 日历 / 文档；
+- 开放平台 / SDK 作为一期目标；
+- 私有化部署作为一期目标。
 
 ---
 
@@ -2071,11 +2638,38 @@ RabbitMQ Routing Key 使用点分隔。
 
 - [ ] 用户管理。
 - [ ] 设备管理。
+- [ ] 好友申请。
+- [ ] 好友关系。
+- [ ] 黑名单。
+- [ ] 通讯录。
 - [ ] 单聊。
 - [ ] 群聊。
+- [ ] 群公告 / 禁言 / @。
 - [ ] 会话。
 - [ ] 消息历史。
 - [ ] 消息序号。
+- [ ] 消息撤回。
+- [ ] 消息搜索。
+- [ ] 已读回执。
+
+## 客户端与推送
+
+- [ ] 移动端客户端。
+- [ ] Web 客户端。
+- [ ] 离线推送（APNs / FCM / 厂商）。
+- [ ] 推送 token 管理。
+- [ ] 多端同步。
+- [ ] 隐私设置。
+- [ ] 举报入口。
+
+## 运营后台
+
+- [ ] 用户管理。
+- [ ] 群管理。
+- [ ] 内容审核。
+- [ ] 举报处理。
+- [ ] 敏感词 / 风控。
+- [ ] 操作审计。
 
 ## 可靠性
 
@@ -2129,6 +2723,11 @@ RabbitMQ Routing Key 使用点分隔。
 | ADR-013 | 初期部署 | 模块化单体 |
 | ADR-014 | 未来扩展 | 分布式服务 |
 | ADR-015 | 消息中间件策略 | 只使用 RabbitMQ，不引入 Kafka |
+| ADR-016 | 产品形态 | 消费级社交 IM（类微信 / QQ） |
+| ADR-017 | 多租户 | 不支持，一期不做 SaaS / 企业组织 |
+| ADR-018 | 好友关系 | 双向好友 + 单向黑名单 |
+| ADR-019 | 离线推送 | APNs / FCM / 国内厂商通道 |
+| ADR-020 | 开放平台 | 不作为一期目标 |
 
 ---
 
@@ -2154,14 +2753,16 @@ VERYAL 必须长期遵守以下原则：
 
 **VERYAL 的最终设计目标：**
 
-构建一套高性能、低内存、高吞吐、高可靠、跨平台、可扩展、可维护，并且能够长期商业化的即时通讯基础设施。
+构建一套高性能、低内存、高吞吐、高可靠、跨平台、可扩展、可维护，面向个人用户的消费级即时通讯产品。
 
-不是简单复制现有开源 IM，而是在成熟开源项目的经验之上，建立自己的协议、消息内核、存储体系和工程规范。
+不是企业协作平台，不是多租户 SaaS。
+
+不是简单复制微信或 QQ，而是在成熟即时通讯经验之上，建立自己的协议、消息内核、社交关系、存储体系和工程规范。
 
 ---
 
 **文档结束**
 
 项目：VERYAL
-版本：V1.0
-状态：Ready for Engineering Planning
+版本：V1.1
+状态：消费级 IM 产品方向修订版
