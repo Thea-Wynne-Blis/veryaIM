@@ -24,6 +24,8 @@ public enum ErrorCode {
     TOKEN_EXPIRED(40101, "登录凭证已过期", 401),
     TOKEN_INVALID(40102, "登录凭证无效", 401),
     AUTHENTICATION_FAILED(40103, "用户名或密码错误", 401),
+    MFA_REQUIRED(40105, "需要多因素认证", 401),
+    MFA_INVALID(40106, "多因素认证码无效", 401),
 
     FORBIDDEN(40300, "无权执行该操作", 403),
     NOT_CONVERSATION_MEMBER(40301, "不是该会话成员", 403),
@@ -51,6 +53,7 @@ public enum ErrorCode {
     DUPLICATE_REQUEST(40903, "重复请求", 409),
 
     RATE_LIMITED(42900, "请求过于频繁", 429),
+    ACCOUNT_LOCKED(42300, "账号已锁定，请稍后再试", 423),
 
     INTERNAL_ERROR(50000, "服务内部错误", 500),
     PERSISTENCE_ERROR(50010, "数据持久化失败", 500),

@@ -19,6 +19,12 @@ public class PlatformAdminProperties {
 
     private Duration tokenTtl = Duration.ofHours(2);
 
+    private Duration refreshTtl = Duration.ofDays(14);
+
+    private int maxLoginAttempts = 5;
+
+    private Duration lockDuration = Duration.ofMinutes(15);
+
     private String bootstrapUsername;
 
     private String bootstrapPassword;

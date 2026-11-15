@@ -7,7 +7,8 @@ import java.time.Instant;
  */
 public record PlatformAdmin(long id, String username, String displayName, String passwordHash,
                             PlatformAdminRole role, PlatformAdminStatus status,
-                            Instant createdAt, Instant lastLoginAt) {
+                            int failedAttempts, Instant lockedUntil, String mfaSecret,
+                            boolean mfaEnabled, Instant createdAt, Instant lastLoginAt) {
 
     public PlatformAdmin {
         if (id <= 0) {

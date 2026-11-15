@@ -21,6 +21,10 @@ public class PlatformAdminPO {
     public String passwordHash;
     public String role;
     public int status;
+    public int failedAttempts;
+    public LocalDateTime lockedUntil;
+    public String mfaSecret;
+    public int mfaEnabled;
     public LocalDateTime createdAt;
     public LocalDateTime lastLoginAt;
 }

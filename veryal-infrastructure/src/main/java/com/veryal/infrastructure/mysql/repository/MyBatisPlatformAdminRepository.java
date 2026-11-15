@@ -66,7 +66,8 @@ public class MyBatisPlatformAdminRepository implements PlatformAdminRepository {
         return new PlatformAdmin(po.id, po.username, po.displayName, po.passwordHash,
                 PlatformAdminRole.valueOf(po.role), po.status == 0
                 ? PlatformAdminStatus.ACTIVE : PlatformAdminStatus.DISABLED,
-                SqlTime.toInstant(po.createdAt),
+                po.failedAttempts, po.lockedUntil == null ? null : SqlTime.toInstant(po.lockedUntil),
+                po.mfaSecret, po.mfaEnabled == 1, SqlTime.toInstant(po.createdAt),
                 po.lastLoginAt == null ? null : SqlTime.toInstant(po.lastLoginAt));
     }
 
@@ -78,6 +79,10 @@ public class MyBatisPlatformAdminRepository implements PlatformAdminRepository {
         po.passwordHash = admin.passwordHash();
         po.role = admin.role().name();
         po.status = admin.status() == PlatformAdminStatus.ACTIVE ? 0 : 1;
+        po.failedAttempts = admin.failedAttempts();
+        po.lockedUntil = admin.lockedUntil() == null ? null : SqlTime.toLocal(admin.lockedUntil());
+        po.mfaSecret = admin.mfaSecret();
+        po.mfaEnabled = admin.mfaEnabled() ? 1 : 0;
         po.createdAt = SqlTime.toLocal(admin.createdAt());
         po.lastLoginAt = admin.lastLoginAt() == null ? null : SqlTime.toLocal(admin.lastLoginAt());
         return po;

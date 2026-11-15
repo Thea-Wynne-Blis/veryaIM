@@ -1,6 +1,7 @@
 package com.veryal.application.platform;
 
 import com.veryal.application.identity.TokenProperties;
+import com.veryal.common.core.RandomIds;
 import com.veryal.common.core.TimeProvider;
 import com.veryal.common.exception.AuthenticationException;
 import com.veryal.common.exception.ErrorCode;
@@ -46,6 +47,7 @@ public class PlatformTokenService {
                 "username", admin.username(),
                 "role", admin.role().name(),
                 "scope", "PLATFORM",
+                "jti", RandomIds.newId(),
                 "iat", now.getEpochSecond(),
                 "exp", expiresAt.getEpochSecond()));
         String signingInput = encode(HEADER_JSON) + "." + encode(payload);

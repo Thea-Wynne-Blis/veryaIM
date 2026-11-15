@@ -243,10 +243,26 @@ CREATE TABLE IF NOT EXISTS im_platform_admin
     password_hash VARCHAR(255) NOT NULL,
     role          VARCHAR(32)  NOT NULL,
     status        TINYINT      NOT NULL DEFAULT 0,
+    failed_attempts INT        NOT NULL DEFAULT 0,
+    locked_until  TIMESTAMP(3) NULL,
+    mfa_secret    VARCHAR(64)  NULL,
+    mfa_enabled   TINYINT      NOT NULL DEFAULT 0,
     created_at    TIMESTAMP(3) NOT NULL,
     last_login_at TIMESTAMP(3) NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uk_platform_admin_username ON im_platform_admin (username);
+
+CREATE TABLE IF NOT EXISTS im_platform_refresh_token
+(
+    id         BIGINT      NOT NULL PRIMARY KEY,
+    admin_id   BIGINT      NOT NULL,
+    token_hash CHAR(64)    NOT NULL,
+    expires_at TIMESTAMP(3) NOT NULL,
+    revoked    TINYINT     NOT NULL DEFAULT 0,
+    created_at TIMESTAMP(3) NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_platform_refresh_hash ON im_platform_refresh_token (token_hash);
+CREATE INDEX IF NOT EXISTS idx_platform_refresh_admin ON im_platform_refresh_token (admin_id, expires_at);
 
 CREATE TABLE IF NOT EXISTS im_platform_audit_log
 (

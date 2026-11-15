@@ -30,6 +30,8 @@ public class PlatformAdminFilter extends OncePerRequestFilter {
 
     public static final String ATTRIBUTE = "veryal.platformPrincipal";
     private static final String LOGIN_PATH = "/api/v1/platform/auth/login";
+    private static final String REFRESH_PATH = "/api/v1/platform/auth/refresh";
+    private static final String LOGOUT_PATH = "/api/v1/platform/auth/logout";
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final PlatformAdminService platformAdminService;
@@ -37,7 +39,10 @@ public class PlatformAdminFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return !path.startsWith("/api/v1/platform/") || LOGIN_PATH.equals(path);
+        if (!path.startsWith("/api/v1/platform/")) {
+            return true;
+        }
+        return LOGIN_PATH.equals(path) || REFRESH_PATH.equals(path) || LOGOUT_PATH.equals(path);
     }
 
     @Override
