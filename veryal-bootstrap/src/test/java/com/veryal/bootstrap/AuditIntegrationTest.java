@@ -1,5 +1,6 @@
 package com.veryal.bootstrap;
 
+import com.veryal.access.http.dto.AuditLogResponse;
 import com.veryal.access.http.dto.AuthResponse;
 import com.veryal.access.http.dto.GroupResponse;
 import com.veryal.access.http.dto.UserResponse;
@@ -60,6 +61,16 @@ class AuditIntegrationTest {
                 .contains("LOGIN", "GROUP_CREATE", "GROUP_MEMBER_REMOVE");
         assertThat(logs).allMatch(log -> log.tenantId() == TenantIds.DEFAULT_TENANT_ID
                 && log.operatorId() == owner.userId());
+
+        ResponseEntity<ApiResponse<List<AuditLogResponse>>> endpoint = rest.exchange(
+                "/api/v1/users/me/audit-logs?limit=20", HttpMethod.GET,
+                new HttpEntity<>(headers(ownerLogin.token())),
+                new ParameterizedTypeReference<>() {
+                });
+        assertThat(endpoint.getStatusCode().is2xxSuccessful()).isTrue();
+        assertThat(endpoint.getBody()).isNotNull();
+        assertThat(endpoint.getBody().data()).extracting(AuditLogResponse::action)
+                .contains("LOGIN", "GROUP_CREATE", "GROUP_MEMBER_REMOVE");
     }
 
     private UserResponse register(String username) {
