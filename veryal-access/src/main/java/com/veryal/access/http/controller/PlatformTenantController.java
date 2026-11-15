@@ -2,14 +2,22 @@ package com.veryal.access.http.controller;
 
 import com.veryal.access.http.dto.CreateTenantRequest;
 import com.veryal.access.http.dto.TenantResponse;
+import com.veryal.access.http.security.PlatformAdminFilter;
+import com.veryal.application.platform.PlatformAuditRecorder;
+import com.veryal.application.platform.PlatformPrincipal;
 import com.veryal.application.tenant.TenantApplicationService;
 import com.veryal.common.core.ApiResponse;
+import com.veryal.common.exception.BusinessException;
+import com.veryal.common.exception.ErrorCode;
+import com.veryal.domain.platform.PlatformAdminRole;
+import com.veryal.domain.tenant.Tenant;
 import com.veryal.domain.tenant.TenantStatus;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -26,11 +34,18 @@ import java.util.List;
 public class PlatformTenantController {
 
     private final TenantApplicationService tenantApplicationService;
+    private final PlatformAuditRecorder platformAuditRecorder;
 
     @PostMapping
-    public ApiResponse<TenantResponse> create(@Valid @RequestBody CreateTenantRequest request) {
-        return ApiResponse.ok(TenantResponse.from(tenantApplicationService.create(request.code(),
-                request.name(), request.maxUsers(), request.maxGroups(), request.maxStorageBytes())));
+    public ApiResponse<TenantResponse> create(
+            @RequestAttribute(PlatformAdminFilter.ATTRIBUTE) PlatformPrincipal principal,
+            @Valid @RequestBody CreateTenantRequest request) {
+        requireAdmin(principal);
+        Tenant tenant = tenantApplicationService.create(request.code(), request.name(),
+                request.maxUsers(), request.maxGroups(), request.maxStorageBytes());
+        platformAuditRecorder.record(principal.adminId(), "TENANT_CREATE", "tenant",
+                Long.toString(tenant.id()), "code=" + tenant.code());
+        return ApiResponse.ok(TenantResponse.from(tenant));
     }
 
     @GetMapping
@@ -41,14 +56,30 @@ public class PlatformTenantController {
     }
 
     @PostMapping("/{tenantId}/disable")
-    public ApiResponse<TenantResponse> disable(@PathVariable long tenantId) {
-        return ApiResponse.ok(TenantResponse.from(
-                tenantApplicationService.updateStatus(tenantId, TenantStatus.DISABLED)));
+    public ApiResponse<TenantResponse> disable(
+            @RequestAttribute(PlatformAdminFilter.ATTRIBUTE) PlatformPrincipal principal,
+            @PathVariable long tenantId) {
+        requireAdmin(principal);
+        Tenant tenant = tenantApplicationService.updateStatus(tenantId, TenantStatus.DISABLED);
+        platformAuditRecorder.record(principal.adminId(), "TENANT_DISABLE", "tenant",
+                Long.toString(tenantId), null);
+        return ApiResponse.ok(TenantResponse.from(tenant));
     }
 
     @PostMapping("/{tenantId}/enable")
-    public ApiResponse<TenantResponse> enable(@PathVariable long tenantId) {
-        return ApiResponse.ok(TenantResponse.from(
-                tenantApplicationService.updateStatus(tenantId, TenantStatus.ACTIVE)));
+    public ApiResponse<TenantResponse> enable(
+            @RequestAttribute(PlatformAdminFilter.ATTRIBUTE) PlatformPrincipal principal,
+            @PathVariable long tenantId) {
+        requireAdmin(principal);
+        Tenant tenant = tenantApplicationService.updateStatus(tenantId, TenantStatus.ACTIVE);
+        platformAuditRecorder.record(principal.adminId(), "TENANT_ENABLE", "tenant",
+                Long.toString(tenantId), null);
+        return ApiResponse.ok(TenantResponse.from(tenant));
+    }
+
+    private void requireAdmin(PlatformPrincipal principal) {
+        if (principal == null || principal.role() != PlatformAdminRole.PLATFORM_ADMIN) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "platform admin permission required");
+        }
     }
 }

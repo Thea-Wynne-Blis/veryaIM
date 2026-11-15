@@ -248,6 +248,18 @@ CREATE TABLE IF NOT EXISTS im_platform_admin
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uk_platform_admin_username ON im_platform_admin (username);
 
+CREATE TABLE IF NOT EXISTS im_platform_audit_log
+(
+    id          BIGINT       NOT NULL PRIMARY KEY,
+    admin_id    BIGINT       NOT NULL,
+    action      VARCHAR(64)  NOT NULL,
+    target_type VARCHAR(64)  NOT NULL,
+    target_id   VARCHAR(128) NOT NULL,
+    detail      VARCHAR(512) NULL,
+    created_at  TIMESTAMP(3) NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_platform_audit_admin ON im_platform_audit_log (admin_id, created_at);
+
 
 
 

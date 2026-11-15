@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -37,6 +38,21 @@ public class MyBatisPlatformAdminRepository implements PlatformAdminRepository {
     @Override
     public void save(PlatformAdmin admin) {
         platformAdminMapper.insert(toPO(admin));
+    }
+
+    @Override
+    public List<PlatformAdmin> findAll(int limit) {
+        return platformAdminMapper.selectList(Wrappers.<PlatformAdminPO>lambdaQuery()
+                        .orderByAsc(PlatformAdminPO::getId)
+                        .last("LIMIT " + Math.max(1, Math.min(limit, 200))))
+                .stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
+    @Override
+    public void update(PlatformAdmin admin) {
+        platformAdminMapper.updateById(toPO(admin));
     }
 
     @Override

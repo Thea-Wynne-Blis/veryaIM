@@ -12,7 +12,11 @@ public interface PlatformAdminRepository {
 
     Optional<PlatformAdmin> findByUsername(String username);
 
+    java.util.List<PlatformAdmin> findAll(int limit);
+
     void save(PlatformAdmin admin);
+
+    void update(PlatformAdmin admin);
 
     void updateLastLogin(long adminId, Instant at);
 }
