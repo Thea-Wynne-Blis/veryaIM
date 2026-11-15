@@ -235,6 +235,19 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_blacklist_pair
     ON im_blacklist (tenant_id, user_id, blocked_user_id);
 CREATE INDEX IF NOT EXISTS idx_blacklist_user ON im_blacklist (tenant_id, user_id);
 
+CREATE TABLE IF NOT EXISTS im_platform_admin
+(
+    id            BIGINT       NOT NULL PRIMARY KEY,
+    username      VARCHAR(32)  NOT NULL,
+    display_name  VARCHAR(64)  NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    role          VARCHAR(32)  NOT NULL,
+    status        TINYINT      NOT NULL DEFAULT 0,
+    created_at    TIMESTAMP(3) NOT NULL,
+    last_login_at TIMESTAMP(3) NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_platform_admin_username ON im_platform_admin (username);
+
 
 
 

@@ -1,6 +1,7 @@
 package com.veryal.bootstrap;
 
 import com.veryal.access.http.dto.AuthResponse;
+import com.veryal.access.http.dto.PlatformAuthResponse;
 import com.veryal.access.http.dto.TenantResponse;
 import com.veryal.access.http.dto.UserResponse;
 import com.veryal.common.core.ApiResponse;
@@ -27,8 +28,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("test")
 class MultiTenantIntegrationTest {
 
-    private static final String ADMIN_TOKEN = "test-admin-token";
-
     @Autowired
     private TestRestTemplate rest;
 
@@ -45,6 +44,8 @@ class MultiTenantIntegrationTest {
         AuthResponse defaultLogin = login("tenant_alice_" + suffix, "td-" + suffix, null);
         AuthResponse tenantLogin = login("tenant_alice_" + suffix, "tt-" + suffix, code);
         assertThat(defaultLogin.token()).isNotEqualTo(tenantLogin.token());
+        assertThat(tenantLogin.scope()).isEqualTo("TENANT");
+        assertThat(tenantLogin.role()).isEqualTo("USER");
 
         // 默认租户用户不能把其他租户用户加进私聊
         ResponseEntity<ApiResponse<com.veryal.access.http.dto.ConversationResponse>> crossTenant =
@@ -81,7 +82,7 @@ class MultiTenantIntegrationTest {
         AuthResponse disabledLogin = login("disabled_user_" + suffix, "du-" + suffix, disabledCode);
         ResponseEntity<ApiResponse<TenantResponse>> disable = rest.exchange(
                 "/api/v1/platform/tenants/" + disabled.tenantId() + "/disable", HttpMethod.POST,
-                new HttpEntity<>(adminHeaders()), new ParameterizedTypeReference<>() {
+                new HttpEntity<>(headers(platformToken())), new ParameterizedTypeReference<>() {
                 });
         assertThat(disable.getStatusCode().is2xxSuccessful()).isTrue();
 
@@ -108,7 +109,8 @@ class MultiTenantIntegrationTest {
         ResponseEntity<ApiResponse<TenantResponse>> response = rest.exchange(
                 "/api/v1/platform/tenants", HttpMethod.POST,
                 new HttpEntity<>(Map.of("code", code, "name", name, "maxUsers", maxUsers,
-                        "maxGroups", maxGroups, "maxStorageBytes", maxStorage), adminHeaders()),
+                        "maxGroups", maxGroups, "maxStorageBytes", maxStorage),
+                        headers(platformToken())),
                 new ParameterizedTypeReference<>() {
                 });
         assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
@@ -145,6 +147,20 @@ class MultiTenantIntegrationTest {
         return response.getBody().data();
     }
 
+    private String platformToken() {
+        ResponseEntity<ApiResponse<PlatformAuthResponse>> response = rest.exchange(
+                "/api/v1/platform/auth/login", HttpMethod.POST,
+                new HttpEntity<>(Map.of("username", "platform_admin",
+                        "password", "admin12345"), jsonHeaders()),
+                new ParameterizedTypeReference<>() {
+                });
+        assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().data().scope()).isEqualTo("PLATFORM");
+        assertThat(response.getBody().data().role()).isEqualTo("PLATFORM_ADMIN");
+        return response.getBody().data().token();
+    }
+
     private HttpHeaders jsonHeaders() {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -154,12 +170,6 @@ class MultiTenantIntegrationTest {
     private HttpHeaders headers(String token) {
         HttpHeaders headers = jsonHeaders();
         headers.setBearerAuth(token);
-        return headers;
-    }
-
-    private HttpHeaders adminHeaders() {
-        HttpHeaders headers = jsonHeaders();
-        headers.set("X-Admin-Token", ADMIN_TOKEN);
         return headers;
     }
 }
