@@ -38,6 +38,10 @@ veryal:
     bootstrap-username: platform_admin
     bootstrap-password: admin12345
     bootstrap-display-name: Test Platform Admin
+  billing:
+    user-cents: 100
+    group-cents: 0
+    storage-gb-cents: 0
   rate-limit:
     policies:
       - name: http-login

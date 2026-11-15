@@ -151,6 +151,10 @@ veryal:
     bootstrap-username: ${VERYAL_PLATFORM_BOOTSTRAP_USERNAME:}
     bootstrap-password: ${VERYAL_PLATFORM_BOOTSTRAP_PASSWORD:}
     bootstrap-display-name: ${VERYAL_PLATFORM_BOOTSTRAP_DISPLAY_NAME:Platform Admin}
+  billing:
+    user-cents: ${VERYAL_BILLING_USER_CENTS:0}
+    group-cents: ${VERYAL_BILLING_GROUP_CENTS:0}
+    storage-gb-cents: ${VERYAL_BILLING_STORAGE_GB_CENTS:0}
 
 logging:
   level:

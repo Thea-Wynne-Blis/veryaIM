@@ -33,4 +33,6 @@ public interface MessageRepository {
      */
     List<Message> searchText(long tenantId, String conversationId, String pattern,
                              long beforeSeq, int limit);
+
+    long countByTenant(long tenantId);
 }

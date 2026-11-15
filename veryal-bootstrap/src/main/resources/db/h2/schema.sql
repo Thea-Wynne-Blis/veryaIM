@@ -276,6 +276,15 @@ CREATE TABLE IF NOT EXISTS im_platform_audit_log
 );
 CREATE INDEX IF NOT EXISTS idx_platform_audit_admin ON im_platform_audit_log (admin_id, created_at);
 
+CREATE TABLE IF NOT EXISTS im_tenant_admin
+(
+    tenant_id  BIGINT      NOT NULL,
+    user_id    BIGINT      NOT NULL,
+    created_at TIMESTAMP(3) NOT NULL,
+    PRIMARY KEY (tenant_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_tenant_admin_user ON im_tenant_admin (user_id);
+
 
 
 

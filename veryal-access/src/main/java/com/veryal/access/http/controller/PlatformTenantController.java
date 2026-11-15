@@ -2,9 +2,12 @@ package com.veryal.access.http.controller;
 
 import com.veryal.access.http.dto.CreateTenantRequest;
 import com.veryal.access.http.dto.TenantResponse;
+import com.veryal.access.http.dto.TenantAdminResponse;
+import com.veryal.access.http.dto.TenantUsageResponse;
 import com.veryal.access.http.security.PlatformAdminFilter;
 import com.veryal.application.platform.PlatformAuditRecorder;
 import com.veryal.application.platform.PlatformPrincipal;
+import com.veryal.application.tenant.TenantAdminService;
 import com.veryal.application.tenant.TenantApplicationService;
 import com.veryal.common.core.ApiResponse;
 import com.veryal.common.exception.BusinessException;
@@ -34,6 +37,7 @@ import java.util.List;
 public class PlatformTenantController {
 
     private final TenantApplicationService tenantApplicationService;
+    private final TenantAdminService tenantAdminService;
     private final PlatformAuditRecorder platformAuditRecorder;
 
     @PostMapping
@@ -75,6 +79,28 @@ public class PlatformTenantController {
         platformAuditRecorder.record(principal.adminId(), "TENANT_ENABLE", "tenant",
                 Long.toString(tenantId), null);
         return ApiResponse.ok(TenantResponse.from(tenant));
+    }
+
+    @PostMapping("/{tenantId}/admins/{userId}")
+    public ApiResponse<TenantAdminResponse> appointAdmin(
+            @RequestAttribute(PlatformAdminFilter.ATTRIBUTE) PlatformPrincipal principal,
+            @PathVariable long tenantId, @PathVariable long userId) {
+        requireAdmin(principal);
+        TenantAdminResponse response = TenantAdminResponse.from(
+                tenantAdminService.appoint(tenantId, userId));
+        platformAuditRecorder.record(principal.adminId(), "TENANT_ADMIN_APPOINT", "tenant_admin",
+                tenantId + ":" + userId, null);
+        return ApiResponse.ok(response);
+    }
+
+    @GetMapping("/{tenantId}/usage")
+    public ApiResponse<TenantUsageResponse> usage(
+            @RequestAttribute(PlatformAdminFilter.ATTRIBUTE) PlatformPrincipal principal,
+            @PathVariable long tenantId) {
+        if (principal == null) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED);
+        }
+        return ApiResponse.ok(TenantUsageResponse.from(tenantAdminService.usageOf(tenantId)));
     }
 
     private void requireAdmin(PlatformPrincipal principal) {

@@ -52,4 +52,7 @@ public interface MessageMapper extends BaseMapper<MessagePO> {
                                @Param("pattern") String pattern,
                                @Param("beforeSeq") long beforeSeq,
                                @Param("limit") int limit);
+
+    @Select("SELECT COUNT(1) FROM im_message WHERE tenant_id = #{tenantId}")
+    long selectCountByTenant(@Param("tenantId") long tenantId);
 }
