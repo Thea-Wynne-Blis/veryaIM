@@ -189,11 +189,15 @@ public class FriendApplicationService {
         friendRepository.delete(tenantId, blockedUserId, userId);
         cancelPending(tenantId, userId, blockedUserId);
         cancelPending(tenantId, blockedUserId, userId);
+        publishRaw(tenantId, FriendEventType.BLOCKED, 0L, userId, blockedUserId, null,
+                timeProvider.now());
     }
 
     @Transactional
     public void unblock(long tenantId, long userId, long blockedUserId) {
         blacklistRepository.delete(tenantId, userId, blockedUserId);
+        publishRaw(tenantId, FriendEventType.UNBLOCKED, 0L, userId, blockedUserId, null,
+                timeProvider.now());
     }
 
     @Transactional(readOnly = true)
@@ -220,10 +224,15 @@ public class FriendApplicationService {
 
     private void publish(long tenantId, FriendEventType type, FriendRequest request, String message,
                          Instant at) {
-        FriendEvent event = new FriendEvent(RandomIds.newId(), tenantId, type, request.id(),
-                request.fromUserId(), request.toUserId(), message, at,
-                List.of(request.fromUserId(), request.toUserId()));
-        outboxAppender.append(new OutboxMessage(event.eventId(), "friend:" + request.id(),
+        publishRaw(tenantId, type, request.id(), request.fromUserId(), request.toUserId(),
+                message, at);
+    }
+
+    private void publishRaw(long tenantId, FriendEventType type, long requestId, long fromUserId,
+                            long toUserId, String message, Instant at) {
+        FriendEvent event = new FriendEvent(RandomIds.newId(), tenantId, type, requestId,
+                fromUserId, toUserId, message, at, List.of(fromUserId, toUserId));
+        outboxAppender.append(new OutboxMessage(event.eventId(), "friend:" + requestId,
                 FriendEvents.NOTIFY, JsonUtils.toJsonBytes(event), at));
         friendNotifier.notify(event);
     }

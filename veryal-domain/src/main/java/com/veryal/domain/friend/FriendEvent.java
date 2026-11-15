@@ -14,7 +14,7 @@ public record FriendEvent(String eventId, long tenantId, FriendEventType type, l
         if (eventId == null || eventId.isBlank()) {
             throw new IllegalArgumentException("eventId must not be blank");
         }
-        if (tenantId <= 0 || requestId <= 0 || fromUserId <= 0 || toUserId <= 0) {
+        if (tenantId <= 0 || requestId < 0 || fromUserId <= 0 || toUserId <= 0) {
             throw new IllegalArgumentException("friend event ids must be positive");
         }
         if (type == null || at == null) {

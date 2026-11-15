@@ -8,7 +8,9 @@ public enum FriendEventType {
     REQUEST(1),
     ACCEPTED(2),
     REJECTED(3),
-    CANCELED(4);
+    CANCELED(4),
+    BLOCKED(5),
+    UNBLOCKED(6);
 
     private final int code;
 
