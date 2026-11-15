@@ -47,6 +47,32 @@ class PlatformAdminManagementIntegrationTest {
 
         PlatformAuthResponse supportLogin = platformLogin(supportName, "support123");
         assertThat(supportLogin.role()).isEqualTo("SUPPORT");
+        assertThat(supportLogin.refreshToken()).isNotBlank();
+
+        // Refresh Token 轮换：旧 refresh 只能使用一次
+        PlatformAuthResponse refreshed = post("/api/v1/platform/auth/refresh",
+                Map.of("refreshToken", supportLogin.refreshToken()), null,
+                new ParameterizedTypeReference<ApiResponse<PlatformAuthResponse>>() {
+                }).data();
+        assertThat(refreshed.token()).isNotEqualTo(supportLogin.token());
+        assertThat(postStatus("/api/v1/platform/auth/refresh",
+                Map.of("refreshToken", supportLogin.refreshToken()), null)).isEqualTo(401);
+        post("/api/v1/platform/auth/logout", Map.of("refreshToken", refreshed.refreshToken()),
+                null, new ParameterizedTypeReference<ApiResponse<Void>>() {
+                });
+        assertThat(postStatus("/api/v1/platform/auth/refresh",
+                Map.of("refreshToken", refreshed.refreshToken()), null)).isEqualTo(401);
+
+        // 连续失败 5 次锁定
+        String lockName = "lock_" + suffix.substring(Math.max(0, suffix.length() - 8));
+        post("/api/v1/platform/admins", Map.of("username", lockName, "password", "lockpass123",
+                "role", "SUPPORT"), adminToken,
+                new ParameterizedTypeReference<ApiResponse<PlatformAdminResponse>>() {
+                });
+        for (int i = 0; i < 5; i++) {
+            platformLoginStatus(lockName, "wrongpass");
+        }
+        assertThat(platformLoginStatus(lockName, "lockpass123")).isEqualTo(423);
 
         // SUPPORT 可以查看租户列表，但不能创建租户或管理管理员
         assertThat(get("/api/v1/platform/tenants", supportLogin.token(),
@@ -139,7 +165,9 @@ class PlatformAdminManagementIntegrationTest {
 
     private HttpHeaders headers(String token) {
         HttpHeaders headers = jsonHeaders();
-        headers.setBearerAuth(token);
+        if (token != null) {
+            headers.setBearerAuth(token);
+        }
         return headers;
     }
 }
