@@ -193,6 +193,10 @@ docker compose up -d --build
 | GET | `/api/v1/blocks` | 黑名单列表 |
 | POST | `/api/v1/blocks/{userId}` | 拉黑（同时解除好友与待处理申请） |
 | DELETE | `/api/v1/blocks/{userId}` | 解除拉黑 |
+| GET | `/api/v1/groups/{id}/moderation` | 群公告与禁言状态 |
+| PUT | `/api/v1/groups/{id}/announcement` | 更新群公告（群主/管理员） |
+| POST | `/api/v1/groups/{id}/mute` | 全员禁言开关（群主/管理员） |
+| POST | `/api/v1/groups/{id}/members/{userId}/mute` | 成员禁言分钟数，0 解除 |
 | GET | `/api/v1/contacts` | 通讯录：好友/群/待处理申请数 |
 | GET | `/api/v1/tenant/admins` | 租户管理员列表 |
 | POST | `/api/v1/tenant/admins` | 租户管理员新增管理员 `{"userId":1002}` |
@@ -229,6 +233,17 @@ docker compose up -d --build
 | GET | `/api/v1/files/{fileId}/content` | 下载文件（仅上传者） |
 | GET | `/api/v1/files/{fileId}/url?ttlSeconds=600` | 临时访问 URL（MinIO/OSS 为预签名地址，本地为下载路径） |
 | DELETE | `/api/v1/files/{fileId}` | 删除文件（仅上传者） |
+
+### 群公告与禁言
+
+- 群主/管理员可更新公告（≤2000 字）、开启全员禁言、对成员禁言（分钟数，0 解除）；
+- 全员禁言时群主/管理员仍可发言；
+- 成员禁言期间发送返回 `40306 GROUP_MUTED`；
+- 文本消息可带 `mentions` 数组（最多 20 个），被 @ 的用户必须是本群成员：
+  ```json
+  {"text":"@alice 看一下","mentions":[1002]}
+  ```
+- 群公告/禁言状态通过 `GET /api/v1/groups/{id}/moderation` 获取。
 
 ### 消息类型
 

@@ -71,6 +71,7 @@
 - [x] 多租户（租户表、租户码注册/登录、启用/停用、用户/群/存储配额）
 - [x] 租户管理员（平台任命首个、租户内增删）
 - [x] 租户用量/预估账单报表
+- [x] 群公告、全员禁言、成员禁言、@ 成员校验
 - [x] 好友（申请/接受/拒绝/取消、备注、删除）
 - [x] 好友实时通知（friend.notify Outbox + FRIEND_NOTIFY，MQ/本机直推；含拉黑/解除）
 - [x] 平台管理员账号（独立 im_platform_admin、平台登录 scope/role、平台 Token 保护租户接口）
@@ -131,6 +132,7 @@
 - [x] 拉黑/解除实时通知测试：BLOCKED=5、UNBLOCKED=6
 - [x] 平台安全测试：MFA setup/enable/登录校验/disable；Refresh Token 轮换与复用拒绝；5 次失败锁定 423
 - [x] 租户管理员测试：平台任命、租户内增删、非管理员 403、用量/账单
+- [x] 群管理测试：公告、全员禁言、成员禁言、@ 非成员拒绝
 - [x] HTTP 集成测试：注册→登录→建会话→发消息→幂等→历史→同步→已读→越权/未认证，并校验 Outbox 事件写入
 - [x] 群聊集成测试：建群、成员权限、群消息、群事件类型、非成员越权
 - [x] 群管理集成测试：管理员设置、改名、踢人、退群、群主/管理员权限边界
@@ -188,11 +190,11 @@
 
 - 环境：Windows 11、JDK 21.0.11、Maven 3.9.4。
 - `mvn -B -ntp verify`：6 个代码模块 + bootstrap + 父工程全部构建成功。
-- 测试共 70 个，全部通过：
-  - `veryal-common`：雪花 ID 唯一性/单调性/节点范围、限流算法、TOTP（12）。
+- 测试共 71 个，全部通过：
+  - `veryal-common`：雪花 ID、限流算法、TOTP（12）。
   - `veryal-protocol`：Envelope 编解码、未知指令、版本校验、帧头格式、半包/粘包、非法魔数、超大帧、指令不一致（12）。
-  - `veryal-application`：JWT 签发/过期/篡改/错误密钥、PBKDF2、Outbox 事件 JSON（9）。
-  - `veryal-bootstrap`：HTTP 全流程（含 Outbox）、多租户、租户管理员/用量、平台管理员 MFA/Refresh/锁定/CRUD/审计、好友/黑名单/通讯录/实时通知、群聊、群管理、群生命周期、限流、审计、TLS、连接限制、缓存、文件 API/会话权限、存储策略、分片、图片压缩、多消息类型、撤回、搜索、已读回执、虚拟线程、TCP、WebSocket（37）。
+  - `veryal-application`：JWT、PBKDF2、Outbox 事件 JSON（9）。
+  - `veryal-bootstrap`：HTTP 全流程、多租户、租户管理员/用量、平台管理员 MFA/Refresh/锁定/CRUD/审计、好友/黑名单/通讯录/实时通知、群聊/群管理/群公告/禁言、限流、审计、TLS、连接限制、缓存、文件、分片、图片压缩、多消息类型、撤回、搜索、已读回执、虚拟线程、TCP、WebSocket（38）。
 - 可执行 jar 使用默认 `dev` profile 启动验证：H2 内存库 + 内存在线状态，`/actuator/health=UP`，注册接口返回成功。
 
 ### MySQL 8.0.30 + Redis 实际环境验证
@@ -200,7 +202,7 @@
 使用 MySQL 8.0.30 与 Redis 7.4 容器（`prod` profile，经 SSH 隧道连接）启动打包产物：
 
 - 数据访问层切换 MyBatis-Plus 后重新回归：注册、登录、创建会话、发送消息、幂等重发、历史查询链路在 MySQL 8.0.30 上全部通过。
-- Flyway 自动执行 `V1__init.sql` 到 `V15__tenant_admin.sql`（含租户/好友/平台管理员/审计/安全/租户管理员）。
+- Flyway 自动执行 `V1__init.sql` 到 `V16__group_moderation.sql`（含租户/好友/平台管理员/审计/安全/租户管理员/群公告禁言）。
 - `GET /actuator/health` 返回 `UP`（MySQL + Redis）。
 - HTTP 流程验证通过：注册 → 登录 → 创建单聊 → 发送消息（seq=1）→ 重复发送命中幂等（`duplicate=true`，同 messageId/seq）→ 历史消息 1 条 → 同步 1 条 → 已读上报。
 - 数据库核对：`im_user`、`im_conversation_sequence.last_seq=1`、`im_message` 记录存在。
@@ -273,7 +275,6 @@
 ## 六、下一步计划（建议顺序）
 
 1. 租户数据导出/删除、发票/支付。
-2. 平台管理员多设备会话/恢复码；租户用量历史趋势。
-3. 好友离线推送（APNs/FCM 需凭证）、群消息 @/禁言/群公告。
-4. 1000 人群压测、V12-V15 MySQL 实测、Testcontainers 矩阵。
-5. 开放 API / SDK、管理后台。
+2. 好友离线推送（APNs/FCM 需凭证）。
+3. 1000 人群压测、V12-V16 MySQL 实测、Testcontainers 矩阵。
+4. 开放 API / SDK、管理后台、平台多设备会话/恢复码。
