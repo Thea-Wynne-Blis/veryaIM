@@ -339,7 +339,7 @@ veryal:
 ```
 
 - 流程：`POST /files/uploads` 初始化 → `PUT .../chunks/{index}` 逐片上传（重复上传幂等）→ `GET ...` 查看已上传索引 → `POST .../complete` 合并。
-- 分片暂存在本机 `staging-path`；完成后合并为完整对象并写入当前存储策略，再落 `im_file`。
+- 分片暂存在本机 `staging-path`；将其指向 NFS/CephFS 等共享卷即可支持多节点续传。完成后合并为完整对象并写入当前存储策略，再落 `im_file`。
 - 普通上传仍限制 20MB；分片上传默认上限 64MB。
 - JPEG/PNG 图片：最长边超过 1920px 时等比缩放；JPEG 以 0.85 质量重编码；解码失败或压缩变大时保留原图。
 
