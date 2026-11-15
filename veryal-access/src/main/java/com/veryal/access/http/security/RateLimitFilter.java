@@ -31,7 +31,6 @@ import java.nio.charset.StandardCharsets;
 public class RateLimitFilter extends OncePerRequestFilter {
 
     private static final String LOGIN_PATH = "/api/v1/auth/login";
-    private static final String LOGIN_POLICY = "http-login";
     private static final String API_POLICY = "http-api";
 
     private final RateLimiterRegistry rateLimiterRegistry;
@@ -45,12 +44,15 @@ public class RateLimitFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
         String path = request.getRequestURI();
-        boolean login = LOGIN_PATH.equals(path);
+        if (LOGIN_PATH.equals(path)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
         String clientIp = clientIp(request);
         AuthenticatedUser user = (AuthenticatedUser) request.getAttribute(
                 AuthenticationFilter.USER_ATTRIBUTE);
-        String key = login || user == null ? "ip:" + clientIp : "user:" + user.userId();
-        String policy = login ? LOGIN_POLICY : API_POLICY;
+        String key = user == null ? "ip:" + clientIp : "user:" + user.userId();
+        String policy = API_POLICY;
 
         RateLimitResult result = rateLimiterRegistry.tryAcquire(policy, key);
         response.setHeader("X-RateLimit-Remaining", Long.toString(result.remaining()));

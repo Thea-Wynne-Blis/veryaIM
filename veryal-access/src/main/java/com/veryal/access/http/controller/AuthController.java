@@ -13,6 +13,8 @@ import com.veryal.application.identity.RegisterCommand;
 import com.veryal.application.identity.UserApplicationService;
 import com.veryal.application.tenant.TenantApplicationService;
 import com.veryal.common.core.ApiResponse;
+import com.veryal.common.ratelimit.RateLimit;
+import com.veryal.common.ratelimit.RateLimitDimension;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -34,6 +36,7 @@ public class AuthController {
     private final TenantApplicationService tenantApplicationService;
 
     @PostMapping("/register")
+    @RateLimit(policy = "http-login", dimension = RateLimitDimension.IP)
     public ApiResponse<UserResponse> register(@Valid @RequestBody RegisterRequest request) {
         long tenantId = tenantApplicationService.resolveActive(request.tenantCode()).id();
         UserResponse user = UserResponse.from(authApplicationService.register(tenantId,
@@ -42,6 +45,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
+    @RateLimit(policy = "http-login", dimension = RateLimitDimension.IP)
     public ApiResponse<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         long tenantId = tenantApplicationService.resolveActive(request.tenantCode()).id();
         AuthResult result = authApplicationService.login(tenantId,
