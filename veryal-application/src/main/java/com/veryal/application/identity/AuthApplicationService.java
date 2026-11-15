@@ -1,7 +1,6 @@
 package com.veryal.application.identity;
 
 import com.veryal.application.audit.AuditRecorder;
-import com.veryal.application.tenant.TenantApplicationService;
 import com.veryal.common.core.TimeProvider;
 import com.veryal.common.exception.AuthenticationException;
 import com.veryal.common.exception.BusinessException;
@@ -42,7 +41,6 @@ public class AuthApplicationService {
     private final IdGenerator idGenerator;
     private final TimeProvider timeProvider;
     private final AuditRecorder auditRecorder;
-    private final TenantApplicationService tenantApplicationService;
 
     @Transactional
     public UserProfile register(long tenantId, RegisterCommand command) {
@@ -52,7 +50,6 @@ public class AuthApplicationService {
                     "username must be 3-32 characters of letters, digits or underscore");
         }
         validatePassword(command.password());
-        tenantApplicationService.assertCanAddUser(tenantId);
         if (userRepository.existsByUsername(tenantId, username)) {
             throw new BusinessException(ErrorCode.USERNAME_ALREADY_EXISTS);
         }
@@ -94,7 +91,6 @@ public class AuthApplicationService {
     @Transactional(readOnly = true)
     public AuthenticatedUser authenticate(String token) {
         AuthenticatedUser principal = tokenService.parse(token);
-        tenantApplicationService.ensureActive(principal.tenantId());
         User user = userRepository.findById(principal.userId())
                 .orElseThrow(() -> new AuthenticationException(ErrorCode.TOKEN_INVALID, "user not found"));
         user.ensureActive();

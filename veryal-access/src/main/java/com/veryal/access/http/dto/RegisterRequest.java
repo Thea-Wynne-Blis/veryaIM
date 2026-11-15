@@ -17,8 +17,5 @@ public record RegisterRequest(
         String password,
 
         @Size(max = 64)
-        String nickname,
-
-        @Size(max = 32)
-        String tenantCode) {
+        String nickname) {
 }

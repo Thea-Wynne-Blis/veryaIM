@@ -11,8 +11,8 @@ import com.veryal.application.identity.AuthenticatedUser;
 import com.veryal.application.identity.LoginCommand;
 import com.veryal.application.identity.RegisterCommand;
 import com.veryal.application.identity.UserApplicationService;
-import com.veryal.application.tenant.TenantApplicationService;
 import com.veryal.common.core.ApiResponse;
+import com.veryal.common.core.TenantIds;
 import com.veryal.common.ratelimit.RateLimit;
 import com.veryal.common.ratelimit.RateLimitDimension;
 import jakarta.validation.Valid;
@@ -33,13 +33,12 @@ public class AuthController {
 
     private final AuthApplicationService authApplicationService;
     private final UserApplicationService userApplicationService;
-    private final TenantApplicationService tenantApplicationService;
 
     @PostMapping("/register")
     @RateLimit(policy = "http-login", dimension = RateLimitDimension.IP)
     public ApiResponse<UserResponse> register(@Valid @RequestBody RegisterRequest request) {
-        long tenantId = tenantApplicationService.resolveActive(request.tenantCode()).id();
-        UserResponse user = UserResponse.from(authApplicationService.register(tenantId,
+        UserResponse user = UserResponse.from(authApplicationService.register(
+                TenantIds.DEFAULT_TENANT_ID,
                 new RegisterCommand(request.username(), request.password(), request.nickname())));
         return ApiResponse.ok(user);
     }
@@ -47,8 +46,7 @@ public class AuthController {
     @PostMapping("/login")
     @RateLimit(policy = "http-login", dimension = RateLimitDimension.IP)
     public ApiResponse<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
-        long tenantId = tenantApplicationService.resolveActive(request.tenantCode()).id();
-        AuthResult result = authApplicationService.login(tenantId,
+        AuthResult result = authApplicationService.login(TenantIds.DEFAULT_TENANT_ID,
                 new LoginCommand(request.username(), request.password(), request.deviceId(),
                         request.platform(), request.deviceName()));
         return ApiResponse.ok(AuthResponse.from(result));

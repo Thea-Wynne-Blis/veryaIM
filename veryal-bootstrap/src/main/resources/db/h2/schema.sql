@@ -179,22 +179,6 @@ CREATE TABLE IF NOT EXISTS im_upload_session
 );
 CREATE INDEX IF NOT EXISTS idx_upload_tenant_uploader ON im_upload_session (tenant_id, uploader_id, created_at);
 
-CREATE TABLE IF NOT EXISTS im_tenant
-(
-    id                BIGINT       NOT NULL PRIMARY KEY,
-    code              VARCHAR(32)  NOT NULL,
-    name              VARCHAR(128) NOT NULL,
-    status            TINYINT      NOT NULL DEFAULT 0,
-    max_users         INT          NOT NULL DEFAULT 0,
-    max_groups        INT          NOT NULL DEFAULT 0,
-    max_storage_bytes BIGINT       NOT NULL DEFAULT 0,
-    created_at        TIMESTAMP(3) NOT NULL,
-    updated_at        TIMESTAMP(3) NOT NULL
-);
-CREATE UNIQUE INDEX IF NOT EXISTS uk_tenant_code ON im_tenant (code);
-MERGE INTO im_tenant KEY (id)
-    VALUES (1, 'default', 'Default Tenant', 0, 0, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
-
 CREATE TABLE IF NOT EXISTS im_friend_request
 (
     id           BIGINT       NOT NULL PRIMARY KEY,
@@ -275,15 +259,6 @@ CREATE TABLE IF NOT EXISTS im_platform_audit_log
     created_at  TIMESTAMP(3) NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_platform_audit_admin ON im_platform_audit_log (admin_id, created_at);
-
-CREATE TABLE IF NOT EXISTS im_tenant_admin
-(
-    tenant_id  BIGINT      NOT NULL,
-    user_id    BIGINT      NOT NULL,
-    created_at TIMESTAMP(3) NOT NULL,
-    PRIMARY KEY (tenant_id, user_id)
-);
-CREATE INDEX IF NOT EXISTS idx_tenant_admin_user ON im_tenant_admin (user_id);
 
 CREATE TABLE IF NOT EXISTS im_group_setting
 (

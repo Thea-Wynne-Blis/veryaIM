@@ -1,6 +1,5 @@
 package com.veryal.application.file;
 
-import com.veryal.application.tenant.TenantApplicationService;
 import com.veryal.common.core.TimeProvider;
 import com.veryal.common.exception.BusinessException;
 import com.veryal.common.exception.ErrorCode;
@@ -45,7 +44,6 @@ public class FileApplicationService {
     private final FileStorageProvider storageProvider;
     private final ConversationRepository conversationRepository;
     private final ImageCompressor imageCompressor;
-    private final TenantApplicationService tenantApplicationService;
     private final IdGenerator idGenerator;
     private final TimeProvider timeProvider;
 
@@ -79,7 +77,6 @@ public class FileApplicationService {
         String extension = extension(safeName);
         String scopedConversationId = scopeConversation(tenantId, uploaderId, conversationId);
         byte[] storedContent = imageCompressor.compress(content, normalizedType);
-        tenantApplicationService.assertStorage(tenantId, storedContent.length);
         Instant now = timeProvider.now();
         long fileId = idGenerator.nextId();
         String objectKey = "tenant/" + tenantId + "/" + DATE_PATH.format(now) + "/"

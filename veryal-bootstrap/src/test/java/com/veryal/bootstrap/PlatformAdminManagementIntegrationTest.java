@@ -3,7 +3,6 @@ package com.veryal.bootstrap;
 import com.veryal.access.http.dto.PlatformAdminResponse;
 import com.veryal.access.http.dto.PlatformAuditResponse;
 import com.veryal.access.http.dto.PlatformAuthResponse;
-import com.veryal.access.http.dto.TenantResponse;
 import com.veryal.common.core.ApiResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -74,13 +73,7 @@ class PlatformAdminManagementIntegrationTest {
         }
         assertThat(platformLoginStatus(lockName, "lockpass123")).isEqualTo(423);
 
-        // SUPPORT 可以查看租户列表，但不能创建租户或管理管理员
-        assertThat(get("/api/v1/platform/tenants", supportLogin.token(),
-                new ParameterizedTypeReference<ApiResponse<List<TenantResponse>>>() {
-                }).successful()).isTrue();
-        assertThat(postStatus("/api/v1/platform/tenants", Map.of("code", "deny" + suffix.substring(
-                        Math.max(0, suffix.length() - 6)), "name", "Denied", "maxUsers", 1,
-                        "maxGroups", 1, "maxStorageBytes", 0), supportLogin.token())).isEqualTo(403);
+        // SUPPORT 不能管理管理员
         assertThat(getStatus("/api/v1/platform/admins", supportLogin.token())).isEqualTo(403);
 
         // 重置密码后旧密码失效
