@@ -191,7 +191,7 @@
 22. **多租户仍是基础版**：有租户表、租户码、启停与用户/群/存储配额；缺少租户管理员、账单、数据导出/删除与租户级配置。
 23. **好友/黑名单能力边界**：好友事件已实时推送；黑名单只过滤私聊，不过滤群消息；拉黑不删除历史会话。
 24. **租户删除边界**：数据库硬删除已实现，但对象存储文件实体与 Outbox 历史不清理；导出不含消息正文，单次上限 10000 用户/群。
-25. **生产环境缺口**：离线推送只做 provider 抽象/Webhook 网关，未接真实 APNs/FCM 凭证；1000 人群为容量测试而非并发压测；本机无 Docker，Testcontainers 矩阵未运行。
+25. **生产环境缺口**：离线推送只做 provider 抽象/Webhook 网关，未接真实 APNs/FCM 凭证；1000 人群为容量测试而非并发压测；Testcontainers 测试已加入，但云服务器 Docker 29.8.1 最低 API 1.40 与 Testcontainers 1.21.3 的 1.32 握手不兼容，矩阵未执行（1 个跳过）。
 
 ## 五、验证记录（2026-11-14）
 
@@ -199,11 +199,11 @@
 
 - 环境：Windows 11、JDK 21.0.11、Maven 3.9.4。
 - `mvn -B -ntp verify`：6 个代码模块 + bootstrap + 父工程全部构建成功。
-- 测试共 73 个，全部通过：
+- 测试共 74 个（73 通过，1 跳过）：
   - `veryal-common`：雪花 ID、限流算法、TOTP（12）。
   - `veryal-protocol`：Envelope 编解码、未知指令、版本校验、帧头格式、半包/粘包、非法魔数、超大帧、指令不一致（12）。
   - `veryal-application`：JWT、PBKDF2、Outbox 事件 JSON（9）。
-  - `veryal-bootstrap`：HTTP 全流程、多租户、租户管理员/用量/导出/删除、平台管理员 MFA/Refresh/锁定/CRUD/审计、好友/黑名单/通讯录/实时通知、群聊/群管理/群公告/禁言、1000 人群容量、限流、审计、TLS、连接限制、缓存、文件、分片、图片压缩、多消息类型、撤回、搜索、已读回执、虚拟线程、TCP、WebSocket（40）。
+  - `veryal-bootstrap`：HTTP 全流程、多租户、租户管理员/用量/导出/删除、平台管理员 MFA/Refresh/锁定/CRUD/审计、好友/黑名单/通讯录/实时通知、群聊/群管理/群公告/禁言、1000 人群容量、限流、审计、TLS、连接限制、缓存、文件、分片、图片压缩、多消息类型、撤回、搜索、已读回执、虚拟线程、TCP、WebSocket（40 通过 + 1 跳过）。
 - 可执行 jar 使用默认 `dev` profile 启动验证：H2 内存库 + 内存在线状态，`/actuator/health=UP`，注册接口返回成功。
 
 ### MySQL 8.0.30 + Redis 实际环境验证
@@ -284,6 +284,6 @@
 ## 六、下一步计划（建议顺序）
 
 1. 接入真实 APNs/FCM/厂商推送凭证与设备 token 管理。
-2. Testcontainers 矩阵（需 Docker）、并发压测（k6/JMeter）与 72h 稳定性。
+2. Testcontainers 矩阵：测试已加入，需 Docker API ≥1.40 的 Testcontainers 客户端/降级 Docker 服务；当前云服务器 Docker 29 不可用。
 3. 对象存储文件实体清理、Outbox 归档。
 4. 开放 API / SDK、管理后台、平台多设备会话/恢复码。

@@ -536,6 +536,8 @@ mvn test
 
 集成测试使用 `test` profile，Netty Gateway 端口配置为 0（系统分配），不占用本机端口。
 
+`TestcontainersMatrixIntegrationTest` 使用真实 MySQL 8.0.30 / Redis 7.4 / RabbitMQ 3.13；没有可用 Docker 时自动跳过。当前云服务器 Docker 29.8.1 的最小 API 为 1.40，而 Testcontainers 1.21.3 客户端仍以 1.32 握手，测试被跳过，矩阵尚未真正执行。
+
 ## 开发约定
 
 - `Domain` 不依赖 Spring / Netty / MyBatis / Redis。
