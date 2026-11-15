@@ -166,6 +166,13 @@ docker compose up -d --build
 | GET | `/api/v1/platform/tenants` | 租户列表（平台 Bearer Token） |
 | POST | `/api/v1/platform/tenants/{id}/disable` | 停用租户（平台 Bearer Token） |
 | POST | `/api/v1/platform/tenants/{id}/enable` | 启用租户（平台 Bearer Token） |
+| GET | `/api/v1/platform/admins` | 平台管理员列表（仅 PLATFORM_ADMIN） |
+| POST | `/api/v1/platform/admins` | 创建平台管理员 |
+| POST | `/api/v1/platform/admins/{id}/disable` | 停用管理员 |
+| POST | `/api/v1/platform/admins/{id}/enable` | 启用管理员 |
+| POST | `/api/v1/platform/admins/{id}/password` | 重置管理员密码 |
+| POST | `/api/v1/platform/admins/{id}/role` | 调整管理员角色 |
+| GET | `/api/v1/platform/audit-logs` | 平台操作审计 |
 | GET / PUT | `/api/v1/users/me` | 查询 / 修改资料 |
 | GET | `/api/v1/users/me/devices` | 设备列表 |
 | GET | `/api/v1/users/me/audit-logs?limit=50` | 我的审计记录 |
@@ -382,6 +389,9 @@ veryal:
 **平台管理员独立于租户用户**：
 
 - 表 `im_platform_admin`，角色 `PLATFORM_ADMIN` / `SUPPORT`；
+- `SUPPORT` 只能查看租户列表与平台审计，不能创建/停用租户或管理管理员；
+- `PLATFORM_ADMIN` 可创建/启停管理员、重置密码、调整角色；
+- 平台管理员操作写入 `im_platform_audit_log`（V12），可通过 `/platform/audit-logs` 查询；
 - 登录接口 `POST /api/v1/platform/auth/login` 返回：
   ```json
   {"scope":"PLATFORM","role":"PLATFORM_ADMIN","token":"...","adminId":1001,"username":"admin"}
@@ -403,7 +413,7 @@ veryal:
 其他规则：
 
 - 租户码仅允许 `[a-z0-9-]{2,32}`，默认租户 `default`；配额 0 表示不限制。
-- 好友申请/接受/拒绝/取消都会写 Outbox `friend.notify`，MQ 开启时广播 `FRIEND_NOTIFY(0x0120)`，关闭时本机直推。
+- 好友申请/接受/拒绝/取消/拉黑/解除拉黑都会写 Outbox `friend.notify`，MQ 开启时广播 `FRIEND_NOTIFY(0x0120)`，关闭时本机直推；事件类型 `REQUEST=1, ACCEPTED=2, REJECTED=3, CANCELED=4, BLOCKED=5, UNBLOCKED=6`。
 - 黑名单只拦截私聊发送（接收者拉黑发送者时 403）；群聊消息不按个人黑名单过滤。
 - 通讯录在线状态来自 presence。
 
@@ -428,7 +438,7 @@ mvn test
 ```
 
 - 单元测试：雪花 ID、Envelope 编解码、Netty 帧拆包/粘包/非法帧、JWT、PBKDF2、Outbox 事件 JSON、限流算法（令牌桶/滑动窗口/固定窗口/注册表）、TLS 配置开关与快速失败、连接数限制、Caffeine 缓存配置、本地/云端存储策略。
-- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、多租户隔离/配额/停用、平台管理员登录/平台 Token、好友申请/接受/拒绝/好友/黑名单/通讯录、好友实时通知、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群消息分页扇出、限流 429、审计日志、连接数超限拒绝、文件上传/下载/权限/删除、文件会话成员访问、分片上传/续传、图片压缩、多消息类型与文件归属校验、消息撤回、消息搜索、已读回执、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
+- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、多租户隔离/配额/停用、平台管理员登录/角色/审计、好友申请/接受/拒绝/好友/黑名单/通讯录、好友实时通知、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群消息分页扇出、限流 429、审计日志、连接数超限拒绝、文件上传/下载/权限/删除、文件会话成员访问、分片上传/续传、图片压缩、多消息类型与文件归属校验、消息撤回、消息搜索、已读回执、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
 
 集成测试使用 `test` profile，Netty Gateway 端口配置为 0（系统分配），不占用本机端口。
 
@@ -447,7 +457,7 @@ mvn test
 
 - V0.3：已完成 Outbox + RabbitMQ + 重试/DLQ + 多实例实时投递；后续补充投递记录表与跨节点路由优化。
 - V0.4：群聊、群管理（含群主转让/解散）、群消息分页扇出、Redis 网关路由、策略模式限流、审计日志/查询、可选 TLS、连接数上限已完成；继续补充大群压测。
-- V0.5：Caffeine 两级缓存完善、文件存储（local/MinIO/OSS）、分片上传/图片压缩、多租户（基础）、平台管理员账号、好友/黑名单/通讯录与实时通知、多消息类型、消息撤回/搜索/已读回执、开放 API / SDK。
+- V0.5：Caffeine 两级缓存完善、文件存储（local/MinIO/OSS）、分片上传/图片压缩、多租户（基础）、平台管理员账号/CRUD/审计、好友/黑名单/通讯录与实时通知、多消息类型、消息撤回/搜索/已读回执、开放 API / SDK。
 - V1.0：管理后台、完整群聊/好友体系、监控告警、私有化部署。
 
 详细进度与差距见 [docs/DEVELOPMENT-STATUS.md](docs/DEVELOPMENT-STATUS.md)。

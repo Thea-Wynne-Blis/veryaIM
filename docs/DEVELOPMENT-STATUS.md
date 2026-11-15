@@ -70,8 +70,10 @@
 - [ ] 大群压测（1000 人群扇出）
 - [x] 多租户（租户表、租户码注册/登录、启用/停用、用户/群/存储配额）
 - [x] 好友（申请/接受/拒绝/取消、备注、删除）
-- [x] 好友实时通知（friend.notify Outbox + FRIEND_NOTIFY，MQ/本机直推）
+- [x] 好友实时通知（friend.notify Outbox + FRIEND_NOTIFY，MQ/本机直推；含拉黑/解除）
 - [x] 平台管理员账号（独立 im_platform_admin、平台登录 scope/role、平台 Token 保护租户接口）
+- [x] 平台管理员 CRUD（创建/启停/重置密码/角色调整，PLATFORM_ADMIN/SUPPORT 鉴权）
+- [x] 平台操作审计（V12，租户/管理员操作写库并可查询）
 - [x] 黑名单（拉黑/解除，私聊拦截，拉黑解除好友与待处理申请）
 - [x] 通讯录（好友/群/待处理申请/在线状态聚合）
 
@@ -121,6 +123,9 @@
 - [x] 云服务器 MySQL 实测：V9/V10 迁移、租户开通、租户码登录、好友接受、拉黑后私聊 403
 - [x] 好友实时通知测试：双方 TCP 在线，申请方/接受方收到 FRIEND_NOTIFY
 - [x] 平台管理员测试：平台登录返回 scope=PLATFORM/role，平台 Token 调用租户接口；租户登录 scope=TENANT
+- [x] 平台管理员生命周期测试：SUPPORT 只读鉴权、创建/重置密码/停用/自我停用拒绝
+- [x] 平台审计测试：ADMIN_CREATE / ADMIN_PASSWORD_RESET / ADMIN_STATUS 可查询
+- [x] 拉黑/解除实时通知测试：BLOCKED=5、UNBLOCKED=6
 - [x] HTTP 集成测试：注册→登录→建会话→发消息→幂等→历史→同步→已读→越权/未认证，并校验 Outbox 事件写入
 - [x] 群聊集成测试：建群、成员权限、群消息、群事件类型、非成员越权
 - [x] 群管理集成测试：管理员设置、改名、踢人、退群、群主/管理员权限边界
@@ -170,7 +175,7 @@
 21. **虚拟线程收益未压测**：TCP 虚拟执行器/HTTP 虚拟线程已提供，但未做平台线程 vs 虚拟线程的吞吐/P99 对比；Hikari、Redis、RabbitMQ 仍是主要瓶颈。
 22. **多租户仍是基础版**：有租户表、租户码、启停与用户/群/存储配额；缺少租户管理员、账单、数据导出/删除与租户级配置。
 23. **好友/黑名单能力边界**：好友事件已实时推送；黑名单只过滤私聊，不过滤群消息；拉黑不删除历史会话。
-24. **平台管理员仍是基础版**：有独立账号、平台登录与 Token，但只有启动引导创建，没有管理员 CRUD、角色细分与平台操作审计。
+24. **平台管理员仍是基础版**：支持 CRUD/角色/审计，但只有启动引导创建首个管理员；无多因素认证、无刷新 Token、无平台侧租户用量报表。
 
 ## 五、验证记录（2026-11-14）
 
@@ -178,11 +183,11 @@
 
 - 环境：Windows 11、JDK 21.0.11、Maven 3.9.4。
 - `mvn -B -ntp verify`：6 个代码模块 + bootstrap + 父工程全部构建成功。
-- 测试共 67 个，全部通过：
+- 测试共 68 个，全部通过：
   - `veryal-common`：雪花 ID 唯一性/单调性/节点范围、限流算法（令牌桶/滑动窗口/固定窗口/注册表）（12）。
   - `veryal-protocol`：Envelope 编解码、未知指令、版本校验、帧头格式、半包/粘包、非法魔数、超大帧、指令不一致（12）。
   - `veryal-application`：JWT 签发/过期/篡改/错误密钥、PBKDF2、Outbox 事件 JSON（9）。
-  - `veryal-bootstrap`：HTTP 全流程（含 Outbox）、多租户/平台管理员、好友/黑名单/通讯录/好友实时通知、群聊、群管理、群生命周期、限流、审计、TLS 配置、连接限制、缓存配置、文件 API/会话权限、存储策略、分片上传、图片压缩、多消息类型、消息撤回、消息搜索、已读回执、虚拟线程执行器、TCP 私聊/群聊端到端、WebSocket 端到端（34）。
+  - `veryal-bootstrap`：HTTP 全流程（含 Outbox）、多租户/平台管理员 CRUD/审计、好友/黑名单/通讯录/好友实时通知、群聊、群管理、群生命周期、限流、审计、TLS 配置、连接限制、缓存配置、文件 API/会话权限、存储策略、分片上传、图片压缩、多消息类型、消息撤回、消息搜索、已读回执、虚拟线程执行器、TCP 私聊/群聊端到端、WebSocket 端到端（35）。
 - 可执行 jar 使用默认 `dev` profile 启动验证：H2 内存库 + 内存在线状态，`/actuator/health=UP`，注册接口返回成功。
 
 ### MySQL 8.0.30 + Redis 实际环境验证
@@ -190,7 +195,7 @@
 使用 MySQL 8.0.30 与 Redis 7.4 容器（`prod` profile，经 SSH 隧道连接）启动打包产物：
 
 - 数据访问层切换 MyBatis-Plus 后重新回归：注册、登录、创建会话、发送消息、幂等重发、历史查询链路在 MySQL 8.0.30 上全部通过。
-- Flyway 自动执行 `V1__init.sql`、`V2__outbox.sql`、`V3__group.sql`、`V4__message_delivery.sql`、`V5__audit_log.sql`、`V6__file.sql`、`V7__message_recall_file_scope.sql`、`V8__upload_session.sql`、`V9__tenant.sql`、`V10__friend.sql`、`V11__platform_admin.sql`。
+- Flyway 自动执行 `V1__init.sql`、`V2__outbox.sql`、`V3__group.sql`、`V4__message_delivery.sql`、`V5__audit_log.sql`、`V6__file.sql`、`V7__message_recall_file_scope.sql`、`V8__upload_session.sql`、`V9__tenant.sql`、`V10__friend.sql`、`V11__platform_admin.sql`、`V12__platform_audit.sql`。
 - `GET /actuator/health` 返回 `UP`（MySQL + Redis）。
 - HTTP 流程验证通过：注册 → 登录 → 创建单聊 → 发送消息（seq=1）→ 重复发送命中幂等（`duplicate=true`，同 messageId/seq）→ 历史消息 1 条 → 同步 1 条 → 已读上报。
 - 数据库核对：`im_user`、`im_conversation_sequence.last_seq=1`、`im_message` 记录存在。
@@ -253,6 +258,8 @@
 - 好友：申请→接受→备注→通讯录；拉黑后好友关系移除，私聊发送返回 403（USER_BLOCKED）；解除后黑名单为空。
 - 好友实时通知：双方 TCP 在线，申请方收到 REQUEST、接受方收到 ACCEPTED（FRIEND_NOTIFY）。
 - 平台管理员：独立登录返回 `scope=PLATFORM`、`role=PLATFORM_ADMIN`；租户登录返回 `scope=TENANT`；平台 Token 可调用租户管理接口。
+- 平台管理员 CRUD：创建 SUPPORT、SUPPORT 创建租户 403、重置密码旧密码失效、停用后登录 403、自我停用 400；审计可查询。
+- 好友实时通知：申请/接受/拉黑/解除分别收到 FRIEND_NOTIFY，事件类型 1/2/5/6。
 - 云服务器 MySQL 实测：V9/V10 迁移成功，租户/好友/黑名单链路通过。
 - 图片压缩：3000×1000 JPEG 缩放后最长边 ≤1920，体积小于原图。
 
@@ -260,8 +267,8 @@
 
 ## 六、下一步计划（建议顺序）
 
-1. 平台管理员 CRUD/角色细分/平台操作审计。
-2. 好友申请/黑名单实时推送扩展（已实现基础 FRIEND_NOTIFY）、群消息 @ 与禁言。
+1. 平台管理员多因素认证、刷新 Token、租户用量报表。
+2. 好友离线通知/推送、群消息 @ 与禁言。
 3. 租户管理员、账单/用量统计、数据导出与删除。
 4. 1000 人群压测、分片共享卷双节点验证。
 5. 开放 API / SDK、管理后台；Testcontainers 与压测矩阵。
