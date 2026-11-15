@@ -161,7 +161,12 @@ docker compose up -d --build
 | POST | `/api/v1/auth/register` | 注册（可选 `tenantCode`，默认 `default`） |
 | POST | `/api/v1/auth/login` | 登录并绑定设备（可选 `tenantCode`） |
 | GET | `/api/v1/auth/me` | 当前用户 |
-| POST | `/api/v1/platform/auth/login` | 平台管理员登录（返回 `scope=PLATFORM` + `role`） |
+| POST | `/api/v1/platform/auth/login` | 平台管理员登录（可带 `mfaCode`，返回 `scope=PLATFORM` + `role`） |
+| POST | `/api/v1/platform/auth/refresh` | 刷新平台 Token（Refresh Token 轮换） |
+| POST | `/api/v1/platform/auth/logout` | 注销 Refresh Token |
+| POST | `/api/v1/platform/auth/mfa/setup` | 生成 TOTP 密钥与 otpauth URL |
+| POST | `/api/v1/platform/auth/mfa/enable` | 校验动态码并启用 MFA |
+| POST | `/api/v1/platform/auth/mfa/disable` | 校验动态码并关闭 MFA |
 | POST | `/api/v1/platform/tenants` | 平台开通租户（平台 Bearer Token） |
 | GET | `/api/v1/platform/tenants` | 租户列表（平台 Bearer Token） |
 | POST | `/api/v1/platform/tenants/{id}/disable` | 停用租户（平台 Bearer Token） |
@@ -399,6 +404,10 @@ veryal:
 - 租户用户登录返回 `scope=TENANT`、`role=USER`；
 - 前端根据 `scope` 路由：`PLATFORM` 进入平台管理页，`TENANT` 进入 IM 页面；
 - 平台接口使用平台 Bearer Token，与租户 JWT 完全分离，跨 scope 不能互用。
+- 平台登录支持 TOTP MFA：`setup` 获取 secret/otpauth URL，`enable` 校验 6 位动态码；启用后登录必须携带 `mfaCode`。
+- 连续 5 次密码错误锁定 15 分钟（可配置），成功登录清零。
+- 登录返回 Refresh Token（14 天），`refresh` 轮换旧 Token，`logout` 撤销；Refresh Token 只存 SHA-256 哈希。
+- 平台 Token 有效期默认 2 小时，claims 带 `jti`。
 
 启动引导管理员（首次启动自动创建，已存在则跳过）：
 
@@ -408,6 +417,9 @@ veryal:
     token-secret: ${VERYAL_PLATFORM_TOKEN_SECRET:}       # 为空时回退租户 Token 密钥
     bootstrap-username: ${VERYAL_PLATFORM_BOOTSTRAP_USERNAME:}
     bootstrap-password: ${VERYAL_PLATFORM_BOOTSTRAP_PASSWORD:}
+    refresh-ttl: 14d
+    max-login-attempts: 5
+    lock-duration: 15m
 ```
 
 其他规则：
@@ -438,7 +450,7 @@ mvn test
 ```
 
 - 单元测试：雪花 ID、Envelope 编解码、Netty 帧拆包/粘包/非法帧、JWT、PBKDF2、Outbox 事件 JSON、限流算法（令牌桶/滑动窗口/固定窗口/注册表）、TLS 配置开关与快速失败、连接数限制、Caffeine 缓存配置、本地/云端存储策略。
-- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、多租户隔离/配额/停用、平台管理员登录/角色/审计、好友申请/接受/拒绝/好友/黑名单/通讯录、好友实时通知、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群消息分页扇出、限流 429、审计日志、连接数超限拒绝、文件上传/下载/权限/删除、文件会话成员访问、分片上传/续传、图片压缩、多消息类型与文件归属校验、消息撤回、消息搜索、已读回执、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
+- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、多租户隔离/配额/停用、平台管理员登录/MFA/Refresh Token/登录锁定/角色/审计、好友申请/接受/拒绝/好友/黑名单/通讯录、好友实时通知、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群消息分页扇出、限流 429、审计日志、连接数超限拒绝、文件上传/下载/权限/删除、文件会话成员访问、分片上传/续传、图片压缩、多消息类型与文件归属校验、消息撤回、消息搜索、已读回执、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
 
 集成测试使用 `test` profile，Netty Gateway 端口配置为 0（系统分配），不占用本机端口。
 
