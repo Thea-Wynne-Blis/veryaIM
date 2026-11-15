@@ -67,8 +67,11 @@ class MessageTypeIntegrationTest {
                 JsonUtils.toJson(Map.of("fileId", bobFile)), aliceLogin.token(), 403);
 
         SendMessageResponse emoji = send(conversationId, "mt-emoji-" + suffix, "EMOJI",
-                "😀", aliceLogin.token(), 200);
+                JsonUtils.toJson(Map.of("stickerId", "emoji_01")), aliceLogin.token(), 200);
         assertThat(emoji.message().type()).isEqualTo("EMOJI");
+
+        send(conversationId, "mt-emoji-invalid-" + suffix, "EMOJI",
+                JsonUtils.toJson(Map.of("stickerId", "bad sticker!")), aliceLogin.token(), 400);
 
         SendMessageResponse voice = send(conversationId, "mt-voice-" + suffix, "AUDIO",
                 JsonUtils.toJson(Map.of("fileId", aliceFile, "durationSeconds", 3)),
@@ -77,7 +80,7 @@ class MessageTypeIntegrationTest {
 
         send(conversationId, "mt-video-" + suffix, "VIDEO",
                 JsonUtils.toJson(Map.of("fileId", aliceFile, "durationSeconds", 5,
-                        "width", 640, "height", 480)),
+                        "width", 640, "height", 480, "coverFileId", aliceFile)),
                 aliceLogin.token(), 200);
     }
 
