@@ -16,7 +16,6 @@ public class UserPO {
 
     @TableId(type = IdType.INPUT)
     public Long id;
-    public long tenantId;
     public String username;
     public String nickname;
     public String avatar;

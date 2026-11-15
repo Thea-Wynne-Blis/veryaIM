@@ -15,8 +15,8 @@ public interface DeliveryMapper extends BaseMapper<DeliveryPO> {
 
     @Insert("""
             INSERT IGNORE INTO im_message_delivery
-                (id, tenant_id, message_id, conversation_id, user_id, device_id, delivered_sequence, delivered_at)
-            VALUES (#{id}, #{tenantId}, #{messageId}, #{conversationId}, #{userId}, #{deviceId},
+                (id, message_id, conversation_id, user_id, device_id, delivered_sequence, delivered_at)
+            VALUES (#{id}, #{messageId}, #{conversationId}, #{userId}, #{deviceId},
                     #{deliveredSequence}, #{deliveredAt})
             """)
     int insertIgnore(DeliveryPO delivery);

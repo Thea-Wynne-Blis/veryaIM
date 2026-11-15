@@ -1,6 +1,7 @@
 package com.veryal.infrastructure.mysql.repository;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.veryal.common.core.TenantIds;
 import com.veryal.domain.friend.Friend;
 import com.veryal.domain.friend.FriendRepository;
 import com.veryal.infrastructure.mysql.SqlTime;
@@ -29,7 +30,6 @@ public class MyBatisFriendRepository implements FriendRepository {
     @Override
     public Optional<Friend> find(long tenantId, long userId, long friendId) {
         return Optional.ofNullable(friendMapper.selectOne(Wrappers.<FriendPO>lambdaQuery()
-                        .eq(FriendPO::getTenantId, tenantId)
                         .eq(FriendPO::getUserId, userId)
                         .eq(FriendPO::getFriendId, friendId)))
                 .map(this::toDomain);
@@ -38,7 +38,6 @@ public class MyBatisFriendRepository implements FriendRepository {
     @Override
     public List<Friend> listByUser(long tenantId, long userId, int limit) {
         return friendMapper.selectList(Wrappers.<FriendPO>lambdaQuery()
-                        .eq(FriendPO::getTenantId, tenantId)
                         .eq(FriendPO::getUserId, userId)
                         .orderByDesc(FriendPO::getCreatedAt)
                         .last("LIMIT " + Math.max(1, Math.min(limit, 500))))
@@ -50,7 +49,6 @@ public class MyBatisFriendRepository implements FriendRepository {
     @Override
     public void updateRemark(long tenantId, long userId, long friendId, String remark) {
         friendMapper.update(null, Wrappers.<FriendPO>lambdaUpdate()
-                .eq(FriendPO::getTenantId, tenantId)
                 .eq(FriendPO::getUserId, userId)
                 .eq(FriendPO::getFriendId, friendId)
                 .set(FriendPO::getRemark, remark));
@@ -59,20 +57,18 @@ public class MyBatisFriendRepository implements FriendRepository {
     @Override
     public void delete(long tenantId, long userId, long friendId) {
         friendMapper.delete(Wrappers.<FriendPO>lambdaQuery()
-                .eq(FriendPO::getTenantId, tenantId)
                 .eq(FriendPO::getUserId, userId)
                 .eq(FriendPO::getFriendId, friendId));
     }
 
     private Friend toDomain(FriendPO po) {
-        return new Friend(po.id, po.tenantId, po.userId, po.friendId, po.remark,
+        return new Friend(po.id, TenantIds.DEFAULT_TENANT_ID, po.userId, po.friendId, po.remark,
                 SqlTime.toInstant(po.createdAt));
     }
 
     private FriendPO toPO(Friend friend) {
         FriendPO po = new FriendPO();
         po.id = friend.id();
-        po.tenantId = friend.tenantId();
         po.userId = friend.userId();
         po.friendId = friend.friendId();
         po.remark = friend.remark();

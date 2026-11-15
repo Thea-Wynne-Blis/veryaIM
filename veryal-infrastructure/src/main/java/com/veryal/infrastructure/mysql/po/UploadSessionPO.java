@@ -16,7 +16,6 @@ public class UploadSessionPO {
 
     @TableId(type = IdType.INPUT)
     public Long id;
-    public long tenantId;
     public long uploaderId;
     public String filename;
     public String contentType;

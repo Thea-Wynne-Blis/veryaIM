@@ -16,7 +16,6 @@ public class DeliveryPO {
 
     @TableId(type = IdType.INPUT)
     public Long id;
-    public long tenantId;
     public long messageId;
     public String conversationId;
     public long userId;

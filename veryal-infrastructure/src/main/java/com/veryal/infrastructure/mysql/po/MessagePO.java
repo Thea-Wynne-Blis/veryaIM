@@ -16,7 +16,6 @@ public class MessagePO {
 
     @TableId(type = IdType.INPUT)
     public Long id;
-    public long tenantId;
     public String conversationId;
     public long senderId;
     public String clientMsgId;

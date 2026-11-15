@@ -55,7 +55,7 @@ public class ConversationApplicationService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND, "peer user not found"));
         peer.ensureActive();
         Instant now = timeProvider.now();
-        String conversationId = ConversationIds.privateId(tenantId, userId, peerUserId);
+        String conversationId = ConversationIds.privateId(userId, peerUserId);
         Conversation conversation = conversationRepository.findById(conversationId).orElse(null);
         if (conversation == null) {
             Conversation created = Conversation.createPrivate(tenantId, userId, peerUserId, now);

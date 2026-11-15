@@ -16,7 +16,6 @@ public class BlacklistPO {
 
     @TableId(type = IdType.INPUT)
     public Long id;
-    public long tenantId;
     public long userId;
     public long blockedUserId;
     public LocalDateTime createdAt;

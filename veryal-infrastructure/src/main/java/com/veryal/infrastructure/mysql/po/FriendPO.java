@@ -16,7 +16,6 @@ public class FriendPO {
 
     @TableId(type = IdType.INPUT)
     public Long id;
-    public long tenantId;
     public long userId;
     public long friendId;
     public String remark;

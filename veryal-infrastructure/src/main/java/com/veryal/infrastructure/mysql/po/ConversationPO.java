@@ -16,7 +16,6 @@ public class ConversationPO {
 
     @TableId(type = IdType.INPUT)
     public String id;
-    public long tenantId;
     public int conversationType;
     public LocalDateTime createdAt;
     public LocalDateTime updatedAt;

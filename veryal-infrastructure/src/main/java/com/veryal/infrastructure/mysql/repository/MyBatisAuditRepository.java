@@ -1,6 +1,7 @@
 package com.veryal.infrastructure.mysql.repository;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.veryal.common.core.TenantIds;
 import com.veryal.domain.audit.AuditLog;
 import com.veryal.domain.audit.AuditRepository;
 import com.veryal.infrastructure.mysql.SqlTime;
@@ -24,7 +25,6 @@ public class MyBatisAuditRepository implements AuditRepository {
     public void append(AuditLog log) {
         AuditLogPO po = new AuditLogPO();
         po.id = log.id();
-        po.tenantId = log.tenantId();
         po.operatorId = log.operatorId();
         po.action = log.action();
         po.targetType = log.targetType();
@@ -37,7 +37,6 @@ public class MyBatisAuditRepository implements AuditRepository {
     @Override
     public List<AuditLog> findByOperator(long tenantId, long operatorId, int limit) {
         return auditLogMapper.selectList(Wrappers.<AuditLogPO>lambdaQuery()
-                        .eq(AuditLogPO::getTenantId, tenantId)
                         .eq(AuditLogPO::getOperatorId, operatorId)
                         .orderByDesc(AuditLogPO::getCreatedAt)
                         .last("LIMIT " + Math.max(1, Math.min(limit, 500))))
@@ -49,13 +48,12 @@ public class MyBatisAuditRepository implements AuditRepository {
     @Override
     public long countByAction(long tenantId, String action) {
         Long count = auditLogMapper.selectCount(Wrappers.<AuditLogPO>lambdaQuery()
-                .eq(AuditLogPO::getTenantId, tenantId)
                 .eq(AuditLogPO::getAction, action));
         return count == null ? 0L : count;
     }
 
     private AuditLog toDomain(AuditLogPO po) {
-        return new AuditLog(po.id, po.tenantId, po.operatorId, po.action, po.targetType,
-                po.targetId, po.detail, SqlTime.toInstant(po.createdAt));
+        return new AuditLog(po.id, TenantIds.DEFAULT_TENANT_ID, po.operatorId, po.action,
+                po.targetType, po.targetId, po.detail, SqlTime.toInstant(po.createdAt));
     }
 }

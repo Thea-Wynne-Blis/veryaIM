@@ -1,6 +1,7 @@
 package com.veryal.infrastructure.mysql.repository;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.veryal.common.core.TenantIds;
 import com.veryal.domain.file.UploadRepository;
 import com.veryal.domain.file.UploadSession;
 import com.veryal.domain.file.UploadStatus;
@@ -25,7 +26,6 @@ public class MyBatisUploadRepository implements UploadRepository {
     public void save(UploadSession session) {
         UploadSessionPO po = new UploadSessionPO();
         po.id = session.id();
-        po.tenantId = session.tenantId();
         po.uploaderId = session.uploaderId();
         po.filename = session.filename();
         po.contentType = session.contentType();
@@ -42,8 +42,7 @@ public class MyBatisUploadRepository implements UploadRepository {
     @Override
     public Optional<UploadSession> findById(long tenantId, long uploadId) {
         UploadSessionPO po = uploadSessionMapper.selectOne(Wrappers.<UploadSessionPO>lambdaQuery()
-                .eq(UploadSessionPO::getId, uploadId)
-                .eq(UploadSessionPO::getTenantId, tenantId));
+                .eq(UploadSessionPO::getId, uploadId));
         return Optional.ofNullable(po).map(this::toDomain);
     }
 
@@ -51,14 +50,13 @@ public class MyBatisUploadRepository implements UploadRepository {
     public void markStatus(long tenantId, long uploadId, UploadStatus status, Long fileId) {
         uploadSessionMapper.update(null, Wrappers.<UploadSessionPO>lambdaUpdate()
                 .eq(UploadSessionPO::getId, uploadId)
-                .eq(UploadSessionPO::getTenantId, tenantId)
                 .set(UploadSessionPO::getStatus, status.code())
                 .set(UploadSessionPO::getFileId, fileId));
     }
 
     private UploadSession toDomain(UploadSessionPO po) {
-        return new UploadSession(po.id, po.tenantId, po.uploaderId, po.filename, po.contentType,
-                po.sizeBytes, po.chunkSize, po.totalChunks, po.conversationId,
+        return new UploadSession(po.id, TenantIds.DEFAULT_TENANT_ID, po.uploaderId, po.filename,
+                po.contentType, po.sizeBytes, po.chunkSize, po.totalChunks, po.conversationId,
                 UploadStatus.fromCode(po.status), SqlTime.toInstant(po.createdAt), po.fileId);
     }
 }

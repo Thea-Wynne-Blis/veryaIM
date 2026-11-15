@@ -1,6 +1,7 @@
 package com.veryal.infrastructure.mysql.repository;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.veryal.common.core.TenantIds;
 import com.veryal.domain.friend.FriendRequest;
 import com.veryal.domain.friend.FriendRequestRepository;
 import com.veryal.domain.friend.FriendRequestStatus;
@@ -31,7 +32,6 @@ public class MyBatisFriendRequestRepository implements FriendRequestRepository {
     public void update(FriendRequest request) {
         friendRequestMapper.update(null, Wrappers.<FriendRequestPO>lambdaUpdate()
                 .eq(FriendRequestPO::getId, request.id())
-                .eq(FriendRequestPO::getTenantId, request.tenantId())
                 .set(FriendRequestPO::getMessage, request.message())
                 .set(FriendRequestPO::getStatus, request.status().code())
                 .set(FriendRequestPO::getUpdatedAt, SqlTime.toLocal(request.updatedAt())));
@@ -40,15 +40,13 @@ public class MyBatisFriendRequestRepository implements FriendRequestRepository {
     @Override
     public Optional<FriendRequest> findById(long tenantId, long requestId) {
         return Optional.ofNullable(friendRequestMapper.selectOne(Wrappers.<FriendRequestPO>lambdaQuery()
-                        .eq(FriendRequestPO::getId, requestId)
-                        .eq(FriendRequestPO::getTenantId, tenantId)))
+                        .eq(FriendRequestPO::getId, requestId)))
                 .map(this::toDomain);
     }
 
     @Override
     public Optional<FriendRequest> findBetween(long tenantId, long fromUserId, long toUserId) {
         return Optional.ofNullable(friendRequestMapper.selectOne(Wrappers.<FriendRequestPO>lambdaQuery()
-                        .eq(FriendRequestPO::getTenantId, tenantId)
                         .eq(FriendRequestPO::getFromUserId, fromUserId)
                         .eq(FriendRequestPO::getToUserId, toUserId)))
                 .map(this::toDomain);
@@ -67,7 +65,6 @@ public class MyBatisFriendRequestRepository implements FriendRequestRepository {
     @Override
     public long countPendingIncoming(long tenantId, long userId) {
         Long count = friendRequestMapper.selectCount(Wrappers.<FriendRequestPO>lambdaQuery()
-                .eq(FriendRequestPO::getTenantId, tenantId)
                 .eq(FriendRequestPO::getToUserId, userId)
                 .eq(FriendRequestPO::getStatus, FriendRequestStatus.PENDING.code()));
         return count == null ? 0 : count;
@@ -75,7 +72,6 @@ public class MyBatisFriendRequestRepository implements FriendRequestRepository {
 
     private List<FriendRequest> list(long tenantId, String column, long userId, int limit) {
         var query = Wrappers.<FriendRequestPO>lambdaQuery()
-                .eq(FriendRequestPO::getTenantId, tenantId)
                 .eq(FriendRequestPO::getStatus, FriendRequestStatus.PENDING.code())
                 .orderByDesc(FriendRequestPO::getUpdatedAt)
                 .last("LIMIT " + Math.max(1, Math.min(limit, 200)));
@@ -88,15 +84,14 @@ public class MyBatisFriendRequestRepository implements FriendRequestRepository {
     }
 
     private FriendRequest toDomain(FriendRequestPO po) {
-        return new FriendRequest(po.id, po.tenantId, po.fromUserId, po.toUserId, po.message,
-                FriendRequestStatus.fromCode(po.status), SqlTime.toInstant(po.createdAt),
-                SqlTime.toInstant(po.updatedAt));
+        return new FriendRequest(po.id, TenantIds.DEFAULT_TENANT_ID, po.fromUserId, po.toUserId,
+                po.message, FriendRequestStatus.fromCode(po.status),
+                SqlTime.toInstant(po.createdAt), SqlTime.toInstant(po.updatedAt));
     }
 
     private FriendRequestPO toPO(FriendRequest request) {
         FriendRequestPO po = new FriendRequestPO();
         po.id = request.id();
-        po.tenantId = request.tenantId();
         po.fromUserId = request.fromUserId();
         po.toUserId = request.toUserId();
         po.message = request.message();

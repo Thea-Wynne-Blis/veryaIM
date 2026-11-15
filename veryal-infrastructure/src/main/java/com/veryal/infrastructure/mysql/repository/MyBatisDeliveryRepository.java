@@ -1,6 +1,7 @@
 package com.veryal.infrastructure.mysql.repository;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.veryal.common.core.TenantIds;
 import com.veryal.domain.delivery.DeliveryRecord;
 import com.veryal.domain.delivery.DeliveryRepository;
 import com.veryal.infrastructure.mysql.SqlTime;
@@ -56,14 +57,14 @@ public class MyBatisDeliveryRepository implements DeliveryRepository {
     }
 
     private DeliveryRecord toDomain(DeliveryPO po) {
-        return new DeliveryRecord(po.id, po.tenantId, po.messageId, po.conversationId, po.userId,
-                po.deviceId, po.deliveredSequence, SqlTime.toInstant(po.deliveredAt));
+        return new DeliveryRecord(po.id, TenantIds.DEFAULT_TENANT_ID, po.messageId,
+                po.conversationId, po.userId, po.deviceId, po.deliveredSequence,
+                SqlTime.toInstant(po.deliveredAt));
     }
 
     private DeliveryPO toPO(DeliveryRecord record) {
         DeliveryPO po = new DeliveryPO();
         po.id = record.id();
-        po.tenantId = record.tenantId();
         po.messageId = record.messageId();
         po.conversationId = record.conversationId();
         po.userId = record.userId();

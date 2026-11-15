@@ -14,21 +14,20 @@ import java.util.List;
 public interface ConversationMapper extends BaseMapper<ConversationPO> {
 
     @Insert("""
-            INSERT IGNORE INTO im_conversation (id, tenant_id, conversation_type, created_at, updated_at)
-            VALUES (#{id}, #{tenantId}, #{conversationType}, #{createdAt}, #{updatedAt})
+            INSERT IGNORE INTO im_conversation (id, conversation_type, created_at, updated_at)
+            VALUES (#{id}, #{conversationType}, #{createdAt}, #{updatedAt})
             """)
     int insertIgnore(ConversationPO conversation);
 
     @Select("""
-            SELECT c.id, c.tenant_id, c.conversation_type, c.created_at, c.updated_at
+            SELECT c.id, c.conversation_type, c.created_at, c.updated_at
             FROM im_conversation c
                      INNER JOIN im_conversation_member m ON m.conversation_id = c.id
-            WHERE c.tenant_id = #{tenantId}
-              AND m.user_id = #{userId}
+            WHERE m.user_id = #{userId}
             ORDER BY c.updated_at DESC
             LIMIT 200
             """)
-    List<ConversationPO> selectByUser(@Param("tenantId") long tenantId, @Param("userId") long userId);
+    List<ConversationPO> selectByUser(@Param("userId") long userId);
 
     @Select("""
             SELECT user_id

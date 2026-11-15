@@ -1,6 +1,7 @@
 package com.veryal.infrastructure.mysql.repository;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.veryal.common.core.TenantIds;
 import com.veryal.domain.group.Group;
 import com.veryal.domain.group.GroupMember;
 import com.veryal.domain.group.GroupRepository;
@@ -96,13 +97,12 @@ public class MyBatisGroupRepository implements GroupRepository {
 
     @Override
     public List<Group> findByUser(long tenantId, long userId) {
-        return groupMapper.selectByUser(tenantId, userId).stream().map(this::toDomain).toList();
+        return groupMapper.selectByUser(userId).stream().map(this::toDomain).toList();
     }
 
     @Override
     public List<Group> findByTenant(long tenantId, int limit) {
         return groupMapper.selectList(Wrappers.<GroupPO>lambdaQuery()
-                        .eq(GroupPO::getTenantId, tenantId)
                         .orderByAsc(GroupPO::getId)
                         .last("LIMIT " + Math.max(1, Math.min(limit, 10000))))
                 .stream()
@@ -114,7 +114,6 @@ public class MyBatisGroupRepository implements GroupRepository {
     public List<Group> search(long tenantId, String keyword, int limit) {
         String value = keyword == null ? "" : keyword.trim();
         return groupMapper.selectList(Wrappers.<GroupPO>lambdaQuery()
-                        .eq(GroupPO::getTenantId, tenantId)
                         .like(GroupPO::getName, value)
                         .orderByAsc(GroupPO::getId)
                         .last("LIMIT " + Math.max(1, Math.min(limit, 100))))
@@ -125,8 +124,7 @@ public class MyBatisGroupRepository implements GroupRepository {
 
     @Override
     public long countByTenant(long tenantId) {
-        Long count = groupMapper.selectCount(Wrappers.<GroupPO>lambdaQuery()
-                .eq(GroupPO::getTenantId, tenantId));
+        Long count = groupMapper.selectCount(Wrappers.<GroupPO>lambdaQuery());
         return count == null ? 0L : count;
     }
 
@@ -138,14 +136,13 @@ public class MyBatisGroupRepository implements GroupRepository {
     }
 
     private Group toDomain(GroupPO po) {
-        return new Group(po.id, po.tenantId, po.name, po.ownerId,
+        return new Group(po.id, TenantIds.DEFAULT_TENANT_ID, po.name, po.ownerId,
                 SqlTime.toInstant(po.createdAt), SqlTime.toInstant(po.updatedAt));
     }
 
     private GroupPO toPO(Group group) {
         GroupPO po = new GroupPO();
         po.id = group.id();
-        po.tenantId = group.tenantId();
         po.name = group.name();
         po.ownerId = group.ownerId();
         po.createdAt = SqlTime.toLocal(group.createdAt());

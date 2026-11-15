@@ -70,13 +70,13 @@ class Group1000IntegrationTest {
         for (int i = 0; i < 999; i++) {
             long id = idGenerator.nextId();
             memberIds.add(id);
-            rows.add(new Object[]{id, 1L, "g1000_m" + i + "_" + suffix, "m" + i, null, 1, hash,
+            rows.add(new Object[]{id, "g1000_m" + i + "_" + suffix, "m" + i, null, 1, hash,
                     now, now});
         }
         long start = System.nanoTime();
         jdbcTemplate.batchUpdate("INSERT INTO im_user "
-                + "(id, tenant_id, username, nickname, avatar, status, password_hash, "
-                + "created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", rows);
+                + "(id, username, nickname, avatar, status, password_hash, "
+                + "created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", rows);
 
         GroupView group = groupApplicationService.create(1L, owner.userId(), "1000 Group",
                 memberIds);

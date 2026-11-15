@@ -15,13 +15,13 @@ import java.time.LocalDateTime;
  */
 public interface GroupModerationMapper {
 
-    @Select("SELECT group_id, tenant_id, announcement, mute_all, updated_at, updated_by "
+    @Select("SELECT group_id, announcement, mute_all, updated_at, updated_by "
             + "FROM im_group_setting WHERE group_id = #{groupId}")
     GroupSettingPO selectSetting(@Param("groupId") String groupId);
 
     @Insert("INSERT INTO im_group_setting "
-            + "(group_id, tenant_id, announcement, mute_all, updated_at, updated_by) "
-            + "VALUES (#{groupId}, #{tenantId}, #{announcement}, #{muteAll}, #{updatedAt}, #{updatedBy})")
+            + "(group_id, announcement, mute_all, updated_at, updated_by) "
+            + "VALUES (#{groupId}, #{announcement}, #{muteAll}, #{updatedAt}, #{updatedBy})")
     int insertSetting(GroupSettingPO po);
 
     @Update("UPDATE im_group_setting SET announcement = #{announcement}, mute_all = #{muteAll}, "

@@ -4,7 +4,6 @@
 CREATE TABLE IF NOT EXISTS im_user
 (
     id            BIGINT       NOT NULL PRIMARY KEY,
-    tenant_id     BIGINT       NOT NULL,
     username      VARCHAR(64)  NOT NULL,
     nickname      VARCHAR(128),
     avatar        VARCHAR(512),
@@ -13,7 +12,7 @@ CREATE TABLE IF NOT EXISTS im_user
     created_at    TIMESTAMP(3) NOT NULL,
     updated_at    TIMESTAMP(3) NOT NULL
 );
-CREATE UNIQUE INDEX IF NOT EXISTS uk_user_tenant_username ON im_user (tenant_id, username);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_username ON im_user (username);
 
 CREATE TABLE IF NOT EXISTS im_device
 (
@@ -31,12 +30,11 @@ CREATE INDEX IF NOT EXISTS idx_device_user_id ON im_device (user_id);
 CREATE TABLE IF NOT EXISTS im_conversation
 (
     id                VARCHAR(64) NOT NULL PRIMARY KEY,
-    tenant_id         BIGINT      NOT NULL,
     conversation_type TINYINT     NOT NULL,
     created_at        TIMESTAMP(3) NOT NULL,
     updated_at        TIMESTAMP(3) NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_conversation_tenant_type ON im_conversation (tenant_id, conversation_type);
+CREATE INDEX IF NOT EXISTS idx_conversation_type ON im_conversation (conversation_type, updated_at);
 
 CREATE TABLE IF NOT EXISTS im_conversation_member
 (
@@ -59,7 +57,6 @@ CREATE TABLE IF NOT EXISTS im_conversation_sequence
 CREATE TABLE IF NOT EXISTS im_message
 (
     id              BIGINT       NOT NULL PRIMARY KEY,
-    tenant_id       BIGINT       NOT NULL,
     conversation_id VARCHAR(64)  NOT NULL,
     sender_id       BIGINT       NOT NULL,
     client_msg_id   VARCHAR(64)  NOT NULL,
@@ -70,8 +67,8 @@ CREATE TABLE IF NOT EXISTS im_message
     recalled_at     TIMESTAMP(3) NULL,
     recalled_by     BIGINT       NULL
 );
-CREATE UNIQUE INDEX IF NOT EXISTS uk_sender_client_msg ON im_message (tenant_id, sender_id, client_msg_id);
-CREATE UNIQUE INDEX IF NOT EXISTS uk_conversation_seq ON im_message (tenant_id, conversation_id, seq);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_sender_client_msg ON im_message (sender_id, client_msg_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_conversation_seq ON im_message (conversation_id, seq);
 CREATE INDEX IF NOT EXISTS idx_conversation_time ON im_message (conversation_id, created_at);
 
 CREATE TABLE IF NOT EXISTS im_outbox
@@ -95,13 +92,12 @@ CREATE INDEX IF NOT EXISTS idx_outbox_status_retry ON im_outbox (status, next_re
 CREATE TABLE IF NOT EXISTS im_group
 (
     id         VARCHAR(64)  NOT NULL PRIMARY KEY,
-    tenant_id  BIGINT       NOT NULL,
     name       VARCHAR(128) NOT NULL,
     owner_id   BIGINT       NOT NULL,
     created_at TIMESTAMP(3) NOT NULL,
     updated_at TIMESTAMP(3) NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_group_tenant ON im_group (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_group_owner ON im_group (owner_id);
 
 CREATE TABLE IF NOT EXISTS im_group_member
 (
@@ -117,7 +113,6 @@ CREATE INDEX IF NOT EXISTS idx_group_member_user ON im_group_member (user_id);
 CREATE TABLE IF NOT EXISTS im_message_delivery
 (
     id                 BIGINT       NOT NULL PRIMARY KEY,
-    tenant_id          BIGINT       NOT NULL,
     message_id         BIGINT       NOT NULL,
     conversation_id    VARCHAR(64)  NOT NULL,
     user_id            BIGINT       NOT NULL,
@@ -131,7 +126,6 @@ CREATE INDEX IF NOT EXISTS idx_delivery_conversation ON im_message_delivery (con
 CREATE TABLE IF NOT EXISTS im_audit_log
 (
     id          BIGINT       NOT NULL PRIMARY KEY,
-    tenant_id   BIGINT       NOT NULL,
     operator_id BIGINT       NOT NULL,
     action      VARCHAR(64)  NOT NULL,
     target_type VARCHAR(64)  NOT NULL,
@@ -139,13 +133,12 @@ CREATE TABLE IF NOT EXISTS im_audit_log
     detail      VARCHAR(512),
     created_at  TIMESTAMP(3) NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_audit_tenant_operator ON im_audit_log (tenant_id, operator_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_audit_action ON im_audit_log (tenant_id, action, created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_operator ON im_audit_log (operator_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_action ON im_audit_log (action, created_at);
 
 CREATE TABLE IF NOT EXISTS im_file
 (
     id            BIGINT       NOT NULL PRIMARY KEY,
-    tenant_id     BIGINT       NOT NULL,
     uploader_id   BIGINT       NOT NULL,
     object_key    VARCHAR(512) NOT NULL,
     original_name VARCHAR(255) NOT NULL,
@@ -159,13 +152,12 @@ CREATE TABLE IF NOT EXISTS im_file
     conversation_id VARCHAR(64) NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uk_file_object_key ON im_file (object_key);
-CREATE INDEX IF NOT EXISTS idx_file_tenant_uploader ON im_file (tenant_id, uploader_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_file_uploader ON im_file (uploader_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_file_conversation ON im_file (conversation_id);
 
 CREATE TABLE IF NOT EXISTS im_upload_session
 (
     id              BIGINT       NOT NULL PRIMARY KEY,
-    tenant_id       BIGINT       NOT NULL,
     uploader_id     BIGINT       NOT NULL,
     filename        VARCHAR(255) NOT NULL,
     content_type    VARCHAR(128) NOT NULL,
@@ -177,12 +169,11 @@ CREATE TABLE IF NOT EXISTS im_upload_session
     created_at      TIMESTAMP(3) NOT NULL,
     file_id         BIGINT       NULL
 );
-CREATE INDEX IF NOT EXISTS idx_upload_tenant_uploader ON im_upload_session (tenant_id, uploader_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_upload_uploader ON im_upload_session (uploader_id, created_at);
 
 CREATE TABLE IF NOT EXISTS im_friend_request
 (
     id           BIGINT       NOT NULL PRIMARY KEY,
-    tenant_id    BIGINT       NOT NULL,
     from_user_id BIGINT       NOT NULL,
     to_user_id   BIGINT       NOT NULL,
     message      VARCHAR(255) NULL,
@@ -191,33 +182,31 @@ CREATE TABLE IF NOT EXISTS im_friend_request
     updated_at   TIMESTAMP(3) NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uk_friend_request_direction
-    ON im_friend_request (tenant_id, from_user_id, to_user_id);
+    ON im_friend_request (from_user_id, to_user_id);
 CREATE INDEX IF NOT EXISTS idx_friend_request_to
-    ON im_friend_request (tenant_id, to_user_id, status, updated_at);
+    ON im_friend_request (to_user_id, status, updated_at);
 
 CREATE TABLE IF NOT EXISTS im_friend
 (
     id         BIGINT      NOT NULL PRIMARY KEY,
-    tenant_id  BIGINT      NOT NULL,
     user_id    BIGINT      NOT NULL,
     friend_id  BIGINT      NOT NULL,
     remark     VARCHAR(64) NULL,
     created_at TIMESTAMP(3) NOT NULL
 );
-CREATE UNIQUE INDEX IF NOT EXISTS uk_friend_pair ON im_friend (tenant_id, user_id, friend_id);
-CREATE INDEX IF NOT EXISTS idx_friend_user ON im_friend (tenant_id, user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_friend_pair ON im_friend (user_id, friend_id);
+CREATE INDEX IF NOT EXISTS idx_friend_user ON im_friend (user_id);
 
 CREATE TABLE IF NOT EXISTS im_blacklist
 (
     id              BIGINT      NOT NULL PRIMARY KEY,
-    tenant_id       BIGINT      NOT NULL,
     user_id         BIGINT      NOT NULL,
     blocked_user_id BIGINT      NOT NULL,
     created_at      TIMESTAMP(3) NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uk_blacklist_pair
-    ON im_blacklist (tenant_id, user_id, blocked_user_id);
-CREATE INDEX IF NOT EXISTS idx_blacklist_user ON im_blacklist (tenant_id, user_id);
+    ON im_blacklist (user_id, blocked_user_id);
+CREATE INDEX IF NOT EXISTS idx_blacklist_user ON im_blacklist (user_id);
 
 CREATE TABLE IF NOT EXISTS im_platform_admin
 (
@@ -263,7 +252,6 @@ CREATE INDEX IF NOT EXISTS idx_platform_audit_admin ON im_platform_audit_log (ad
 CREATE TABLE IF NOT EXISTS im_group_setting
 (
     group_id     VARCHAR(64)  NOT NULL PRIMARY KEY,
-    tenant_id    BIGINT       NOT NULL,
     announcement TEXT         NULL,
     mute_all     TINYINT      NOT NULL DEFAULT 0,
     updated_at   TIMESTAMP(3) NOT NULL,

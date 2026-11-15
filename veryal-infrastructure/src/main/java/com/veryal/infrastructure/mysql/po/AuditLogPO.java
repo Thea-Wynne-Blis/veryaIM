@@ -16,7 +16,6 @@ public class AuditLogPO {
 
     @TableId(type = IdType.INPUT)
     public Long id;
-    public long tenantId;
     public long operatorId;
     public String action;
     public String targetType;

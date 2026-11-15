@@ -1,6 +1,7 @@
 package com.veryal.infrastructure.mysql.repository;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.veryal.common.core.TenantIds;
 import com.veryal.domain.conversation.Conversation;
 import com.veryal.domain.conversation.ConversationMember;
 import com.veryal.domain.conversation.ConversationRepository;
@@ -86,7 +87,7 @@ public class MyBatisConversationRepository implements ConversationRepository {
 
     @Override
     public List<Conversation> findByUser(long tenantId, long userId) {
-        return conversationMapper.selectByUser(tenantId, userId).stream().map(this::toDomain).toList();
+        return conversationMapper.selectByUser(userId).stream().map(this::toDomain).toList();
     }
 
     @Override
@@ -97,14 +98,14 @@ public class MyBatisConversationRepository implements ConversationRepository {
     }
 
     private Conversation toDomain(ConversationPO po) {
-        return new Conversation(po.id, po.tenantId, ConversationType.fromCode(po.conversationType),
+        return new Conversation(po.id, TenantIds.DEFAULT_TENANT_ID,
+                ConversationType.fromCode(po.conversationType),
                 SqlTime.toInstant(po.createdAt), SqlTime.toInstant(po.updatedAt));
     }
 
     private ConversationPO toPO(Conversation conversation) {
         ConversationPO po = new ConversationPO();
         po.id = conversation.id();
-        po.tenantId = conversation.tenantId();
         po.conversationType = conversation.type().code();
         po.createdAt = SqlTime.toLocal(conversation.createdAt());
         po.updatedAt = SqlTime.toLocal(conversation.updatedAt());

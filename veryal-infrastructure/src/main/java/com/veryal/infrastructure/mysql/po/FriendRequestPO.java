@@ -16,7 +16,6 @@ public class FriendRequestPO {
 
     @TableId(type = IdType.INPUT)
     public Long id;
-    public long tenantId;
     public long fromUserId;
     public long toUserId;
     public String message;

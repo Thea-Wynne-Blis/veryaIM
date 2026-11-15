@@ -16,7 +16,6 @@ public class FilePO {
 
     @TableId(type = IdType.INPUT)
     public Long id;
-    public long tenantId;
     public long uploaderId;
     public String objectKey;
     public String originalName;

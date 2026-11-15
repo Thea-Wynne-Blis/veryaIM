@@ -16,7 +16,6 @@ public class GroupPO {
 
     @TableId(type = IdType.INPUT)
     public String id;
-    public long tenantId;
     public String name;
     public long ownerId;
     public LocalDateTime createdAt;

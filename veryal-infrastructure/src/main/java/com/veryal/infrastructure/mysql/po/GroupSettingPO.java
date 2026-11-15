@@ -13,7 +13,6 @@ import java.time.LocalDateTime;
 public class GroupSettingPO {
 
     public String groupId;
-    public long tenantId;
     public String announcement;
     public int muteAll;
     public LocalDateTime updatedAt;

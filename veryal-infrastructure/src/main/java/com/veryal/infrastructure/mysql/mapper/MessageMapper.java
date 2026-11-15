@@ -13,33 +13,29 @@ import java.util.List;
 public interface MessageMapper extends BaseMapper<MessagePO> {
 
     @Select("""
-            SELECT id, tenant_id, conversation_id, sender_id, client_msg_id, seq, msg_type, content, created_at, recalled_at, recalled_by
+            SELECT id, conversation_id, sender_id, client_msg_id, seq, msg_type, content, created_at, recalled_at, recalled_by
             FROM im_message
-            WHERE tenant_id = #{tenantId}
-              AND conversation_id = #{conversationId}
+            WHERE conversation_id = #{conversationId}
               AND seq > #{afterSeq}
             ORDER BY seq ASC
             LIMIT #{limit}
             """)
-    List<MessagePO> selectPageAfter(@Param("tenantId") long tenantId,
-                                    @Param("conversationId") String conversationId,
+    List<MessagePO> selectPageAfter(@Param("conversationId") String conversationId,
                                     @Param("afterSeq") long afterSeq,
                                     @Param("limit") int limit);
 
     @Select("""
             SELECT COALESCE(MAX(seq), 0)
             FROM im_message
-            WHERE tenant_id = #{tenantId}
-              AND conversation_id = #{conversationId}
+            WHERE conversation_id = #{conversationId}
             """)
-    long selectMaxSeq(@Param("tenantId") long tenantId, @Param("conversationId") String conversationId);
+    long selectMaxSeq(@Param("conversationId") String conversationId);
 
     @Select("""
-            SELECT id, tenant_id, conversation_id, sender_id, client_msg_id, seq, msg_type, content,
+            SELECT id, conversation_id, sender_id, client_msg_id, seq, msg_type, content,
                    created_at, recalled_at, recalled_by
             FROM im_message
-            WHERE tenant_id = #{tenantId}
-              AND conversation_id = #{conversationId}
+            WHERE conversation_id = #{conversationId}
               AND recalled_at IS NULL
               AND msg_type IN (1, 6)
               AND seq < #{beforeSeq}
@@ -47,12 +43,11 @@ public interface MessageMapper extends BaseMapper<MessagePO> {
             ORDER BY seq DESC
             LIMIT #{limit}
             """)
-    List<MessagePO> searchText(@Param("tenantId") long tenantId,
-                               @Param("conversationId") String conversationId,
+    List<MessagePO> searchText(@Param("conversationId") String conversationId,
                                @Param("pattern") String pattern,
                                @Param("beforeSeq") long beforeSeq,
                                @Param("limit") int limit);
 
-    @Select("SELECT COUNT(1) FROM im_message WHERE tenant_id = #{tenantId}")
-    long selectCountByTenant(@Param("tenantId") long tenantId);
+    @Select("SELECT COUNT(1) FROM im_message")
+    long selectCountAll();
 }

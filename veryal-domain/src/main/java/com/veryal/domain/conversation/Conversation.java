@@ -26,12 +26,12 @@ public record Conversation(String id, long tenantId, ConversationType type, Inst
     }
 
     public static Conversation createPrivate(long tenantId, long userA, long userB, Instant now) {
-        return new Conversation(ConversationIds.privateId(tenantId, userA, userB), tenantId,
+        return new Conversation(ConversationIds.privateId(userA, userB), tenantId,
                 ConversationType.PRIVATE, now, now);
     }
 
     public static Conversation createGroup(long tenantId, long snowflakeId, Instant now) {
-        return new Conversation(ConversationIds.groupId(tenantId, snowflakeId), tenantId,
+        return new Conversation(ConversationIds.groupId(snowflakeId), tenantId,
                 ConversationType.GROUP, now, now);
     }
 
