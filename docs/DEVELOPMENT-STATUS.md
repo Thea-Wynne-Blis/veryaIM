@@ -157,6 +157,7 @@
 - [x] 1000 人群容量：999 个成员直插后建群并发送消息，H2 环境 343ms；100 个成员并发发送 233ms（约 429 条/秒）
 - [x] 云服务器 MySQL V12–V16 迁移实测（历史多租户链路）
 - [x] 云服务器 MySQL V21 冒烟：`tenant_id` 列全部删除，health UP，无租户注册/登录/建会话/发消息通过
+- [x] 云服务器 MySQL V22 冒烟：推送设备 token 注册/查询成功
 - [x] 单聊/群聊 ID 不再包含租户前缀（`p_{a}_{b}` / `g_{snowflake}`）
 - [x] Testcontainers 矩阵：MySQL 8.0.30 + Redis 7.4 + RabbitMQ 3.13 启动完整应用，Flyway V1–V16，注册/登录/私聊消息通过（服务器 54s）
 - [x] HTTP 集成测试：注册→登录→建会话→发消息→幂等→历史→同步→已读→越权/未认证，并校验 Outbox 事件写入
@@ -229,7 +230,7 @@
 使用 MySQL 8.0.30 与 Redis 7.4 容器（`prod` profile，经 SSH 隧道连接）启动打包产物：
 
 - 数据访问层切换 MyBatis-Plus 后重新回归：注册、登录、创建会话、发送消息、幂等重发、历史查询链路在 MySQL 8.0.30 上全部通过。
-- Flyway 自动执行 `V1__init.sql` 到 `V22__push_device.sql`；V17 删除租户表，V18 隐私/举报，V19 禁言，V20 敏感词，V21 删除 `tenant_id`，V22 推送设备；V17–V21 已完成云服务器 MySQL 冒烟。
+- Flyway 自动执行 `V1__init.sql` 到 `V22__push_device.sql`；V17 删除租户表，V18 隐私/举报，V19 禁言，V20 敏感词，V21 删除 `tenant_id`，V22 推送设备；V17–V22 已完成云服务器 MySQL 冒烟。
 - `GET /actuator/health` 返回 `UP`（MySQL + Redis）。
 - HTTP 流程验证通过：注册 → 登录 → 创建单聊 → 发送消息（seq=1）→ 重复发送命中幂等（`duplicate=true`，同 messageId/seq）→ 历史消息 1 条 → 同步 1 条 → 已读上报。
 - 数据库核对：`im_user`、`im_conversation_sequence.last_seq=1`、`im_message` 记录存在。
