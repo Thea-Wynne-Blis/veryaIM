@@ -33,8 +33,11 @@ veryal:
     staging-path: target/test-uploads
     chunk-size-bytes: 4
     max-size-bytes: 1024
-  tenant:
-    admin-token: test-admin-token
+  platform:
+    token-secret: platform-test-secret-0123456789abcdef
+    bootstrap-username: platform_admin
+    bootstrap-password: admin12345
+    bootstrap-display-name: Test Platform Admin
   rate-limit:
     policies:
       - name: http-login
