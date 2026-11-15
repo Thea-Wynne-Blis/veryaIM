@@ -236,6 +236,21 @@ docker compose up -d --build
 | GET | `/api/v1/files/{fileId}/url?ttlSeconds=600` | 临时访问 URL（MinIO/OSS 为预签名地址，本地为下载路径） |
 | DELETE | `/api/v1/files/{fileId}` | 删除文件（仅上传者） |
 
+### 好友离线推送
+
+好友事件在用户无在线连接时进入 `OfflinePushProvider`。默认 `none` 只记录日志；配置 `webhook` 后把
+`userId/title/body/data` POST 到厂商网关，由网关适配 APNs / FCM / 华为 / 小米等：
+
+```yaml
+veryal:
+  push:
+    provider: none          # none | webhook
+    webhook-url: ${VERYAL_PUSH_WEBHOOK_URL:}
+    webhook-token: ${VERYAL_PUSH_WEBHOOK_TOKEN:}
+```
+
+直接对接 APNs/FCM 需要真实证书/Service Account，当前仓库不内置凭证，也未做设备 token 管理。
+
 ### 群公告与禁言
 
 - 群主/管理员可更新公告（≤2000 字）、开启全员禁言、对成员禁言（分钟数，0 解除）；
@@ -496,7 +511,7 @@ mvn test
 ```
 
 - 单元测试：雪花 ID、Envelope 编解码、Netty 帧拆包/粘包/非法帧、JWT、PBKDF2、Outbox 事件 JSON、限流算法（令牌桶/滑动窗口/固定窗口/注册表）、TLS 配置开关与快速失败、连接数限制、Caffeine 缓存配置、本地/云端存储策略。
-- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、多租户隔离/配额/停用、租户管理员/用量账单、平台管理员登录/MFA/Refresh Token/登录锁定/角色/审计、好友申请/接受/拒绝/好友/黑名单/通讯录、好友实时通知、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群消息分页扇出、限流 429、审计日志、连接数超限拒绝、文件上传/下载/权限/删除、文件会话成员访问、分片上传/续传、图片压缩、多消息类型与文件归属校验、消息撤回、消息搜索、已读回执、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
+- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、多租户隔离/配额/停用、租户管理员/用量/导出/删除、平台管理员登录/MFA/Refresh Token/登录锁定/角色/审计、好友申请/接受/拒绝/好友/黑名单/通讯录、好友实时通知、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群公告/禁言、1000 人群容量、群消息分页扇出、限流 429、审计日志、连接数超限拒绝、文件上传/下载/权限/删除、文件会话成员访问、分片上传/续传、图片压缩、多消息类型与文件归属校验、消息撤回、消息搜索、已读回执、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
 
 集成测试使用 `test` profile，Netty Gateway 端口配置为 0（系统分配），不占用本机端口。
 
