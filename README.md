@@ -176,6 +176,8 @@ docker compose up -d --build
 | POST | `/api/v1/conversations/{id}/messages` | 发送消息 |
 | POST | `/api/v1/conversations/{id}/messages/{messageId}/recall` | 撤回消息（仅发送者，2 分钟内） |
 | GET | `/api/v1/conversations/{id}/messages?cursor=0&limit=50` | 历史消息（游标） |
+| GET | `/api/v1/conversations/{id}/messages/search?keyword=...` | 会话内文本/表情搜索（倒序游标） |
+| GET | `/api/v1/conversations/{id}/read-receipts` | 成员读游标 |
 | GET | `/api/v1/conversations/{id}/messages/{messageId}/deliveries` | 消息设备投递记录 |
 | POST | `/api/v1/conversations/{id}/read` | 上报已读序号 |
 | GET | `/api/v1/sync/messages?conversationId=...&cursor=...&limit=...` | 离线同步 |
@@ -196,12 +198,14 @@ docker compose up -d --build
 | `FILE` | 3 | JSON：`{"fileId":123,"fileName":"report.pdf"}` |
 | `AUDIO`（语音） | 4 | JSON：`{"fileId":123,"durationSeconds":12}` |
 | `VIDEO` | 5 | JSON：`{"fileId":123,"durationSeconds":30,"width":1080,"height":1920}` |
-| `EMOJI` | 6 | UTF-8 表情或短代码，最大 4KB |
+| `EMOJI` | 6 | UTF-8 表情，或 `{"stickerId":"emoji_01"}`（`[A-Za-z0-9._:-]{1,64}`） |
 | `SYSTEM` | 9 | 服务端保留，客户端提交返回不支持 |
 
-图片/视频的 `width`、`height` 与语音/视频的 `durationSeconds` 为可选正数；`fileId` 必填。文本、表情以外的消息体最大 256KB。
+图片/视频的 `width`、`height` 与语音/视频的 `durationSeconds`（≤3600）、视频 `coverFileId` / `thumbnailFileId` 均为可选；`fileId` 必填。文本、表情以外的消息体最大 256KB。
 
 消息撤回：仅发送者本人可在发送后 2 分钟内撤回；撤回后历史消息返回 `recalled=true` 且 `content` 为空，原文不再下发。每次撤回写入审计日志（`MESSAGE_RECALL`）。
+
+已读回执：客户端 `READ_ACK` 推进读游标后写入 Outbox（`message.read`），各 Gateway 通过 `READ_NOTIFY(0x0112)` 向会话成员在线连接推送；也可通过 `/read-receipts` 查询成员读游标。
 
 文件消息访问：上传时传 `conversationId` 绑定会话后，该会话成员可下载文件并可作为图片/语音/视频/文件消息引用；未绑定会话的文件仍仅上传者可访问。
 
@@ -236,7 +240,7 @@ connect → (10s 内) LOGIN(token, deviceId) → LOGIN_RESPONSE
         → DELIVERY_ACK / READ_ACK
 ```
 
-命令码：`LOGIN 0x0010`、`SEND_MESSAGE 0x0100`、`SERVER_ACK 0x0101`、`MESSAGE_NOTIFY 0x0102`、`DELIVERY_ACK 0x0110`、`READ_ACK 0x0111`、`HEARTBEAT 0x0001`、`ERROR 0x01FF`。完整定义见 [veryal.proto](veryal-protocol/src/main/proto/veryal.proto)。
+命令码：`LOGIN 0x0010`、`SEND_MESSAGE 0x0100`、`SERVER_ACK 0x0101`、`MESSAGE_NOTIFY 0x0102`、`DELIVERY_ACK 0x0110`、`READ_ACK 0x0111`、`READ_NOTIFY 0x0112`、`HEARTBEAT 0x0001`、`ERROR 0x01FF`。完整定义见 [veryal.proto](veryal-protocol/src/main/proto/veryal.proto)。
 
 ## TLS
 
@@ -338,7 +342,7 @@ mvn test
 ```
 
 - 单元测试：雪花 ID、Envelope 编解码、Netty 帧拆包/粘包/非法帧、JWT、PBKDF2、Outbox 事件 JSON、限流算法（令牌桶/滑动窗口/固定窗口/注册表）、TLS 配置开关与快速失败、连接数限制、Caffeine 缓存配置、本地/云端存储策略。
-- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群消息分页扇出、限流 429、审计日志、连接数超限拒绝、文件上传/下载/权限/删除、文件会话成员访问、多消息类型与文件归属校验、消息撤回、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
+- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群消息分页扇出、限流 429、审计日志、连接数超限拒绝、文件上传/下载/权限/删除、文件会话成员访问、多消息类型与文件归属校验、消息撤回、消息搜索、已读回执、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
 
 集成测试使用 `test` profile，Netty Gateway 端口配置为 0（系统分配），不占用本机端口。
 
@@ -357,7 +361,7 @@ mvn test
 
 - V0.3：已完成 Outbox + RabbitMQ + 重试/DLQ + 多实例实时投递；后续补充投递记录表与跨节点路由优化。
 - V0.4：群聊、群管理（含群主转让/解散）、群消息分页扇出、Redis 网关路由、策略模式限流、审计日志、可选 TLS、连接数上限已完成；继续补充审计查询与大群压测。
-- V0.5：Caffeine 两级缓存完善、文件存储（local/MinIO/OSS）、多租户、开放 API / SDK。
+- V0.5：Caffeine 两级缓存完善、文件存储（local/MinIO/OSS）、多消息类型、消息撤回/搜索/已读回执、多租户、开放 API / SDK。
 - V1.0：管理后台、完整群聊/好友体系、监控告警、私有化部署。
 
 详细进度与差距见 [docs/DEVELOPMENT-STATUS.md](docs/DEVELOPMENT-STATUS.md)。
