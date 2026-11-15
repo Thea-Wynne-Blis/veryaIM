@@ -68,7 +68,7 @@ class TestcontainersMatrixIntegrationTest {
 
         registry.add("veryal.mq.enabled", () -> true);
         registry.add("spring.rabbitmq.host", RABBIT::getHost);
-        registry.add("spring.rabbitmq.port", RABBIT::getAmqpPort);
+        registry.add("spring.rabbitmq.port", () -> RABBIT.getMappedPort(5672));
         registry.add("spring.rabbitmq.username", RABBIT::getAdminUsername);
         registry.add("spring.rabbitmq.password", RABBIT::getAdminPassword);
         registry.add("management.health.rabbit.enabled", () -> true);
