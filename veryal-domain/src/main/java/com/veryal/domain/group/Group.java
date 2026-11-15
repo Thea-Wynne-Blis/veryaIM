@@ -9,7 +9,7 @@ public record Group(String id, long tenantId, String name, long ownerId,
                     Instant createdAt, Instant updatedAt) {
 
     public static final int MAX_NAME_LENGTH = 128;
-    public static final int MAX_MEMBERS = 200;
+    public static final int MAX_MEMBERS = 1000;
 
     public Group {
         if (id == null || id.isBlank()) {
