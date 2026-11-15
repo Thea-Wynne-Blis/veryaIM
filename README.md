@@ -161,10 +161,11 @@ docker compose up -d --build
 | POST | `/api/v1/auth/register` | 注册（可选 `tenantCode`，默认 `default`） |
 | POST | `/api/v1/auth/login` | 登录并绑定设备（可选 `tenantCode`） |
 | GET | `/api/v1/auth/me` | 当前用户 |
-| POST | `/api/v1/platform/tenants` | 平台开通租户（`X-Admin-Token`） |
-| GET | `/api/v1/platform/tenants` | 租户列表（`X-Admin-Token`） |
-| POST | `/api/v1/platform/tenants/{id}/disable` | 停用租户（`X-Admin-Token`） |
-| POST | `/api/v1/platform/tenants/{id}/enable` | 启用租户（`X-Admin-Token`） |
+| POST | `/api/v1/platform/auth/login` | 平台管理员登录（返回 `scope=PLATFORM` + `role`） |
+| POST | `/api/v1/platform/tenants` | 平台开通租户（平台 Bearer Token） |
+| GET | `/api/v1/platform/tenants` | 租户列表（平台 Bearer Token） |
+| POST | `/api/v1/platform/tenants/{id}/disable` | 停用租户（平台 Bearer Token） |
+| POST | `/api/v1/platform/tenants/{id}/enable` | 启用租户（平台 Bearer Token） |
 | GET / PUT | `/api/v1/users/me` | 查询 / 修改资料 |
 | GET | `/api/v1/users/me/devices` | 设备列表 |
 | GET | `/api/v1/users/me/audit-logs?limit=50` | 我的审计记录 |
@@ -265,7 +266,7 @@ connect → (10s 内) LOGIN(token, deviceId) → LOGIN_RESPONSE
         → DELIVERY_ACK / READ_ACK
 ```
 
-命令码：`LOGIN 0x0010`、`SEND_MESSAGE 0x0100`、`SERVER_ACK 0x0101`、`MESSAGE_NOTIFY 0x0102`、`MESSAGE_RECALL 0x0103`、`DELIVERY_ACK 0x0110`、`READ_ACK 0x0111`、`READ_NOTIFY 0x0112`、`HEARTBEAT 0x0001`、`ERROR 0x01FF`。完整定义见 [veryal.proto](veryal-protocol/src/main/proto/veryal.proto)。
+命令码：`LOGIN 0x0010`、`SEND_MESSAGE 0x0100`、`SERVER_ACK 0x0101`、`MESSAGE_NOTIFY 0x0102`、`MESSAGE_RECALL 0x0103`、`DELIVERY_ACK 0x0110`、`READ_ACK 0x0111`、`READ_NOTIFY 0x0112`、`FRIEND_NOTIFY 0x0120`、`HEARTBEAT 0x0001`、`ERROR 0x01FF`。完整定义见 [veryal.proto](veryal-protocol/src/main/proto/veryal.proto)。
 
 ## TLS
 
@@ -376,21 +377,35 @@ veryal:
 - **CPU 密集型操作**（JWT 签名、图片压缩、序列化）不会因虚拟线程变快；这类任务应继续受 CPU/有界执行器约束，并优先通过压测确认收益。
 - 虚拟线程不是银弹：数据库连接池、Redis、RabbitMQ 的吞吐仍是瓶颈，建议先做连接数与 P99 压测再调整并发。
 
-### 多租户与好友
+### 多租户、平台管理员与好友
 
-配置平台侧租户管理令牌：
+**平台管理员独立于租户用户**：
+
+- 表 `im_platform_admin`，角色 `PLATFORM_ADMIN` / `SUPPORT`；
+- 登录接口 `POST /api/v1/platform/auth/login` 返回：
+  ```json
+  {"scope":"PLATFORM","role":"PLATFORM_ADMIN","token":"...","adminId":1001,"username":"admin"}
+  ```
+- 租户用户登录返回 `scope=TENANT`、`role=USER`；
+- 前端根据 `scope` 路由：`PLATFORM` 进入平台管理页，`TENANT` 进入 IM 页面；
+- 平台接口使用平台 Bearer Token，与租户 JWT 完全分离，跨 scope 不能互用。
+
+启动引导管理员（首次启动自动创建，已存在则跳过）：
 
 ```yaml
 veryal:
-  tenant:
-    admin-token: ${VERYAL_TENANT_ADMIN_TOKEN:}
+  platform:
+    token-secret: ${VERYAL_PLATFORM_TOKEN_SECRET:}       # 为空时回退租户 Token 密钥
+    bootstrap-username: ${VERYAL_PLATFORM_BOOTSTRAP_USERNAME:}
+    bootstrap-password: ${VERYAL_PLATFORM_BOOTSTRAP_PASSWORD:}
 ```
 
-- 租户码仅允许 `[a-z0-9-]{2,32}`；默认租户 `default`。
-- 平台接口必须携带 `X-Admin-Token`，未配置令牌时所有平台接口返回 403。
-- 配额 `maxUsers/maxGroups/maxStorageBytes` 为 0 表示不限制。
+其他规则：
+
+- 租户码仅允许 `[a-z0-9-]{2,32}`，默认租户 `default`；配额 0 表示不限制。
+- 好友申请/接受/拒绝/取消都会写 Outbox `friend.notify`，MQ 开启时广播 `FRIEND_NOTIFY(0x0120)`，关闭时本机直推。
 - 黑名单只拦截私聊发送（接收者拉黑发送者时 403）；群聊消息不按个人黑名单过滤。
-- 通讯录的在线状态来自 presence，离线时为 `false`。
+- 通讯录在线状态来自 presence。
 
 ## 一致性设计
 
@@ -413,7 +428,7 @@ mvn test
 ```
 
 - 单元测试：雪花 ID、Envelope 编解码、Netty 帧拆包/粘包/非法帧、JWT、PBKDF2、Outbox 事件 JSON、限流算法（令牌桶/滑动窗口/固定窗口/注册表）、TLS 配置开关与快速失败、连接数限制、Caffeine 缓存配置、本地/云端存储策略。
-- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、多租户隔离/配额/停用、好友申请/好友/黑名单/通讯录、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群消息分页扇出、限流 429、审计日志、连接数超限拒绝、文件上传/下载/权限/删除、文件会话成员访问、分片上传/续传、图片压缩、多消息类型与文件归属校验、消息撤回、消息搜索、已读回执、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
+- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、多租户隔离/配额/停用、平台管理员登录/平台 Token、好友申请/接受/拒绝/好友/黑名单/通讯录、好友实时通知、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群消息分页扇出、限流 429、审计日志、连接数超限拒绝、文件上传/下载/权限/删除、文件会话成员访问、分片上传/续传、图片压缩、多消息类型与文件归属校验、消息撤回、消息搜索、已读回执、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
 
 集成测试使用 `test` profile，Netty Gateway 端口配置为 0（系统分配），不占用本机端口。
 
@@ -432,7 +447,7 @@ mvn test
 
 - V0.3：已完成 Outbox + RabbitMQ + 重试/DLQ + 多实例实时投递；后续补充投递记录表与跨节点路由优化。
 - V0.4：群聊、群管理（含群主转让/解散）、群消息分页扇出、Redis 网关路由、策略模式限流、审计日志/查询、可选 TLS、连接数上限已完成；继续补充大群压测。
-- V0.5：Caffeine 两级缓存完善、文件存储（local/MinIO/OSS）、分片上传/图片压缩、多租户（基础）、好友/黑名单/通讯录、多消息类型、消息撤回/搜索/已读回执、开放 API / SDK。
+- V0.5：Caffeine 两级缓存完善、文件存储（local/MinIO/OSS）、分片上传/图片压缩、多租户（基础）、平台管理员账号、好友/黑名单/通讯录与实时通知、多消息类型、消息撤回/搜索/已读回执、开放 API / SDK。
 - V1.0：管理后台、完整群聊/好友体系、监控告警、私有化部署。
 
 详细进度与差距见 [docs/DEVELOPMENT-STATUS.md](docs/DEVELOPMENT-STATUS.md)。
