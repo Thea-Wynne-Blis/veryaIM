@@ -156,6 +156,27 @@ docker compose up -d --build
 
 触发限流时返回 `429` 与错误码 `42900`，并带 `Retry-After`、`X-RateLimit-Remaining` 响应头。
 
+### 注解式限流
+
+业务方法可直接用 `@RateLimit` 声明限流，由 `RateLimitAspect` 在调用前消费令牌：
+
+```java
+// 登录：按客户端 IP
+@RateLimit(policy = "http-login", dimension = RateLimitDimension.IP)
+public ApiResponse<AuthResponse> login(...) { ... }
+
+// 消息发送：按租户 + 发送者
+@RateLimit(policy = "message-send", key = "#p0 + ':' + #p1")
+public void acquire(long tenantId, long senderId) { ... }
+```
+
+- `policy` 对应 `veryal.rate-limit.policies` 中的策略；
+- `dimension` 支持 `IP` / `USER` / `TENANT` / `GLOBAL` / `CUSTOM`；
+- `CUSTOM` 使用 SpEL，`#p0`、参数名均可引用；
+- 消息限流放在幂等与内容校验之后，避免重复/非法消息消耗额度；
+- 登录由注解限流，`RateLimitFilter` 不再重复处理登录路径；
+- 超限统一抛 `BusinessException(RATE_LIMITED)`，由全局异常处理返回 429。
+
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | POST | `/api/v1/auth/register` | 注册（可选 `tenantCode`，默认 `default`） |
