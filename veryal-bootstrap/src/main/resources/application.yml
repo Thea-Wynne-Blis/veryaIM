@@ -140,6 +140,10 @@ veryal:
       access-key-id: ${VERYAL_OSS_ACCESS_KEY_ID:}
       access-key-secret: ${VERYAL_OSS_ACCESS_KEY_SECRET:}
       bucket: ${VERYAL_OSS_BUCKET:veryal}
+  upload:
+    staging-path: ${VERYAL_UPLOAD_STAGING:./data/uploads}
+    chunk-size-bytes: ${VERYAL_UPLOAD_CHUNK_SIZE:5242880}
+    max-size-bytes: ${VERYAL_UPLOAD_MAX_SIZE:67108864}
 
 logging:
   level:

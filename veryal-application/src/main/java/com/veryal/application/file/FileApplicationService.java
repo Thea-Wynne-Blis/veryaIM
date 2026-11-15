@@ -43,6 +43,7 @@ public class FileApplicationService {
     private final FileRepository fileRepository;
     private final FileStorageProvider storageProvider;
     private final ConversationRepository conversationRepository;
+    private final ImageCompressor imageCompressor;
     private final IdGenerator idGenerator;
     private final TimeProvider timeProvider;
 
@@ -60,21 +61,33 @@ public class FileApplicationService {
             throw new BusinessException(ErrorCode.FILE_TOO_LARGE,
                     "file exceeds max size " + MAX_FILE_SIZE + " bytes");
         }
+        return store(tenantId, uploaderId, conversationId, filename, contentType, content);
+    }
+
+    /**
+     * 写入文件对象与元数据；供普通上传和分片上传完成时复用。
+     */
+    public FileView store(long tenantId, long uploaderId, String conversationId, String filename,
+                          String contentType, byte[] content) {
+        if (content == null || content.length == 0) {
+            throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "file must not be empty");
+        }
         String safeName = sanitizeName(filename);
         String normalizedType = normalizeContentType(contentType);
         String extension = extension(safeName);
         String scopedConversationId = scopeConversation(tenantId, uploaderId, conversationId);
+        byte[] storedContent = imageCompressor.compress(content, normalizedType);
         Instant now = timeProvider.now();
         long fileId = idGenerator.nextId();
         String objectKey = "tenant/" + tenantId + "/" + DATE_PATH.format(now) + "/"
                 + fileId + extension;
-        String sha256 = sha256(content);
+        String sha256 = sha256(storedContent);
         FileStorage storage = storageProvider.current();
         StoredFile file = new StoredFile(fileId, tenantId, uploaderId, objectKey, safeName,
-                normalizedType, content.length, sha256, storage.type(), FileStatus.ACTIVE, now, null,
+                normalizedType, storedContent.length, sha256, storage.type(), FileStatus.ACTIVE, now, null,
                 scopedConversationId);
 
-        storage.put(objectKey, content, normalizedType);
+        storage.put(objectKey, storedContent, normalizedType);
         try {
             fileRepository.save(file);
         } catch (RuntimeException e) {

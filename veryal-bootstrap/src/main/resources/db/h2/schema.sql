@@ -162,6 +162,23 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_file_object_key ON im_file (object_key);
 CREATE INDEX IF NOT EXISTS idx_file_tenant_uploader ON im_file (tenant_id, uploader_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_file_conversation ON im_file (conversation_id);
 
+CREATE TABLE IF NOT EXISTS im_upload_session
+(
+    id              BIGINT       NOT NULL PRIMARY KEY,
+    tenant_id       BIGINT       NOT NULL,
+    uploader_id     BIGINT       NOT NULL,
+    filename        VARCHAR(255) NOT NULL,
+    content_type    VARCHAR(128) NOT NULL,
+    size_bytes      BIGINT       NOT NULL,
+    chunk_size      INT          NOT NULL,
+    total_chunks    INT          NOT NULL,
+    conversation_id VARCHAR(64)  NULL,
+    status          TINYINT      NOT NULL DEFAULT 0,
+    created_at      TIMESTAMP(3) NOT NULL,
+    file_id         BIGINT       NULL
+);
+CREATE INDEX IF NOT EXISTS idx_upload_tenant_uploader ON im_upload_session (tenant_id, uploader_id, created_at);
+
 
 
 

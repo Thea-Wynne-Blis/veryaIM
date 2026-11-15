@@ -2,12 +2,16 @@ package com.veryal.access.http.controller;
 
 import com.veryal.access.http.dto.FileResponse;
 import com.veryal.access.http.dto.FileUrlResponse;
+import com.veryal.access.http.dto.InitUploadRequest;
+import com.veryal.access.http.dto.UploadSessionResponse;
 import com.veryal.access.http.security.CurrentUser;
+import com.veryal.application.file.ChunkedUploadService;
 import com.veryal.application.file.FileApplicationService;
 import com.veryal.application.identity.AuthenticatedUser;
 import com.veryal.common.core.ApiResponse;
 import com.veryal.common.exception.BusinessException;
 import com.veryal.common.exception.ErrorCode;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -17,6 +21,8 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -27,7 +33,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
 /**
- * 文件 API：上传、元数据、下载、删除与临时 URL。
+ * 文件 API：上传、分片上传、元数据、下载、删除与临时 URL。
  */
 @RestController
 @RequestMapping("/api/v1/files")
@@ -37,6 +43,7 @@ public class FileController {
     private static final long MAX_URL_TTL_SECONDS = 7 * 24 * 60 * 60;
 
     private final FileApplicationService fileApplicationService;
+    private final ChunkedUploadService chunkedUploadService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<FileResponse> upload(@CurrentUser AuthenticatedUser user,
@@ -58,6 +65,45 @@ public class FileController {
                                          @PathVariable long fileId) {
         return ApiResponse.ok(FileResponse.from(
                 fileApplicationService.get(user.tenantId(), user.userId(), fileId)));
+    }
+
+    @PostMapping("/uploads")
+    public ApiResponse<UploadSessionResponse> initUpload(@CurrentUser AuthenticatedUser user,
+                                                         @Valid @RequestBody InitUploadRequest request) {
+        return ApiResponse.ok(UploadSessionResponse.from(chunkedUploadService.init(user.tenantId(),
+                user.userId(), request.filename(), request.contentType(), request.sizeBytes(),
+                request.conversationId())));
+    }
+
+    @PutMapping(value = "/uploads/{uploadId}/chunks/{index}",
+            consumes = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+    public ApiResponse<UploadSessionResponse> uploadChunk(@CurrentUser AuthenticatedUser user,
+                                                          @PathVariable long uploadId,
+                                                          @PathVariable int index,
+                                                          @RequestBody byte[] chunk) {
+        return ApiResponse.ok(UploadSessionResponse.from(chunkedUploadService.uploadChunk(
+                user.tenantId(), user.userId(), uploadId, index, chunk)));
+    }
+
+    @GetMapping("/uploads/{uploadId}")
+    public ApiResponse<UploadSessionResponse> uploadStatus(@CurrentUser AuthenticatedUser user,
+                                                           @PathVariable long uploadId) {
+        return ApiResponse.ok(UploadSessionResponse.from(chunkedUploadService.status(
+                user.tenantId(), user.userId(), uploadId)));
+    }
+
+    @PostMapping("/uploads/{uploadId}/complete")
+    public ApiResponse<FileResponse> completeUpload(@CurrentUser AuthenticatedUser user,
+                                                    @PathVariable long uploadId) {
+        return ApiResponse.ok(FileResponse.from(chunkedUploadService.complete(
+                user.tenantId(), user.userId(), uploadId)));
+    }
+
+    @DeleteMapping("/uploads/{uploadId}")
+    public ApiResponse<Void> cancelUpload(@CurrentUser AuthenticatedUser user,
+                                          @PathVariable long uploadId) {
+        chunkedUploadService.cancel(user.tenantId(), user.userId(), uploadId);
+        return ApiResponse.ok();
     }
 
     @GetMapping("/{fileId}/content")

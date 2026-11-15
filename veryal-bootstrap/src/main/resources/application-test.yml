@@ -29,6 +29,10 @@ veryal:
     type: local
     local:
       root-path: target/test-files
+  upload:
+    staging-path: target/test-uploads
+    chunk-size-bytes: 4
+    max-size-bytes: 1024
   rate-limit:
     policies:
       - name: http-login
