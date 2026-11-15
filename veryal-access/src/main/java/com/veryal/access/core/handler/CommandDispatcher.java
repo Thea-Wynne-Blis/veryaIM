@@ -23,11 +23,11 @@ import org.springframework.stereotype.Component;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ThreadPoolExecutor;
 
 /**
- * 命令分发：EventLoop 只做解码与投递，业务处理全部进入有界业务线程池。
+ * 命令分发：EventLoop 只做解码与投递，业务处理全部进入有界业务执行器。
  */
 @Slf4j
 @ChannelHandler.Sharable
@@ -35,11 +35,11 @@ import java.util.concurrent.ThreadPoolExecutor;
 public class CommandDispatcher extends SimpleChannelInboundHandler<ProtocolMessage> {
 
     private final Map<Command, CommandHandler> handlers;
-    private final ThreadPoolExecutor businessExecutor;
+    private final Executor businessExecutor;
     private final GatewayMetrics metrics;
 
     public CommandDispatcher(List<CommandHandler> handlers,
-                             @Qualifier(GatewayExecutorConfig.BUSINESS_EXECUTOR) ThreadPoolExecutor businessExecutor,
+                             @Qualifier(GatewayExecutorConfig.BUSINESS_EXECUTOR) Executor businessExecutor,
                              GatewayMetrics metrics) {
         this.businessExecutor = businessExecutor;
         this.metrics = metrics;

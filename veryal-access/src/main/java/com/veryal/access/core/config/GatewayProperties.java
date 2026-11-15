@@ -32,6 +32,12 @@ public class GatewayProperties {
     /** 业务队列容量，必须有界。 */
     private int businessQueueCapacity = 10_000;
 
+    /** 业务执行器：platform（默认）或 virtual。 */
+    private String businessExecutor = "platform";
+
+    /** 虚拟线程执行器最大并发（仅在 virtual 模式生效）。 */
+    private int businessConcurrency = 256;
+
     /** 单节点最大连接数，0 表示不限制。 */
     private int maxConnections = 0;
 

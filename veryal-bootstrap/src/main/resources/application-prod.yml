@@ -1,5 +1,8 @@
 # 生产 / Docker profile：MySQL + Redis + Flyway。
 spring:
+  threads:
+    virtual:
+      enabled: ${SPRING_THREADS_VIRTUAL_ENABLED:true}
   datasource:
     url: ${VERYAL_DB_URL:jdbc:mysql://mysql:3306/veryal_im?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&rewriteBatchedStatements=true}
     username: ${VERYAL_DB_USER:veryal}
@@ -22,6 +25,8 @@ veryal:
   node-id: ${VERYAL_NODE_ID:1}
   gateway:
     id: ${VERYAL_GATEWAY_ID:gateway-1}
+    business-executor: ${VERYAL_GATEWAY_BUSINESS_EXECUTOR:virtual}
+    business-concurrency: ${VERYAL_GATEWAY_BUSINESS_CONCURRENCY:512}
   redis:
     enabled: ${VERYAL_REDIS_ENABLED:true}
   mq:

@@ -80,6 +80,8 @@ veryal:
     login-timeout: 10s
     business-threads: 16
     business-queue-capacity: 10000
+    business-executor: ${VERYAL_GATEWAY_BUSINESS_EXECUTOR:platform}
+    business-concurrency: ${VERYAL_GATEWAY_BUSINESS_CONCURRENCY:256}
     tcp:
       enabled: true
       port: 9099
