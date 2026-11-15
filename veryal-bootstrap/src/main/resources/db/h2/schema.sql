@@ -285,6 +285,25 @@ CREATE TABLE IF NOT EXISTS im_tenant_admin
 );
 CREATE INDEX IF NOT EXISTS idx_tenant_admin_user ON im_tenant_admin (user_id);
 
+CREATE TABLE IF NOT EXISTS im_group_setting
+(
+    group_id     VARCHAR(64)  NOT NULL PRIMARY KEY,
+    tenant_id    BIGINT       NOT NULL,
+    announcement TEXT         NULL,
+    mute_all     TINYINT      NOT NULL DEFAULT 0,
+    updated_at   TIMESTAMP(3) NOT NULL,
+    updated_by   BIGINT       NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS im_group_mute
+(
+    group_id    VARCHAR(64) NOT NULL,
+    user_id     BIGINT      NOT NULL,
+    muted_until TIMESTAMP(3) NOT NULL,
+    created_at  TIMESTAMP(3) NOT NULL,
+    PRIMARY KEY (group_id, user_id)
+);
+
 
 
 

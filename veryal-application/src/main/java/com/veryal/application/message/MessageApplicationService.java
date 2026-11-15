@@ -1,6 +1,7 @@
 package com.veryal.application.message;
 
 import com.veryal.application.audit.AuditRecorder;
+import com.veryal.application.group.GroupModerationService;
 import com.veryal.application.message.strategy.MessageContentContext;
 import com.veryal.application.message.strategy.MessageTypeStrategyFactory;
 import com.veryal.common.core.CursorPage;
@@ -61,6 +62,7 @@ public class MessageApplicationService {
     private final RateLimiterRegistry rateLimiterRegistry;
     private final MessageTypeStrategyFactory messageTypeStrategyFactory;
     private final AuditRecorder auditRecorder;
+    private final GroupModerationService groupModerationService;
     private final MessageRecallNotifier messageRecallNotifier;
     private final IdGenerator idGenerator;
     private final TimeProvider timeProvider;
@@ -79,6 +81,11 @@ public class MessageApplicationService {
                         "conversation not found: " + command.conversationId()));
         conversationRepository.findMember(conversation.id(), command.senderId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CONVERSATION_MEMBER));
+        if (conversation.type() == ConversationType.GROUP) {
+            groupModerationService.ensureCanSend(command.tenantId(), conversation.id(),
+                    command.senderId());
+            groupModerationService.validateMentions(conversation.id(), command.content());
+        }
         if (conversation.type() == ConversationType.PRIVATE) {
             long peerId = conversationRepository.findMembers(conversation.id()).stream()
                     .map(ConversationMember::userId)

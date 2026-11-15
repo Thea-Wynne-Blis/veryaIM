@@ -46,6 +46,7 @@ public enum ErrorCode {
     TENANT_DISABLED(40303, "租户已停用", 403),
     TENANT_QUOTA_EXCEEDED(40304, "租户配额不足", 403),
     USER_BLOCKED(40305, "对方已拒收消息", 403),
+    GROUP_MUTED(40306, "群聊已禁言", 403),
 
     CONFLICT(40900, "资源状态冲突", 409),
     USERNAME_ALREADY_EXISTS(40901, "用户名已存在", 409),
