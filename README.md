@@ -209,9 +209,9 @@ docker compose up -d --build
 
 图片/视频的 `width`、`height` 与语音/视频的 `durationSeconds`（≤3600）、视频 `coverFileId` / `thumbnailFileId` 均为可选；`fileId` 必填。文本、表情以外的消息体最大 256KB。
 
-消息撤回：仅发送者本人可在发送后 2 分钟内撤回；撤回后历史消息返回 `recalled=true` 且 `content` 为空，原文不再下发。每次撤回写入审计日志（`MESSAGE_RECALL`）。
+消息撤回：仅发送者本人可在发送后 2 分钟内撤回；撤回后历史消息返回 `recalled=true` 且 `content` 为空，原文不再下发。撤回写入审计日志（`MESSAGE_RECALL`），并通过 `message.recalled` Outbox 广播 `MESSAGE_RECALL(0x0103)`；MQ 关闭时本机直接推送。
 
-已读回执：客户端 `READ_ACK` 推进读游标后写入 Outbox（`message.read`），各 Gateway 通过 `READ_NOTIFY(0x0112)` 向会话成员在线连接推送；也可通过 `/read-receipts` 查询成员读游标。
+已读回执：客户端 `READ_ACK` 推进读游标后写入 Outbox（`message.read`），MQ 开启时各 Gateway 通过 `READ_NOTIFY(0x0112)` 广播，MQ 关闭时本机直接推送；也可通过 `/read-receipts` 查询成员读游标。
 
 文件消息访问：上传时传 `conversationId` 绑定会话后，该会话成员可下载文件并可作为图片/语音/视频/文件消息引用；未绑定会话的文件仍仅上传者可访问。
 
@@ -246,7 +246,7 @@ connect → (10s 内) LOGIN(token, deviceId) → LOGIN_RESPONSE
         → DELIVERY_ACK / READ_ACK
 ```
 
-命令码：`LOGIN 0x0010`、`SEND_MESSAGE 0x0100`、`SERVER_ACK 0x0101`、`MESSAGE_NOTIFY 0x0102`、`DELIVERY_ACK 0x0110`、`READ_ACK 0x0111`、`READ_NOTIFY 0x0112`、`HEARTBEAT 0x0001`、`ERROR 0x01FF`。完整定义见 [veryal.proto](veryal-protocol/src/main/proto/veryal.proto)。
+命令码：`LOGIN 0x0010`、`SEND_MESSAGE 0x0100`、`SERVER_ACK 0x0101`、`MESSAGE_NOTIFY 0x0102`、`MESSAGE_RECALL 0x0103`、`DELIVERY_ACK 0x0110`、`READ_ACK 0x0111`、`READ_NOTIFY 0x0112`、`HEARTBEAT 0x0001`、`ERROR 0x01FF`。完整定义见 [veryal.proto](veryal-protocol/src/main/proto/veryal.proto)。
 
 ## TLS
 
