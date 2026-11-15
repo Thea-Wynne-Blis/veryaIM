@@ -29,5 +29,6 @@ public class FileMessageStrategy extends AbstractFileMessageStrategy {
         if (node.has("fileName") && node.path("fileName").asText("").length() > 255) {
             throw new BusinessException(ErrorCode.MESSAGE_CONTENT_INVALID, "fileName is too long");
         }
+        optionalPositive(node, "sizeBytes");
     }
 }

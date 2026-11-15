@@ -25,5 +25,10 @@ public class VoiceMessageStrategy extends AbstractFileMessageStrategy {
         JsonNode node = parseJson(context);
         requireOwnedFile(context, node);
         optionalPositive(node, "durationSeconds");
+        if (node.path("durationSeconds").asLong(0) > 3600) {
+            throw new com.veryal.common.exception.BusinessException(
+                    com.veryal.common.exception.ErrorCode.MESSAGE_CONTENT_INVALID,
+                    "durationSeconds must not exceed 3600");
+        }
     }
 }

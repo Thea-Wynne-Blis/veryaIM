@@ -34,7 +34,10 @@ public abstract class AbstractFileMessageStrategy implements MessageTypeStrategy
     }
 
     protected StoredFile requireOwnedFile(MessageContentContext context, JsonNode node) {
-        long fileId = node.path("fileId").asLong(0);
+        return requireFile(context, node.path("fileId").asLong(0));
+    }
+
+    protected StoredFile requireFile(MessageContentContext context, long fileId) {
         if (fileId <= 0) {
             throw new BusinessException(ErrorCode.MESSAGE_CONTENT_INVALID, "fileId is required");
         }

@@ -27,6 +27,15 @@ public class VideoMessageStrategy extends AbstractFileMessageStrategy {
         optionalPositive(node, "durationSeconds");
         optionalPositive(node, "width");
         optionalPositive(node, "height");
+        optionalPositive(node, "coverFileId");
         optionalPositive(node, "thumbnailFileId");
+        long coverFileId = node.path("coverFileId").asLong(0);
+        if (coverFileId > 0) {
+            requireFile(context, coverFileId);
+        }
+        long thumbnailFileId = node.path("thumbnailFileId").asLong(0);
+        if (thumbnailFileId > 0) {
+            requireFile(context, thumbnailFileId);
+        }
     }
 }
