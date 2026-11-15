@@ -40,8 +40,8 @@ frontend/
 - 租户管理员；
 - 计费/套餐/发票页面。
 
-> 当前后端仍保留 `tenantCode` / 默认租户等历史实现。  
-> 前端一期**不展示租户概念**，注册/登录不要求填写租户码；后端清理多租户后再删除相关参数。
+> 后端已移除 `tenantCode` 与租户接口；内部仍保留固定 `tenant_id=1` 兼容列。  
+> 前端一期不展示租户概念，注册/登录不要求填写租户码。
 
 ---
 
@@ -565,15 +565,16 @@ DELETE /api/v1/files/uploads/{uploadId}
 
 ## 12. 后端待补接口
 
-### 社交
+### 社交（已实现）
 
 | 接口 | 用途 |
 |---|---|
 | `GET /api/v1/users/search?keyword=` | 搜索用户 |
 | `GET /api/v1/users/{id}/profile` | 查看资料 |
-| `GET /api/v1/users/me/privacy` | 隐私设置 |
-| `PUT /api/v1/users/me/privacy` | 更新隐私 |
+| `GET /api/v1/users/me/privacy` | 查询隐私设置 |
+| `PUT /api/v1/users/me/privacy` | 更新隐私设置 |
 | `POST /api/v1/reports` | 举报 |
+| `GET /api/v1/reports/me` | 我的举报记录 |
 
 ### 群
 

@@ -21,4 +21,6 @@ public interface UserRepository {
     long count(long tenantId);
 
     List<User> findByTenant(long tenantId, int limit);
+
+    List<User> search(long tenantId, String keyword, int limit);
 }

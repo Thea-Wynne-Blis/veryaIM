@@ -279,6 +279,35 @@ CREATE TABLE IF NOT EXISTS im_group_mute
     PRIMARY KEY (group_id, user_id)
 );
 
+CREATE TABLE IF NOT EXISTS im_user_privacy
+(
+    user_id            BIGINT      NOT NULL PRIMARY KEY,
+    search_by_phone    TINYINT     NOT NULL DEFAULT 1,
+    search_by_username TINYINT     NOT NULL DEFAULT 1,
+    friend_policy      TINYINT     NOT NULL DEFAULT 1,
+    show_online        TINYINT     NOT NULL DEFAULT 1,
+    read_receipt       TINYINT     NOT NULL DEFAULT 1,
+    invited_to_group   TINYINT     NOT NULL DEFAULT 1,
+    updated_at         TIMESTAMP(3) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS im_report
+(
+    id          BIGINT       NOT NULL PRIMARY KEY,
+    reporter_id BIGINT       NOT NULL,
+    target_type VARCHAR(16)  NOT NULL,
+    target_id   VARCHAR(64)  NOT NULL,
+    reason      VARCHAR(64)  NOT NULL,
+    detail      VARCHAR(512) NULL,
+    status      TINYINT      NOT NULL DEFAULT 0,
+    handled_by  BIGINT       NULL,
+    handled_at  TIMESTAMP(3) NULL,
+    created_at  TIMESTAMP(3) NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_report_status ON im_report (status, created_at);
+CREATE INDEX IF NOT EXISTS idx_report_target ON im_report (target_type, target_id);
+CREATE INDEX IF NOT EXISTS idx_report_reporter ON im_report (reporter_id, created_at);
+
 
 
 

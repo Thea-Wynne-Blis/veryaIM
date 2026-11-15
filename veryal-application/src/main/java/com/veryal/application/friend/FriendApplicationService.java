@@ -6,6 +6,7 @@ import com.veryal.common.exception.BusinessException;
 import com.veryal.common.exception.ErrorCode;
 import com.veryal.common.id.IdGenerator;
 import com.veryal.common.json.JsonUtils;
+import com.veryal.application.identity.UserSocialService;
 import com.veryal.domain.friend.BlacklistRepository;
 import com.veryal.domain.friend.Friend;
 import com.veryal.domain.friend.FriendEvent;
@@ -43,6 +44,7 @@ public class FriendApplicationService {
     private final FriendRepository friendRepository;
     private final BlacklistRepository blacklistRepository;
     private final UserRepository userRepository;
+    private final UserSocialService userSocialService;
     private final PresenceRepository presenceRepository;
     private final OutboxAppender outboxAppender;
     private final FriendNotifier friendNotifier;
@@ -63,6 +65,7 @@ public class FriendApplicationService {
                 || blacklistRepository.exists(tenantId, fromUserId, toUserId)) {
             throw new BusinessException(ErrorCode.USER_BLOCKED);
         }
+        userSocialService.ensureCanAddFriend(toUserId);
         String text = message == null ? null : message.trim();
         if (text != null && text.length() > MAX_MESSAGE_LENGTH) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "request message is too long");

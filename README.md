@@ -32,7 +32,7 @@ VERYAL 是面向个人用户的消费级社交即时通讯产品（类微信 / Q
 - **连接数治理**：单节点总连接数与单 IP 连接数可配置，准入处理器在 TLS/协议握手前拒绝超限连接，并输出拒绝指标。
 - **文件存储策略**：`local` / `minio` / `oss` 三种实现，`veryal.storage.type` 选择；文件本体不入 MySQL，元数据与 SHA-256 落库，支持上传、下载、删除、临时 URL。
 - **分片上传/断点续传**：初始化会话 → 逐片上传 → 查询已上传分片 → 完成后合并；图片上传自动缩放/压缩。
-- **多租户（历史实现，待清理）**：`im_tenant` 租户表、租户码登录/注册、用户/群/存储基础配额、平台侧开通/停用；读写按 `tenant_id` 隔离。
+- **多租户已移除（V17）**：租户表、租户码、租户管理接口、租户管理员、用量/导出/删除已删除；内部保留固定 `tenant_id=1` 兼容列，待后续迁移。
 - **好友/黑名单/通讯录**：好友申请（发送/接受/拒绝/取消）、好友备注/删除、黑名单拦截私聊、通讯录聚合好友/群/待处理申请。
 - **多消息类型**：TEXT / EMOJI / IMAGE / AUDIO / VIDEO / FILE / SYSTEM，采用策略 + 工厂校验内容格式与文件归属。
 - Lombok 消除样板代码，Hutool 提供 ID / 字符串等基础工具。
@@ -187,37 +187,34 @@ public void acquire(long tenantId, long senderId) { ... }
 
 > **接口说明（V1.1）**
 >
-> 下表包含当前代码已实现的历史接口，其中 `/api/v1/platform/tenants/*`、`/api/v1/tenant/*`、`X-Admin-Token` 以及注册/登录的 `tenantCode` 属于多租户历史实现。
-> 新方向不再扩展这些接口，后续清理；前端一期不展示租户概念，也不使用租户后台。
+> 多租户相关接口已移除；`/api/v1/platform/*` 仅保留运营管理员登录、MFA、管理员管理与审计。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| POST | `/api/v1/auth/register` | 注册（`tenantCode` 为历史参数，前端不展示） |
-| POST | `/api/v1/auth/login` | 登录并绑定设备（`tenantCode` 为历史参数） |
+| POST | `/api/v1/auth/register` | 注册 |
+| POST | `/api/v1/auth/login` | 登录并绑定设备 |
 | GET | `/api/v1/auth/me` | 当前用户 |
-| POST | `/api/v1/platform/auth/login` | 平台管理员登录（可带 `mfaCode`，返回 `scope=PLATFORM` + `role`） |
-| POST | `/api/v1/platform/auth/refresh` | 刷新平台 Token（Refresh Token 轮换） |
+| POST | `/api/v1/platform/auth/login` | 运营管理员登录（可带 `mfaCode`，返回 `scope=PLATFORM` + `role`） |
+| POST | `/api/v1/platform/auth/refresh` | 刷新运营 Token（Refresh Token 轮换） |
 | POST | `/api/v1/platform/auth/logout` | 注销 Refresh Token |
 | POST | `/api/v1/platform/auth/mfa/setup` | 生成 TOTP 密钥与 otpauth URL |
 | POST | `/api/v1/platform/auth/mfa/enable` | 校验动态码并启用 MFA |
 | POST | `/api/v1/platform/auth/mfa/disable` | 校验动态码并关闭 MFA |
-| POST | `/api/v1/platform/tenants` | 平台开通租户（平台 Bearer Token） |
-| GET | `/api/v1/platform/tenants` | 租户列表（平台 Bearer Token） |
-| POST | `/api/v1/platform/tenants/{id}/disable` | 停用租户（平台 Bearer Token） |
-| POST | `/api/v1/platform/tenants/{id}/enable` | 启用租户（平台 Bearer Token） |
-| GET | `/api/v1/platform/admins` | 平台管理员列表（仅 PLATFORM_ADMIN） |
-| POST | `/api/v1/platform/admins` | 创建平台管理员 |
+| GET | `/api/v1/platform/admins` | 运营管理员列表（仅 PLATFORM_ADMIN） |
+| POST | `/api/v1/platform/admins` | 创建运营管理员 |
 | POST | `/api/v1/platform/admins/{id}/disable` | 停用管理员 |
 | POST | `/api/v1/platform/admins/{id}/enable` | 启用管理员 |
 | POST | `/api/v1/platform/admins/{id}/password` | 重置管理员密码 |
 | POST | `/api/v1/platform/admins/{id}/role` | 调整管理员角色 |
-| GET | `/api/v1/platform/tenants/{id}/usage` | 平台查看租户用量 |
-| GET | `/api/v1/platform/tenants/{id}/export` | 导出租户用户/群/管理员/用量 |
-| DELETE | `/api/v1/platform/tenants/{id}` | 硬删除租户（`confirmCode` 必须等于租户码） |
-| POST | `/api/v1/platform/tenants/{id}/admins/{userId}` | 平台任命租户管理员 |
+| GET | `/api/v1/platform/audit-logs` | 运营审计日志 |
 | GET / PUT | `/api/v1/users/me` | 查询 / 修改资料 |
 | GET | `/api/v1/users/me/devices` | 设备列表 |
 | GET | `/api/v1/users/me/audit-logs?limit=50` | 我的审计记录 |
+| GET | `/api/v1/users/search?keyword=...` | 搜索用户 |
+| GET | `/api/v1/users/{id}/profile` | 用户主页资料 |
+| GET / PUT | `/api/v1/users/me/privacy` | 查询 / 更新隐私设置 |
+| POST | `/api/v1/reports` | 举报用户 / 群 / 消息 |
+| GET | `/api/v1/reports/me` | 我的举报记录 |
 | POST | `/api/v1/friends/requests` | 发送好友申请 |
 | GET | `/api/v1/friends/requests?direction=incoming` | 好友申请列表 |
 | POST | `/api/v1/friends/requests/{requestId}/accept` | 接受好友申请 |
@@ -234,10 +231,6 @@ public void acquire(long tenantId, long senderId) { ... }
 | POST | `/api/v1/groups/{id}/mute` | 全员禁言开关（群主/管理员） |
 | POST | `/api/v1/groups/{id}/members/{userId}/mute` | 成员禁言分钟数，0 解除 |
 | GET | `/api/v1/contacts` | 通讯录：好友/群/待处理申请数 |
-| GET | `/api/v1/tenant/admins` | 租户管理员列表 |
-| POST | `/api/v1/tenant/admins` | 租户管理员新增管理员 `{"userId":1002}` |
-| DELETE | `/api/v1/tenant/admins/{userId}` | 移除租户管理员 |
-| GET | `/api/v1/tenant/usage` | 租户用量/预估月账单 |
 | POST | `/api/v1/conversations` | 创建单聊 `{"peerUserId":1002}` |
 | POST | `/api/v1/groups` | 创建群 `{"name":"...","memberIds":[1002,1003]}` |
 | GET | `/api/v1/groups` | 我的群列表 |
@@ -460,56 +453,29 @@ veryal:
 - **CPU 密集型操作**（JWT 签名、图片压缩、序列化）不会因虚拟线程变快；这类任务应继续受 CPU/有界执行器约束，并优先通过压测确认收益。
 - 虚拟线程不是银弹：数据库连接池、Redis、RabbitMQ 的吞吐仍是瓶颈，建议先做连接数与 P99 压测再调整并发。
 
-### 租户数据导出与删除
+### 运营管理员与审计
 
-- `GET /platform/tenants/{id}/export` 返回租户、用量、用户、群、管理员列表（单次最多 10000 条，不含消息正文）；
-- `DELETE /platform/tenants/{id}` 需 `{"confirmCode":"租户码"}`，仅 `PLATFORM_ADMIN`；
-- 硬删除覆盖：消息/投递/会话/群/文件元数据/上传会话/审计/好友/黑名单/租户管理员/设备/用户/租户；
-- **对象存储中的文件实体不会自动删除**，需由存储生命周期策略清理；
-- 删除操作写平台审计 `TENANT_DELETE`。
-
-### 租户管理员与用量
-
-- 首个租户管理员由平台管理员任命：`POST /platform/tenants/{tenantId}/admins/{userId}`；
-- 租户管理员可新增/移除其他管理员，但不能移除自己；
-- 租户内所有管理接口按 `im_tenant_admin` 校验，与平台 `scope=PLATFORM` 完全分离；
-- 用量统计：用户数、群数、消息数、文件存储字节、管理员数；
-- 预估月账单按全局单价计算（分）：
-  ```yaml
-  veryal:
-    billing:
-      user-cents: 0
-      group-cents: 0
-      storage-gb-cents: 0
-  ```
-  0 表示只统计用量；存储按 GB 向上取整。
-
-### 多租户、平台管理员与好友
-
-**平台管理员独立于租户用户**：
+**运营管理员独立于普通用户**：
 
 - 表 `im_platform_admin`，角色 `PLATFORM_ADMIN` / `SUPPORT`；
-- `SUPPORT` 只能查看租户列表与平台审计，不能创建/停用租户或管理管理员；
+- `SUPPORT` 可查看审计，不能管理管理员或执行运营写操作；
 - `PLATFORM_ADMIN` 可创建/启停管理员、重置密码、调整角色；
-- 平台管理员操作写入 `im_platform_audit_log`（V12），可通过 `/platform/audit-logs` 查询；
+- 管理操作写入 `im_platform_audit_log`（V12），可通过 `/platform/audit-logs` 查询；
 - 登录接口 `POST /api/v1/platform/auth/login` 返回：
   ```json
   {"scope":"PLATFORM","role":"PLATFORM_ADMIN","token":"...","adminId":1001,"username":"admin"}
   ```
-- 租户用户登录返回 `scope=TENANT`、`role=USER`；
-- 前端根据 `scope` 路由：`PLATFORM` 进入平台管理页，`TENANT` 进入 IM 页面；
-- 平台接口使用平台 Bearer Token，与租户 JWT 完全分离，跨 scope 不能互用。
-- 平台登录支持 TOTP MFA：`setup` 获取 secret/otpauth URL，`enable` 校验 6 位动态码；启用后登录必须携带 `mfaCode`。
-- 连续 5 次密码错误锁定 15 分钟（可配置），成功登录清零。
-- 登录返回 Refresh Token（14 天），`refresh` 轮换旧 Token，`logout` 撤销；Refresh Token 只存 SHA-256 哈希。
-- 平台 Token 有效期默认 2 小时，claims 带 `jti`。
+- 普通用户登录返回 `scope=USER`、`role=USER`；
+- 前端根据 `scope` 路由：`PLATFORM` 进入运营后台，`USER` 进入 IM 客户端；
+- 两套 Token 完全分离，跨 scope 不能互用。
+- 支持 TOTP MFA、Refresh Token 轮换、登录失败锁定。
 
-启动引导管理员（首次启动自动创建，已存在则跳过）：
+启动引导运营管理员（首次启动自动创建，已存在则跳过）：
 
 ```yaml
 veryal:
   platform:
-    token-secret: ${VERYAL_PLATFORM_TOKEN_SECRET:}       # 为空时回退租户 Token 密钥
+    token-secret: ${VERYAL_PLATFORM_TOKEN_SECRET:}       # 为空时回退普通 Token 密钥
     bootstrap-username: ${VERYAL_PLATFORM_BOOTSTRAP_USERNAME:}
     bootstrap-password: ${VERYAL_PLATFORM_BOOTSTRAP_PASSWORD:}
     refresh-ttl: 14d
@@ -517,9 +483,20 @@ veryal:
     lock-duration: 15m
 ```
 
-其他规则：
+### 用户搜索、隐私与举报
 
-- 租户码仅允许 `[a-z0-9-]{2,32}`，默认租户 `default`；配额 0 表示不限制。
+- `GET /api/v1/users/search?keyword=`：按用户名/昵称搜索，受隐私开关过滤；
+- `GET /api/v1/users/{id}/profile`：查看主页资料，按隐私设置决定是否展示在线状态；
+- `GET/PUT /api/v1/users/me/privacy`：隐私设置
+  - `searchByUsername` / `searchByPhone`
+  - `friendPolicy`：`REJECT` / `VERIFY` / `DIRECT`
+  - `showOnline` / `readReceipt` / `invitedToGroup`
+- 好友申请会校验对方 `friendPolicy=REJECT`，拒绝时返回 403；
+- `POST /api/v1/reports`：举报用户/群/消息，写入 `im_report`；
+- `GET /api/v1/reports/me`：我的举报记录。
+
+### 好友与黑名单
+
 - 好友申请/接受/拒绝/取消/拉黑/解除拉黑都会写 Outbox `friend.notify`，MQ 开启时广播 `FRIEND_NOTIFY(0x0120)`，关闭时本机直推；事件类型 `REQUEST=1, ACCEPTED=2, REJECTED=3, CANCELED=4, BLOCKED=5, UNBLOCKED=6`。
 - 黑名单只拦截私聊发送（接收者拉黑发送者时 403）；群聊消息不按个人黑名单过滤。
 - 通讯录在线状态来自 presence。
@@ -545,7 +522,7 @@ mvn test
 ```
 
 - 单元测试：雪花 ID、Envelope 编解码、Netty 帧拆包/粘包/非法帧、JWT、PBKDF2、Outbox 事件 JSON、限流算法（令牌桶/滑动窗口/固定窗口/注册表）、TLS 配置开关与快速失败、连接数限制、Caffeine 缓存配置、本地/云端存储策略。
-- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、多租户隔离/配额/停用、租户管理员/用量/导出/删除、平台管理员登录/MFA/Refresh Token/登录锁定/角色/审计、好友申请/接受/拒绝/好友/黑名单/通讯录、好友实时通知、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群公告/禁言、1000 人群容量与 100 并发发送冒烟、群消息分页扇出、限流 429、审计日志、连接数超限拒绝、文件上传/下载/权限/删除、文件会话成员访问、分片上传/续传、图片压缩、多消息类型与文件归属校验、消息撤回、消息搜索、已读回执、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
+- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、运营管理员登录/MFA/Refresh Token/登录锁定/角色/审计、用户搜索/隐私/举报、好友申请/接受/拒绝/好友/黑名单/通讯录、好友实时通知、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群公告/禁言、1000 人群容量与 100 并发发送冒烟、群消息分页扇出、限流 429、审计日志、连接数超限拒绝、文件上传/下载/权限/删除、文件会话成员访问、分片上传/续传、图片压缩、多消息类型与文件归属校验、消息撤回、消息搜索、已读回执、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
 
 集成测试使用 `test` profile，Netty Gateway 端口配置为 0（系统分配），不占用本机端口。
 
