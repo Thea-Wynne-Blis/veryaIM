@@ -177,7 +177,8 @@ docker compose up -d --build
 | POST | `/api/v1/platform/admins/{id}/enable` | 启用管理员 |
 | POST | `/api/v1/platform/admins/{id}/password` | 重置管理员密码 |
 | POST | `/api/v1/platform/admins/{id}/role` | 调整管理员角色 |
-| GET | `/api/v1/platform/audit-logs` | 平台操作审计 |
+| GET | `/api/v1/platform/tenants/{id}/usage` | 平台查看租户用量 |
+| POST | `/api/v1/platform/tenants/{id}/admins/{userId}` | 平台任命租户管理员 |
 | GET / PUT | `/api/v1/users/me` | 查询 / 修改资料 |
 | GET | `/api/v1/users/me/devices` | 设备列表 |
 | GET | `/api/v1/users/me/audit-logs?limit=50` | 我的审计记录 |
@@ -193,6 +194,10 @@ docker compose up -d --build
 | POST | `/api/v1/blocks/{userId}` | 拉黑（同时解除好友与待处理申请） |
 | DELETE | `/api/v1/blocks/{userId}` | 解除拉黑 |
 | GET | `/api/v1/contacts` | 通讯录：好友/群/待处理申请数 |
+| GET | `/api/v1/tenant/admins` | 租户管理员列表 |
+| POST | `/api/v1/tenant/admins` | 租户管理员新增管理员 `{"userId":1002}` |
+| DELETE | `/api/v1/tenant/admins/{userId}` | 移除租户管理员 |
+| GET | `/api/v1/tenant/usage` | 租户用量/预估月账单 |
 | POST | `/api/v1/conversations` | 创建单聊 `{"peerUserId":1002}` |
 | POST | `/api/v1/groups` | 创建群 `{"name":"...","memberIds":[1002,1003]}` |
 | GET | `/api/v1/groups` | 我的群列表 |
@@ -389,6 +394,22 @@ veryal:
 - **CPU 密集型操作**（JWT 签名、图片压缩、序列化）不会因虚拟线程变快；这类任务应继续受 CPU/有界执行器约束，并优先通过压测确认收益。
 - 虚拟线程不是银弹：数据库连接池、Redis、RabbitMQ 的吞吐仍是瓶颈，建议先做连接数与 P99 压测再调整并发。
 
+### 租户管理员与用量
+
+- 首个租户管理员由平台管理员任命：`POST /platform/tenants/{tenantId}/admins/{userId}`；
+- 租户管理员可新增/移除其他管理员，但不能移除自己；
+- 租户内所有管理接口按 `im_tenant_admin` 校验，与平台 `scope=PLATFORM` 完全分离；
+- 用量统计：用户数、群数、消息数、文件存储字节、管理员数；
+- 预估月账单按全局单价计算（分）：
+  ```yaml
+  veryal:
+    billing:
+      user-cents: 0
+      group-cents: 0
+      storage-gb-cents: 0
+  ```
+  0 表示只统计用量；存储按 GB 向上取整。
+
 ### 多租户、平台管理员与好友
 
 **平台管理员独立于租户用户**：
@@ -450,7 +471,7 @@ mvn test
 ```
 
 - 单元测试：雪花 ID、Envelope 编解码、Netty 帧拆包/粘包/非法帧、JWT、PBKDF2、Outbox 事件 JSON、限流算法（令牌桶/滑动窗口/固定窗口/注册表）、TLS 配置开关与快速失败、连接数限制、Caffeine 缓存配置、本地/云端存储策略。
-- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、多租户隔离/配额/停用、平台管理员登录/MFA/Refresh Token/登录锁定/角色/审计、好友申请/接受/拒绝/好友/黑名单/通讯录、好友实时通知、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群消息分页扇出、限流 429、审计日志、连接数超限拒绝、文件上传/下载/权限/删除、文件会话成员访问、分片上传/续传、图片压缩、多消息类型与文件归属校验、消息撤回、消息搜索、已读回执、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
+- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、多租户隔离/配额/停用、租户管理员/用量账单、平台管理员登录/MFA/Refresh Token/登录锁定/角色/审计、好友申请/接受/拒绝/好友/黑名单/通讯录、好友实时通知、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群消息分页扇出、限流 429、审计日志、连接数超限拒绝、文件上传/下载/权限/删除、文件会话成员访问、分片上传/续传、图片压缩、多消息类型与文件归属校验、消息撤回、消息搜索、已读回执、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
 
 集成测试使用 `test` profile，Netty Gateway 端口配置为 0（系统分配），不占用本机端口。
 
