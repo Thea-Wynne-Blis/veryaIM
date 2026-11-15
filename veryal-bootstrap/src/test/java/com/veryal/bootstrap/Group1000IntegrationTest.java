@@ -28,6 +28,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -83,6 +87,33 @@ class Group1000IntegrationTest {
         long elapsedMs = (System.nanoTime() - start) / 1_000_000;
         System.out.println("GROUP_1000_ELAPSED_MS=" + elapsedMs);
         assertThat(elapsedMs).isLessThan(30_000);
+
+        // 100 个不同成员并发发送，验证 1000 人群下的并发写入/序号分配。
+        int concurrentSends = 100;
+        ExecutorService pool = Executors.newFixedThreadPool(20);
+        long concurrentStart = System.nanoTime();
+        try {
+            List<Future<?>> futures = new ArrayList<>();
+            for (int i = 0; i < concurrentSends; i++) {
+                long senderId = memberIds.get(i);
+                int index = i;
+                futures.add(pool.submit(() -> messageApplicationService.send(
+                        new SendMessageCommand(1L, senderId, "load-device", group.groupId(),
+                                "load-concurrent-" + suffix + "-" + index, MessageType.TEXT,
+                                ("concurrent " + index).getBytes(StandardCharsets.UTF_8)))));
+            }
+            for (Future<?> future : futures) {
+                future.get(30, TimeUnit.SECONDS);
+            }
+        } catch (Exception e) {
+            throw new AssertionError("concurrent group send failed", e);
+        } finally {
+            pool.shutdownNow();
+        }
+        long concurrentMs = (System.nanoTime() - concurrentStart) / 1_000_000;
+        System.out.println("GROUP_1000_CONCURRENT_MS=" + concurrentMs
+                + " THROUGHPUT=" + (concurrentSends * 1000L / Math.max(1, concurrentMs)) + "/s");
+        assertThat(concurrentMs).isLessThan(30_000);
     }
 
     private UserResponse register(String username) {
