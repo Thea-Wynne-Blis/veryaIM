@@ -10,6 +10,7 @@ import com.veryal.infrastructure.mysql.po.UserPO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -57,6 +58,17 @@ public class MyBatisUserRepository implements UserRepository {
         Long count = userMapper.selectCount(Wrappers.<UserPO>lambdaQuery()
                 .eq(UserPO::getTenantId, tenantId));
         return count == null ? 0L : count;
+    }
+
+    @Override
+    public List<User> findByTenant(long tenantId, int limit) {
+        return userMapper.selectList(Wrappers.<UserPO>lambdaQuery()
+                        .eq(UserPO::getTenantId, tenantId)
+                        .orderByAsc(UserPO::getId)
+                        .last("LIMIT " + Math.max(1, Math.min(limit, 10000))))
+                .stream()
+                .map(this::toDomain)
+                .toList();
     }
 
     private User toDomain(UserPO po) {

@@ -100,6 +100,17 @@ public class MyBatisGroupRepository implements GroupRepository {
     }
 
     @Override
+    public List<Group> findByTenant(long tenantId, int limit) {
+        return groupMapper.selectList(Wrappers.<GroupPO>lambdaQuery()
+                        .eq(GroupPO::getTenantId, tenantId)
+                        .orderByAsc(GroupPO::getId)
+                        .last("LIMIT " + Math.max(1, Math.min(limit, 10000))))
+                .stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
+    @Override
     public long countByTenant(long tenantId) {
         Long count = groupMapper.selectCount(Wrappers.<GroupPO>lambdaQuery()
                 .eq(GroupPO::getTenantId, tenantId));

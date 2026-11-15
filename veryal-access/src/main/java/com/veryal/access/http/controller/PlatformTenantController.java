@@ -2,13 +2,16 @@ package com.veryal.access.http.controller;
 
 import com.veryal.access.http.dto.CreateTenantRequest;
 import com.veryal.access.http.dto.TenantResponse;
+import com.veryal.access.http.dto.DeleteTenantRequest;
 import com.veryal.access.http.dto.TenantAdminResponse;
+import com.veryal.access.http.dto.TenantExportResponse;
 import com.veryal.access.http.dto.TenantUsageResponse;
 import com.veryal.access.http.security.PlatformAdminFilter;
 import com.veryal.application.platform.PlatformAuditRecorder;
 import com.veryal.application.platform.PlatformPrincipal;
 import com.veryal.application.tenant.TenantAdminService;
 import com.veryal.application.tenant.TenantApplicationService;
+import com.veryal.application.tenant.TenantDataService;
 import com.veryal.common.core.ApiResponse;
 import com.veryal.common.exception.BusinessException;
 import com.veryal.common.exception.ErrorCode;
@@ -25,6 +28,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.DeleteMapping;
 
 import java.util.List;
 
@@ -38,6 +42,7 @@ public class PlatformTenantController {
 
     private final TenantApplicationService tenantApplicationService;
     private final TenantAdminService tenantAdminService;
+    private final TenantDataService tenantDataService;
     private final PlatformAuditRecorder platformAuditRecorder;
 
     @PostMapping
@@ -101,6 +106,25 @@ public class PlatformTenantController {
             throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
         return ApiResponse.ok(TenantUsageResponse.from(tenantAdminService.usageOf(tenantId)));
+    }
+
+    @GetMapping("/{tenantId}/export")
+    public ApiResponse<TenantExportResponse> export(
+            @RequestAttribute(PlatformAdminFilter.ATTRIBUTE) PlatformPrincipal principal,
+            @PathVariable long tenantId) {
+        requireAdmin(principal);
+        return ApiResponse.ok(TenantExportResponse.from(tenantDataService.export(tenantId)));
+    }
+
+    @DeleteMapping("/{tenantId}")
+    public ApiResponse<Void> delete(
+            @RequestAttribute(PlatformAdminFilter.ATTRIBUTE) PlatformPrincipal principal,
+            @PathVariable long tenantId, @Valid @RequestBody DeleteTenantRequest request) {
+        requireAdmin(principal);
+        tenantDataService.delete(tenantId, request.confirmCode());
+        platformAuditRecorder.record(principal.adminId(), "TENANT_DELETE", "tenant",
+                Long.toString(tenantId), "confirmCode matched");
+        return ApiResponse.ok();
     }
 
     private void requireAdmin(PlatformPrincipal principal) {

@@ -31,6 +31,8 @@ public interface GroupRepository {
 
     List<Group> findByUser(long tenantId, long userId);
 
+    List<Group> findByTenant(long tenantId, int limit);
+
     long countByTenant(long tenantId);
 
     /**
