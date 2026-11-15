@@ -24,6 +24,8 @@ VERYAL 是高性能、跨平台、可扩展的即时通讯基础设施。本仓�
 - **连接数治理**：单节点总连接数与单 IP 连接数可配置，准入处理器在 TLS/协议握手前拒绝超限连接，并输出拒绝指标。
 - **文件存储策略**：`local` / `minio` / `oss` 三种实现，`veryal.storage.type` 选择；文件本体不入 MySQL，元数据与 SHA-256 落库，支持上传、下载、删除、临时 URL。
 - **分片上传/断点续传**：初始化会话 → 逐片上传 → 查询已上传分片 → 完成后合并；图片上传自动缩放/压缩。
+- **多租户**：`im_tenant` 租户表、租户码登录/注册、用户/群/存储基础配额、平台侧开通/停用；读写按 `tenant_id` 隔离。
+- **好友/黑名单/通讯录**：好友申请（发送/接受/拒绝/取消）、好友备注/删除、黑名单拦截私聊、通讯录聚合好友/群/待处理申请。
 - **多消息类型**：TEXT / EMOJI / IMAGE / AUDIO / VIDEO / FILE / SYSTEM，采用策略 + 工厂校验内容格式与文件归属。
 - Lombok 消除样板代码，Hutool 提供 ID / 字符串等基础工具。
 
@@ -156,12 +158,28 @@ docker compose up -d --build
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| POST | `/api/v1/auth/register` | 注册 |
-| POST | `/api/v1/auth/login` | 登录并绑定设备 |
+| POST | `/api/v1/auth/register` | 注册（可选 `tenantCode`，默认 `default`） |
+| POST | `/api/v1/auth/login` | 登录并绑定设备（可选 `tenantCode`） |
 | GET | `/api/v1/auth/me` | 当前用户 |
+| POST | `/api/v1/platform/tenants` | 平台开通租户（`X-Admin-Token`） |
+| GET | `/api/v1/platform/tenants` | 租户列表（`X-Admin-Token`） |
+| POST | `/api/v1/platform/tenants/{id}/disable` | 停用租户（`X-Admin-Token`） |
+| POST | `/api/v1/platform/tenants/{id}/enable` | 启用租户（`X-Admin-Token`） |
 | GET / PUT | `/api/v1/users/me` | 查询 / 修改资料 |
 | GET | `/api/v1/users/me/devices` | 设备列表 |
 | GET | `/api/v1/users/me/audit-logs?limit=50` | 我的审计记录 |
+| POST | `/api/v1/friends/requests` | 发送好友申请 |
+| GET | `/api/v1/friends/requests?direction=incoming` | 好友申请列表 |
+| POST | `/api/v1/friends/requests/{requestId}/accept` | 接受好友申请 |
+| POST | `/api/v1/friends/requests/{requestId}/reject` | 拒绝好友申请 |
+| POST | `/api/v1/friends/requests/{requestId}/cancel` | 取消自己发出的申请 |
+| GET | `/api/v1/friends` | 好友列表（含备注/在线状态） |
+| PUT | `/api/v1/friends/{friendId}` | 修改好友备注 |
+| DELETE | `/api/v1/friends/{friendId}` | 删除好友 |
+| GET | `/api/v1/blocks` | 黑名单列表 |
+| POST | `/api/v1/blocks/{userId}` | 拉黑（同时解除好友与待处理申请） |
+| DELETE | `/api/v1/blocks/{userId}` | 解除拉黑 |
+| GET | `/api/v1/contacts` | 通讯录：好友/群/待处理申请数 |
 | POST | `/api/v1/conversations` | 创建单聊 `{"peerUserId":1002}` |
 | POST | `/api/v1/groups` | 创建群 `{"name":"...","memberIds":[1002,1003]}` |
 | GET | `/api/v1/groups` | 我的群列表 |
@@ -358,6 +376,22 @@ veryal:
 - **CPU 密集型操作**（JWT 签名、图片压缩、序列化）不会因虚拟线程变快；这类任务应继续受 CPU/有界执行器约束，并优先通过压测确认收益。
 - 虚拟线程不是银弹：数据库连接池、Redis、RabbitMQ 的吞吐仍是瓶颈，建议先做连接数与 P99 压测再调整并发。
 
+### 多租户与好友
+
+配置平台侧租户管理令牌：
+
+```yaml
+veryal:
+  tenant:
+    admin-token: ${VERYAL_TENANT_ADMIN_TOKEN:}
+```
+
+- 租户码仅允许 `[a-z0-9-]{2,32}`；默认租户 `default`。
+- 平台接口必须携带 `X-Admin-Token`，未配置令牌时所有平台接口返回 403。
+- 配额 `maxUsers/maxGroups/maxStorageBytes` 为 0 表示不限制。
+- 黑名单只拦截私聊发送（接收者拉黑发送者时 403）；群聊消息不按个人黑名单过滤。
+- 通讯录的在线状态来自 presence，离线时为 `false`。
+
 ## 一致性设计
 
 - 消息写入：校验成员 → 幂等检查 → 分配会话序号（`SELECT ... FOR UPDATE`）→ 插入消息 → 写入 Outbox → 更新会话时间，同一数据库事务内完成。
@@ -379,7 +413,7 @@ mvn test
 ```
 
 - 单元测试：雪花 ID、Envelope 编解码、Netty 帧拆包/粘包/非法帧、JWT、PBKDF2、Outbox 事件 JSON、限流算法（令牌桶/滑动窗口/固定窗口/注册表）、TLS 配置开关与快速失败、连接数限制、Caffeine 缓存配置、本地/云端存储策略。
-- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群消息分页扇出、限流 429、审计日志、连接数超限拒绝、文件上传/下载/权限/删除、文件会话成员访问、分片上传/续传、图片压缩、多消息类型与文件归属校验、消息撤回、消息搜索、已读回执、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
+- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、多租户隔离/配额/停用、好友申请/好友/黑名单/通讯录、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群消息分页扇出、限流 429、审计日志、连接数超限拒绝、文件上传/下载/权限/删除、文件会话成员访问、分片上传/续传、图片压缩、多消息类型与文件归属校验、消息撤回、消息搜索、已读回执、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
 
 集成测试使用 `test` profile，Netty Gateway 端口配置为 0（系统分配），不占用本机端口。
 
@@ -398,7 +432,7 @@ mvn test
 
 - V0.3：已完成 Outbox + RabbitMQ + 重试/DLQ + 多实例实时投递；后续补充投递记录表与跨节点路由优化。
 - V0.4：群聊、群管理（含群主转让/解散）、群消息分页扇出、Redis 网关路由、策略模式限流、审计日志/查询、可选 TLS、连接数上限已完成；继续补充大群压测。
-- V0.5：Caffeine 两级缓存完善、文件存储（local/MinIO/OSS）、分片上传/图片压缩、多消息类型、消息撤回/搜索/已读回执、多租户、开放 API / SDK。
+- V0.5：Caffeine 两级缓存完善、文件存储（local/MinIO/OSS）、分片上传/图片压缩、多租户（基础）、好友/黑名单/通讯录、多消息类型、消息撤回/搜索/已读回执、开放 API / SDK。
 - V1.0：管理后台、完整群聊/好友体系、监控告警、私有化部署。
 
 详细进度与差距见 [docs/DEVELOPMENT-STATUS.md](docs/DEVELOPMENT-STATUS.md)。
