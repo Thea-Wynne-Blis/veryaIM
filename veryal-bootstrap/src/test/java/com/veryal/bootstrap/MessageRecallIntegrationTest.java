@@ -6,6 +6,8 @@ import com.veryal.access.http.dto.MessageResponse;
 import com.veryal.access.http.dto.SendMessageResponse;
 import com.veryal.access.http.dto.UserResponse;
 import com.veryal.common.core.ApiResponse;
+import com.veryal.infrastructure.mysql.mapper.OutboxMapper;
+import com.veryal.infrastructure.mysql.po.OutboxPO;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -31,6 +33,9 @@ class MessageRecallIntegrationTest {
 
     @Autowired
     private TestRestTemplate rest;
+
+    @Autowired
+    private OutboxMapper outboxMapper;
 
     @Test
     void onlySenderCanRecallAndHistoryHidesContent() {
@@ -68,6 +73,12 @@ class MessageRecallIntegrationTest {
         assertThat(inHistory.messageId()).isEqualTo(messageId);
         assertThat(inHistory.recalled()).isTrue();
         assertThat(inHistory.content()).isEmpty();
+
+        long recallEvents = outboxMapper.selectList(null).stream()
+                .filter(item -> "message.recalled".equals(item.eventType))
+                .filter(item -> item.aggregateId.equals(conversationId))
+                .count();
+        assertThat(recallEvents).isEqualTo(1);
     }
 
     private ApiResponse<MessageResponse> recall(String conversationId, long messageId, String token) {
