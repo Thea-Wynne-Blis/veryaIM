@@ -343,6 +343,21 @@ veryal:
 - 普通上传仍限制 20MB；分片上传默认上限 64MB。
 - JPEG/PNG 图片：最长边超过 1920px 时等比缩放；JPEG 以 0.85 质量重编码；解码失败或压缩变大时保留原图。
 
+### 线程模型与虚拟线程
+
+- **Netty EventLoop 固定使用平台线程**，只做解码/编码与投递，禁止阻塞调用。
+- **TCP/WebSocket 业务执行器**可选 `platform`（有界线程池）或 `virtual`（虚拟线程 + 信号量并发上限）：
+  ```yaml
+  veryal:
+    gateway:
+      business-executor: ${VERYAL_GATEWAY_BUSINESS_EXECUTOR:platform}
+      business-concurrency: ${VERYAL_GATEWAY_BUSINESS_CONCURRENCY:256}
+  ```
+  生产 profile 默认 `virtual`（并发 512）；虚拟线程适合 JDBC/Redis/RabbitMQ 等等待型 IO，并发仍受信号量、Hikari 连接池与下游容量约束。
+- **HTTP**：生产 profile 开启 `spring.threads.virtual.enabled=true`，Tomcat 请求使用虚拟线程。
+- **CPU 密集型操作**（JWT 签名、图片压缩、序列化）不会因虚拟线程变快；这类任务应继续受 CPU/有界执行器约束，并优先通过压测确认收益。
+- 虚拟线程不是银弹：数据库连接池、Redis、RabbitMQ 的吞吐仍是瓶颈，建议先做连接数与 P99 压测再调整并发。
+
 ## 一致性设计
 
 - 消息写入：校验成员 → 幂等检查 → 分配会话序号（`SELECT ... FOR UPDATE`）→ 插入消息 → 写入 Outbox → 更新会话时间，同一数据库事务内完成。
