@@ -73,6 +73,18 @@ class FriendRealtimeIntegrationTest {
             FriendNotify aliceNotify = awaitFriendType(aliceTcp, 2);
             assertThat(aliceNotify.getEventType()).isEqualTo(2);
             assertThat(aliceNotify.getToUserId()).isEqualTo(bob.userId());
+
+            post("/api/v1/blocks/" + alice.userId(), Map.of(), bobLogin.token(),
+                    new ParameterizedTypeReference<ApiResponse<Void>>() {
+                    });
+            FriendNotify blockedNotify = awaitFriendType(bobTcp, 5);
+            assertThat(blockedNotify.getToUserId()).isEqualTo(alice.userId());
+
+            rest.exchange("/api/v1/blocks/" + alice.userId(), HttpMethod.DELETE,
+                    new HttpEntity<>(headers(bobLogin.token())),
+                    new ParameterizedTypeReference<>() {
+                    });
+            assertThat(awaitFriendType(bobTcp, 6).getEventType()).isEqualTo(6);
         }
     }
 
