@@ -11,8 +11,8 @@ import com.veryal.application.identity.AuthenticatedUser;
 import com.veryal.application.identity.LoginCommand;
 import com.veryal.application.identity.RegisterCommand;
 import com.veryal.application.identity.UserApplicationService;
+import com.veryal.application.tenant.TenantApplicationService;
 import com.veryal.common.core.ApiResponse;
-import com.veryal.common.core.TenantIds;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,17 +31,20 @@ public class AuthController {
 
     private final AuthApplicationService authApplicationService;
     private final UserApplicationService userApplicationService;
+    private final TenantApplicationService tenantApplicationService;
 
     @PostMapping("/register")
     public ApiResponse<UserResponse> register(@Valid @RequestBody RegisterRequest request) {
-        UserResponse user = UserResponse.from(authApplicationService.register(TenantIds.DEFAULT_TENANT_ID,
+        long tenantId = tenantApplicationService.resolveActive(request.tenantCode()).id();
+        UserResponse user = UserResponse.from(authApplicationService.register(tenantId,
                 new RegisterCommand(request.username(), request.password(), request.nickname())));
         return ApiResponse.ok(user);
     }
 
     @PostMapping("/login")
     public ApiResponse<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
-        AuthResult result = authApplicationService.login(TenantIds.DEFAULT_TENANT_ID,
+        long tenantId = tenantApplicationService.resolveActive(request.tenantCode()).id();
+        AuthResult result = authApplicationService.login(tenantId,
                 new LoginCommand(request.username(), request.password(), request.deviceId(),
                         request.platform(), request.deviceName()));
         return ApiResponse.ok(AuthResponse.from(result));

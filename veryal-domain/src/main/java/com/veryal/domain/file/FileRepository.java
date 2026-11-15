@@ -13,4 +13,9 @@ public interface FileRepository {
     Optional<StoredFile> findById(long tenantId, long fileId);
 
     void markDeleted(long tenantId, long fileId, Instant deletedAt);
+
+    /**
+     * 租户未删除文件总字节数，用于存储配额。
+     */
+    long totalBytes(long tenantId);
 }

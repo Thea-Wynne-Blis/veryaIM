@@ -33,6 +33,8 @@ veryal:
     staging-path: target/test-uploads
     chunk-size-bytes: 4
     max-size-bytes: 1024
+  tenant:
+    admin-token: test-admin-token
   rate-limit:
     policies:
       - name: http-login

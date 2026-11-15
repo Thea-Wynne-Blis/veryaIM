@@ -10,6 +10,7 @@ import com.veryal.domain.conversation.Conversation;
 import com.veryal.domain.conversation.ConversationIds;
 import com.veryal.domain.conversation.ConversationMember;
 import com.veryal.domain.conversation.ConversationRepository;
+import com.veryal.domain.identity.User;
 import com.veryal.domain.identity.UserRepository;
 import com.veryal.domain.message.MessageRepository;
 import com.veryal.domain.message.event.MessageEvents;
@@ -49,8 +50,10 @@ public class ConversationApplicationService {
         if (userId == peerUserId) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "cannot create private conversation with self");
         }
-        userRepository.findById(peerUserId)
+        User peer = userRepository.findById(peerUserId)
+                .filter(user -> user.tenantId() == tenantId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND, "peer user not found"));
+        peer.ensureActive();
         Instant now = timeProvider.now();
         String conversationId = ConversationIds.privateId(tenantId, userId, peerUserId);
         Conversation conversation = conversationRepository.findById(conversationId).orElse(null);

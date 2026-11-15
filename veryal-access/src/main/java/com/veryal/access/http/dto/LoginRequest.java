@@ -11,5 +11,6 @@ public record LoginRequest(
         @NotBlank String password,
         @NotBlank @Size(max = 64) String deviceId,
         @Size(max = 32) String platform,
-        @Size(max = 128) String deviceName) {
+        @Size(max = 128) String deviceName,
+        @Size(max = 32) String tenantCode) {
 }

@@ -1,6 +1,7 @@
 package com.veryal.application.group;
 
 import com.veryal.application.audit.AuditRecorder;
+import com.veryal.application.tenant.TenantApplicationService;
 import com.veryal.common.core.TimeProvider;
 import com.veryal.common.exception.BusinessException;
 import com.veryal.common.exception.ErrorCode;
@@ -40,6 +41,7 @@ public class GroupApplicationService {
     private final IdGenerator idGenerator;
     private final TimeProvider timeProvider;
     private final AuditRecorder auditRecorder;
+    private final TenantApplicationService tenantApplicationService;
 
     @Transactional
     public GroupView create(long tenantId, long ownerId, String name, List<Long> memberIds) {
@@ -49,7 +51,8 @@ public class GroupApplicationService {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT,
                     "group member limit is " + Group.MAX_MEMBERS);
         }
-        ensureUsersExist(invitees);
+        ensureUsersExist(tenantId, invitees);
+        tenantApplicationService.assertCanCreateGroup(tenantId);
         Instant now = timeProvider.now();
         Conversation conversation = Conversation.createGroup(tenantId, idGenerator.nextId(), now);
         if (!conversationRepository.saveIfAbsent(conversation)) {
@@ -87,7 +90,7 @@ public class GroupApplicationService {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT,
                     "group member limit is " + Group.MAX_MEMBERS);
         }
-        ensureUsersExist(invitees);
+        ensureUsersExist(tenantId, invitees);
         Instant now = timeProvider.now();
         for (Long invitee : invitees) {
             addConversationMember(groupId, invitee, now);
@@ -284,9 +287,10 @@ public class GroupApplicationService {
         return new ArrayList<>(distinct);
     }
 
-    private void ensureUsersExist(List<Long> userIds) {
+    private void ensureUsersExist(long tenantId, List<Long> userIds) {
         for (Long userId : userIds) {
             User user = userRepository.findById(userId)
+                    .filter(item -> item.tenantId() == tenantId)
                     .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND,
                             "user not found: " + userId));
             user.ensureActive();

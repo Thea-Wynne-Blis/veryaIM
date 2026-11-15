@@ -46,6 +46,9 @@ public class AuthenticationFilter extends OncePerRequestFilter {
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             return true;
         }
+        if (path.startsWith("/api/v1/platform/")) {
+            return true;
+        }
         return path.equals("/api/v1/auth/register") || path.equals("/api/v1/auth/login");
     }
 

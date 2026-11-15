@@ -31,6 +31,8 @@ public interface GroupRepository {
 
     List<Group> findByUser(long tenantId, long userId);
 
+    long countByTenant(long tenantId);
+
     /**
      * 解散群：删除群与全部群成员。
      */

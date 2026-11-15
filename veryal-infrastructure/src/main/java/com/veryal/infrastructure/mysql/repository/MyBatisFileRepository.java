@@ -59,6 +59,11 @@ public class MyBatisFileRepository implements FileRepository {
                 .set(FilePO::getDeletedAt, SqlTime.toLocal(deletedAt)));
     }
 
+    @Override
+    public long totalBytes(long tenantId) {
+        return fileMapper.selectTotalBytes(tenantId);
+    }
+
     private StoredFile toDomain(FilePO po) {
         return new StoredFile(po.id, po.tenantId, po.uploaderId, po.objectKey, po.originalName,
                 po.contentType, po.sizeBytes, po.sha256, StorageType.valueOf(po.storageType),

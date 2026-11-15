@@ -146,6 +146,8 @@ veryal:
     staging-path: ${VERYAL_UPLOAD_STAGING:./data/uploads}
     chunk-size-bytes: ${VERYAL_UPLOAD_CHUNK_SIZE:5242880}
     max-size-bytes: ${VERYAL_UPLOAD_MAX_SIZE:67108864}
+  tenant:
+    admin-token: ${VERYAL_TENANT_ADMIN_TOKEN:}
 
 logging:
   level:

@@ -35,6 +35,15 @@ public enum ErrorCode {
     MESSAGE_NOT_FOUND(40403, "消息不存在", 404),
     DEVICE_NOT_FOUND(40404, "设备不存在", 404),
     FILE_NOT_FOUND(40405, "文件不存在", 404),
+    TENANT_NOT_FOUND(40406, "租户不存在", 404),
+    FRIEND_REQUEST_NOT_FOUND(40407, "好友申请不存在", 404),
+
+    FRIEND_REQUEST_EXISTS(40904, "好友申请已存在", 409),
+    ALREADY_FRIEND(40905, "已经是好友", 409),
+
+    TENANT_DISABLED(40303, "租户已停用", 403),
+    TENANT_QUOTA_EXCEEDED(40304, "租户配额不足", 403),
+    USER_BLOCKED(40305, "对方已拒收消息", 403),
 
     CONFLICT(40900, "资源状态冲突", 409),
     USERNAME_ALREADY_EXISTS(40901, "用户名已存在", 409),

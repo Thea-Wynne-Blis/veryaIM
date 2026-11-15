@@ -100,6 +100,13 @@ public class MyBatisGroupRepository implements GroupRepository {
     }
 
     @Override
+    public long countByTenant(long tenantId) {
+        Long count = groupMapper.selectCount(Wrappers.<GroupPO>lambdaQuery()
+                .eq(GroupPO::getTenantId, tenantId));
+        return count == null ? 0L : count;
+    }
+
+    @Override
     public void delete(String groupId) {
         memberMapper.delete(Wrappers.<GroupMemberPO>lambdaQuery()
                 .eq(GroupMemberPO::getGroupId, groupId));
