@@ -55,6 +55,9 @@ class TestcontainersMatrixIntegrationTest {
 
     @DynamicPropertySource
     static void containerProperties(DynamicPropertyRegistry registry) {
+        System.out.println("TC_RABBIT=" + RABBIT.getHost() + ":" + RABBIT.getMappedPort(5672)
+                + " TC_REDIS=" + REDIS.getHost() + ":" + REDIS.getMappedPort(6379)
+                + " TC_MYSQL=" + MYSQL.getJdbcUrl());
         registry.add("spring.datasource.url", MYSQL::getJdbcUrl);
         registry.add("spring.datasource.username", MYSQL::getUsername);
         registry.add("spring.datasource.password", MYSQL::getPassword);
