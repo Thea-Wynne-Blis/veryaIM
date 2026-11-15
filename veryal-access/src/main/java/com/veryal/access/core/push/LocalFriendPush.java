@@ -2,6 +2,7 @@ package com.veryal.access.core.push;
 
 import com.veryal.access.core.Connection;
 import com.veryal.access.core.ConnectionRegistry;
+import com.veryal.application.push.OfflinePushService;
 import com.veryal.domain.friend.FriendEvent;
 import com.veryal.domain.friend.FriendPushPort;
 import com.veryal.protocol.api.Command;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Component;
 public class LocalFriendPush implements FriendPushPort {
 
     private final ConnectionRegistry connectionRegistry;
+    private final OfflinePushService offlinePushService;
 
     @Override
     public void push(FriendEvent event) {
@@ -30,7 +32,12 @@ public class LocalFriendPush implements FriendPushPort {
                 .setAt(event.at().toEpochMilli())
                 .build().toByteArray();
         for (Long userId : event.memberUserIds()) {
-            for (Connection connection : connectionRegistry.findByUserId(userId)) {
+            var connections = connectionRegistry.findByUserId(userId);
+            if (connections.isEmpty()) {
+                offlinePushService.push(userId, event);
+                continue;
+            }
+            for (Connection connection : connections) {
                 if (!connection.authenticated()) {
                     continue;
                 }

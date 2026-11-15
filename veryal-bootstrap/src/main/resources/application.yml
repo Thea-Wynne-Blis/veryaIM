@@ -155,6 +155,10 @@ veryal:
     user-cents: ${VERYAL_BILLING_USER_CENTS:0}
     group-cents: ${VERYAL_BILLING_GROUP_CENTS:0}
     storage-gb-cents: ${VERYAL_BILLING_STORAGE_GB_CENTS:0}
+  push:
+    provider: ${VERYAL_PUSH_PROVIDER:none}
+    webhook-url: ${VERYAL_PUSH_WEBHOOK_URL:}
+    webhook-token: ${VERYAL_PUSH_WEBHOOK_TOKEN:}
 
 logging:
   level:
