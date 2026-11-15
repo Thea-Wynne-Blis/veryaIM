@@ -287,25 +287,28 @@ frontend/
 - 操作原因必填；
 - 所有操作可审计。
 
-### 4.4 当前后端需要补的运营接口
+### 4.4 运营接口（已实现）
 
-现有后端主要是平台租户/平台管理员接口，消费级运营后台需要新增：
+现有后端已提供：
 
 | 接口 | 用途 |
 |---|---|
-| `GET /api/v1/ops/users` | 用户搜索/列表 |
-| `GET /api/v1/ops/users/{id}` | 用户详情 |
-| `POST /api/v1/ops/users/{id}/ban` | 封号 |
-| `POST /api/v1/ops/users/{id}/mute` | 禁言 |
-| `GET /api/v1/ops/groups` | 群搜索/列表 |
-| `GET /api/v1/ops/groups/{id}` | 群详情 |
-| `POST /api/v1/ops/groups/{id}/disband` | 解散群 |
-| `GET /api/v1/ops/reports` | 举报列表 |
-| `POST /api/v1/ops/reports/{id}/handle` | 处理举报 |
-| `GET /api/v1/ops/dashboard/stats` | 运营概览 |
-| `GET /api/v1/ops/audit-logs` | 运营审计 |
+| `GET /api/v1/platform/ops/users?keyword=` | 用户搜索 |
+| `GET /api/v1/platform/ops/users/{id}` | 用户详情 |
+| `POST /api/v1/platform/ops/users/{id}/ban` | 封号 |
+| `POST /api/v1/platform/ops/users/{id}/unban` | 解封 |
+| `GET /api/v1/platform/ops/groups?keyword=` | 群搜索 |
+| `GET /api/v1/platform/ops/groups/{id}` | 群详情/成员 |
+| `POST /api/v1/platform/ops/groups/{id}/disband` | 解散群 |
+| `GET /api/v1/platform/ops/reports?status=` | 举报列表 |
+| `GET /api/v1/platform/ops/reports/{id}` | 举报详情 |
+| `POST /api/v1/platform/ops/reports/{id}/handle` | 处理举报 |
+| `GET /api/v1/platform/ops/dashboard` | 运营概览 |
+| `GET /api/v1/platform/audit-logs` | 运营审计 |
 
-现有平台管理员登录、MFA、Refresh Token、审计接口可以复用或迁移为运营后台接口。
+`SUPPORT` 只读，`PLATFORM_ADMIN` 可执行封禁、解散群、处理举报等写操作。
+
+后续可补：用户禁言、内容审核、举报原因统计、审计筛选/分页。
 
 ---
 
@@ -584,15 +587,14 @@ DELETE /api/v1/files/uploads/{uploadId}
 | `POST /api/v1/groups/join` | 加群（后续） |
 | `GET /api/v1/groups/search` | 群搜索（后续） |
 
-### 运营
+### 运营（已实现，详见 4.4）
 
-| 接口 | 用途 |
-|---|---|
-| 用户管理 | 搜索、详情、封禁、禁言 |
-| 群管理 | 搜索、详情、解散 |
-| 举报处理 | 列表、详情、处罚 |
-| 运营概览 | 用户/群/消息/举报统计 |
-| 运营审计 | 操作日志 |
+已提供用户、群、举报、概览和审计接口。后续可补：
+
+- 用户禁言；
+- 内容审核；
+- 举报原因统计；
+- 审计筛选/分页。
 
 ### 推送
 

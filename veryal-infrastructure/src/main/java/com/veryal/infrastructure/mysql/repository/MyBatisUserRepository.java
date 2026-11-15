@@ -88,6 +88,22 @@ public class MyBatisUserRepository implements UserRepository {
                 .toList();
     }
 
+    @Override
+    public List<User> searchAll(long tenantId, String keyword, int limit) {
+        String value = keyword == null ? "" : keyword.trim();
+        return userMapper.selectList(Wrappers.<UserPO>lambdaQuery()
+                        .eq(UserPO::getTenantId, tenantId)
+                        .and(wrapper -> wrapper
+                                .like(UserPO::getUsername, value)
+                                .or()
+                                .like(UserPO::getNickname, value))
+                        .orderByAsc(UserPO::getId)
+                        .last("LIMIT " + Math.max(1, Math.min(limit, 100))))
+                .stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
     private User toDomain(UserPO po) {
         return new User(po.id, po.tenantId, po.username, po.nickname, po.avatar,
                 UserStatus.fromCode(po.status), po.passwordHash,

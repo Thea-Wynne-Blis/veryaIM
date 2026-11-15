@@ -215,6 +215,17 @@ public void acquire(long tenantId, long senderId) { ... }
 | GET / PUT | `/api/v1/users/me/privacy` | 查询 / 更新隐私设置 |
 | POST | `/api/v1/reports` | 举报用户 / 群 / 消息 |
 | GET | `/api/v1/reports/me` | 我的举报记录 |
+| GET | `/api/v1/platform/ops/dashboard` | 运营概览 |
+| GET | `/api/v1/platform/ops/users?keyword=` | 运营用户搜索 |
+| GET | `/api/v1/platform/ops/users/{id}` | 运营用户详情 |
+| POST | `/api/v1/platform/ops/users/{id}/ban` | 封禁用户 |
+| POST | `/api/v1/platform/ops/users/{id}/unban` | 解封用户 |
+| GET | `/api/v1/platform/ops/groups?keyword=` | 运营群搜索 |
+| GET | `/api/v1/platform/ops/groups/{id}` | 运营群详情/成员 |
+| POST | `/api/v1/platform/ops/groups/{id}/disband` | 解散群 |
+| GET | `/api/v1/platform/ops/reports?status=` | 举报列表 |
+| GET | `/api/v1/platform/ops/reports/{id}` | 举报详情 |
+| POST | `/api/v1/platform/ops/reports/{id}/handle` | 处理举报 |
 | POST | `/api/v1/friends/requests` | 发送好友申请 |
 | GET | `/api/v1/friends/requests?direction=incoming` | 好友申请列表 |
 | POST | `/api/v1/friends/requests/{requestId}/accept` | 接受好友申请 |
@@ -495,6 +506,28 @@ veryal:
 - `POST /api/v1/reports`：举报用户/群/消息，写入 `im_report`；
 - `GET /api/v1/reports/me`：我的举报记录。
 
+### 运营后台
+
+运营接口位于 `/api/v1/platform/ops/*`，由运营管理员 Bearer Token 保护：
+
+- `SUPPORT`：只读用户/群/举报/概览；
+- `PLATFORM_ADMIN`：封禁/解封用户、解散群、处理举报；
+- 所有写操作写入 `im_platform_audit_log`。
+
+```http
+GET  /api/v1/platform/ops/dashboard
+GET  /api/v1/platform/ops/users?keyword=
+GET  /api/v1/platform/ops/users/{id}
+POST /api/v1/platform/ops/users/{id}/ban
+POST /api/v1/platform/ops/users/{id}/unban
+GET  /api/v1/platform/ops/groups?keyword=
+GET  /api/v1/platform/ops/groups/{id}
+POST /api/v1/platform/ops/groups/{id}/disband
+GET  /api/v1/platform/ops/reports?status=PENDING
+GET  /api/v1/platform/ops/reports/{id}
+POST /api/v1/platform/ops/reports/{id}/handle
+```
+
 ### 好友与黑名单
 
 - 好友申请/接受/拒绝/取消/拉黑/解除拉黑都会写 Outbox `friend.notify`，MQ 开启时广播 `FRIEND_NOTIFY(0x0120)`，关闭时本机直推；事件类型 `REQUEST=1, ACCEPTED=2, REJECTED=3, CANCELED=4, BLOCKED=5, UNBLOCKED=6`。
@@ -522,7 +555,7 @@ mvn test
 ```
 
 - 单元测试：雪花 ID、Envelope 编解码、Netty 帧拆包/粘包/非法帧、JWT、PBKDF2、Outbox 事件 JSON、限流算法（令牌桶/滑动窗口/固定窗口/注册表）、TLS 配置开关与快速失败、连接数限制、Caffeine 缓存配置、本地/云端存储策略。
-- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、运营管理员登录/MFA/Refresh Token/登录锁定/角色/审计、用户搜索/隐私/举报、好友申请/接受/拒绝/好友/黑名单/通讯录、好友实时通知、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群公告/禁言、1000 人群容量与 100 并发发送冒烟、群消息分页扇出、限流 429、审计日志、连接数超限拒绝、文件上传/下载/权限/删除、文件会话成员访问、分片上传/续传、图片压缩、多消息类型与文件归属校验、消息撤回、消息搜索、已读回执、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
+- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、运营管理员登录/MFA/Refresh Token/登录锁定/角色/审计、运营后台用户/群/举报处理、用户搜索/隐私/举报、好友申请/接受/拒绝/好友/黑名单/通讯录、好友实时通知、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群公告/禁言、1000 人群容量与 100 并发发送冒烟、群消息分页扇出、限流 429、审计日志、连接数超限拒绝、文件上传/下载/权限/删除、文件会话成员访问、分片上传/续传、图片压缩、多消息类型与文件归属校验、消息撤回、消息搜索、已读回执、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
 
 集成测试使用 `test` profile，Netty Gateway 端口配置为 0（系统分配），不占用本机端口。
 

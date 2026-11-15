@@ -23,4 +23,6 @@ public interface UserRepository {
     List<User> findByTenant(long tenantId, int limit);
 
     List<User> search(long tenantId, String keyword, int limit);
+
+    List<User> searchAll(long tenantId, String keyword, int limit);
 }

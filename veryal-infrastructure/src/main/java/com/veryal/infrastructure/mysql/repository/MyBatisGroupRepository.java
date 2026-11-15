@@ -111,6 +111,19 @@ public class MyBatisGroupRepository implements GroupRepository {
     }
 
     @Override
+    public List<Group> search(long tenantId, String keyword, int limit) {
+        String value = keyword == null ? "" : keyword.trim();
+        return groupMapper.selectList(Wrappers.<GroupPO>lambdaQuery()
+                        .eq(GroupPO::getTenantId, tenantId)
+                        .like(GroupPO::getName, value)
+                        .orderByAsc(GroupPO::getId)
+                        .last("LIMIT " + Math.max(1, Math.min(limit, 100))))
+                .stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
+    @Override
     public long countByTenant(long tenantId) {
         Long count = groupMapper.selectCount(Wrappers.<GroupPO>lambdaQuery()
                 .eq(GroupPO::getTenantId, tenantId));

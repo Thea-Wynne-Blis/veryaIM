@@ -35,4 +35,6 @@ public interface MessageRepository {
                              long beforeSeq, int limit);
 
     long countByTenant(long tenantId);
+
+    long countAll();
 }

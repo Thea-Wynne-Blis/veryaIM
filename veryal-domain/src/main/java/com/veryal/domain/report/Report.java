@@ -14,4 +14,9 @@ public record Report(long id, long reporterId, ReportTargetType targetType, Stri
         return new Report(id, reporterId, targetType, targetId, reason, detail,
                 ReportStatus.PENDING, null, null, now);
     }
+
+    public Report handle(ReportStatus newStatus, long adminId, Instant now) {
+        return new Report(id, reporterId, targetType, targetId, reason, detail, newStatus,
+                adminId, now, createdAt);
+    }
 }

@@ -33,6 +33,8 @@ public interface GroupRepository {
 
     List<Group> findByTenant(long tenantId, int limit);
 
+    List<Group> search(long tenantId, String keyword, int limit);
+
     long countByTenant(long tenantId);
 
     /**

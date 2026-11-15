@@ -98,6 +98,11 @@ public class MyBatisMessageRepository implements MessageRepository {
         return messageMapper.selectCountByTenant(tenantId);
     }
 
+    @Override
+    public long countAll() {
+        return messageMapper.selectCount(null);
+    }
+
     private Message toDomain(MessagePO po) {
         return new Message(po.id, po.tenantId, po.conversationId, po.senderId, po.clientMsgId, po.seq,
                 MessageType.fromCode(po.msgType), po.content, SqlTime.toInstant(po.createdAt),

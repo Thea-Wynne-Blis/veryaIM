@@ -57,4 +57,9 @@ public record User(long id, long tenantId, String username, String nickname, Str
         String newAvatar = avatar == null ? this.avatar : avatar;
         return new User(id, tenantId, username, newNickname, newAvatar, status, passwordHash, createdAt, now);
     }
+
+    public User withStatus(UserStatus newStatus, Instant now) {
+        return new User(id, tenantId, username, nickname, avatar, newStatus, passwordHash,
+                createdAt, now);
+    }
 }
