@@ -27,4 +27,10 @@ public interface MessageRepository {
      * 标记消息撤回；幂等，已撤回时保持原值。
      */
     void markRecalled(long tenantId, long messageId, long recalledBy, Instant recalledAt);
+
+    /**
+     * 会话内文本/表情搜索，按 seq 倒序游标分页；已撤回消息不参与搜索。
+     */
+    List<Message> searchText(long tenantId, String conversationId, String pattern,
+                             long beforeSeq, int limit);
 }

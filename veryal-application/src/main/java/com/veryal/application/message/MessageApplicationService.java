@@ -125,6 +125,32 @@ public class MessageApplicationService {
     }
 
     /**
+     * 会话内文本/表情搜索，按 seq 倒序返回；cursor 为上一页最后一条 seq。
+     */
+    @Transactional(readOnly = true)
+    public CursorPage<Message> search(long tenantId, long userId, String conversationId,
+                                      String keyword, long cursor, int limit) {
+        requireMember(tenantId, conversationId, userId);
+        String query = keyword == null ? "" : keyword.trim();
+        if (query.isEmpty() || query.length() > 64) {
+            throw new BusinessException(ErrorCode.INVALID_ARGUMENT,
+                    "search keyword must be 1-64 characters");
+        }
+        int pageSize = clampLimit(limit);
+        String escaped = query.replace("!", "!!").replace("%", "!%").replace("_", "!_");
+        String pattern = "%" + escaped + "%";
+        long beforeSeq = cursor <= 0 ? Long.MAX_VALUE : cursor;
+        List<Message> messages = messageRepository.searchText(tenantId, conversationId, pattern,
+                beforeSeq, pageSize + 1);
+        boolean hasMore = messages.size() > pageSize;
+        if (hasMore) {
+            messages = messages.subList(0, pageSize);
+        }
+        long nextCursor = messages.isEmpty() ? cursor : messages.get(messages.size() - 1).seq();
+        return new CursorPage<>(messages, Long.toString(nextCursor), hasMore);
+    }
+
+    /**
      * 处理 Delivery ACK：持久化设备投递记录，并返回消息所属会话。
      *
      * @return 消息所属会话 ID

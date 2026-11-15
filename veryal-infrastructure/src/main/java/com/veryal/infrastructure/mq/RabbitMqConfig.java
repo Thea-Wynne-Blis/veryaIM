@@ -73,6 +73,13 @@ public class RabbitMqConfig {
     }
 
     @Bean
+    public Queue readReceiptQueue(RabbitInstance instance) {
+        return QueueBuilder.nonDurable(instance.readReceiptQueueName())
+                .autoDelete()
+                .build();
+    }
+
+    @Bean
     public Binding privateCreatedBinding(TopicExchange messageExchange, Queue messageDeliveryQueue) {
         return BindingBuilder.bind(messageDeliveryQueue).to(messageExchange)
                 .with(MessageEvents.PRIVATE_CREATED);
@@ -94,6 +101,12 @@ public class RabbitMqConfig {
     public Binding retryGroupBinding(TopicExchange retryExchange, Queue messageRetryQueue) {
         return BindingBuilder.bind(messageRetryQueue).to(retryExchange)
                 .with(MessageEvents.GROUP_CREATED);
+    }
+
+    @Bean
+    public Binding readReceiptBinding(TopicExchange messageExchange, Queue readReceiptQueue) {
+        return BindingBuilder.bind(readReceiptQueue).to(messageExchange)
+                .with(MessageEvents.READ_RECEIPT);
     }
 
     @Bean

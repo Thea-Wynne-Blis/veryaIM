@@ -93,6 +93,13 @@ message ReadAck {
   uint64 read_sequence = 2;
 }
 
+message ReadNotify {
+  string conversation_id = 1;
+  uint64 reader_id = 2;
+  uint64 read_sequence = 3;
+  int64 read_at = 4;
+}
+
 // ---------------------------------------------------------------------------
 // 错误
 // ---------------------------------------------------------------------------

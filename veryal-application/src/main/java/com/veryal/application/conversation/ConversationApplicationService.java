@@ -1,15 +1,21 @@
 package com.veryal.application.conversation;
 
+import com.veryal.common.core.RandomIds;
 import com.veryal.common.core.TimeProvider;
 import com.veryal.common.exception.BusinessException;
 import com.veryal.common.exception.ErrorCode;
 import com.veryal.common.id.IdGenerator;
+import com.veryal.common.json.JsonUtils;
 import com.veryal.domain.conversation.Conversation;
 import com.veryal.domain.conversation.ConversationIds;
 import com.veryal.domain.conversation.ConversationMember;
 import com.veryal.domain.conversation.ConversationRepository;
 import com.veryal.domain.identity.UserRepository;
 import com.veryal.domain.message.MessageRepository;
+import com.veryal.domain.message.event.MessageEvents;
+import com.veryal.domain.message.event.ReadReceiptEvent;
+import com.veryal.domain.message.outbox.OutboxAppender;
+import com.veryal.domain.message.outbox.OutboxMessage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +35,7 @@ public class ConversationApplicationService {
     private final ConversationRepository conversationRepository;
     private final MessageRepository messageRepository;
     private final UserRepository userRepository;
+    private final OutboxAppender outboxAppender;
     private final IdGenerator idGenerator;
     private final TimeProvider timeProvider;
 
@@ -94,15 +101,39 @@ public class ConversationApplicationService {
     }
 
     /**
-     * 推进读游标。游标只前进不后退。
+     * 推进读游标。游标只前进不后退；真正推进时写入已读回执事件（Outbox）。
      */
     @Transactional
     public void markRead(long tenantId, long userId, String conversationId, long readSequence) {
+        markRead(tenantId, userId, null, conversationId, readSequence);
+    }
+
+    @Transactional
+    public void markRead(long tenantId, long userId, String deviceId, String conversationId,
+                         long readSequence) {
         ConversationMember member = requireMember(tenantId, conversationId, userId);
         if (readSequence < 0) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "read sequence must not be negative");
         }
-        conversationRepository.updateMemberCursor(member.advanceRead(readSequence));
+        ConversationMember updated = member.advanceRead(readSequence);
+        if (updated.lastReadSeq() == member.lastReadSeq()) {
+            return;
+        }
+        conversationRepository.updateMemberCursor(updated);
+        Instant now = timeProvider.now();
+        List<Long> memberIds = conversationRepository.findMembers(conversationId).stream()
+                .map(ConversationMember::userId)
+                .toList();
+        ReadReceiptEvent event = new ReadReceiptEvent(RandomIds.newId(), tenantId, conversationId,
+                userId, deviceId, updated.lastReadSeq(), now, memberIds);
+        outboxAppender.append(new OutboxMessage(event.eventId(), conversationId,
+                MessageEvents.READ_RECEIPT, JsonUtils.toJsonBytes(event), now));
+    }
+
+    @Transactional(readOnly = true)
+    public List<ConversationMember> readReceipts(long tenantId, long userId, String conversationId) {
+        requireMember(tenantId, conversationId, userId);
+        return conversationRepository.findMembers(conversationId);
     }
 
     /**

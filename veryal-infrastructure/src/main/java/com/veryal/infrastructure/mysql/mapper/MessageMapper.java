@@ -33,4 +33,23 @@ public interface MessageMapper extends BaseMapper<MessagePO> {
               AND conversation_id = #{conversationId}
             """)
     long selectMaxSeq(@Param("tenantId") long tenantId, @Param("conversationId") String conversationId);
+
+    @Select("""
+            SELECT id, tenant_id, conversation_id, sender_id, client_msg_id, seq, msg_type, content,
+                   created_at, recalled_at, recalled_by
+            FROM im_message
+            WHERE tenant_id = #{tenantId}
+              AND conversation_id = #{conversationId}
+              AND recalled_at IS NULL
+              AND msg_type IN (1, 6)
+              AND seq < #{beforeSeq}
+              AND content LIKE #{pattern} ESCAPE '!'
+            ORDER BY seq DESC
+            LIMIT #{limit}
+            """)
+    List<MessagePO> searchText(@Param("tenantId") long tenantId,
+                               @Param("conversationId") String conversationId,
+                               @Param("pattern") String pattern,
+                               @Param("beforeSeq") long beforeSeq,
+                               @Param("limit") int limit);
 }

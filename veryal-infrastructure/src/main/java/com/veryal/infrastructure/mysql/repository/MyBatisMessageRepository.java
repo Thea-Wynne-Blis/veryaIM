@@ -84,6 +84,15 @@ public class MyBatisMessageRepository implements MessageRepository {
                 .set(MessagePO::getRecalledBy, recalledBy));
     }
 
+    @Override
+    public List<Message> searchText(long tenantId, String conversationId, String pattern,
+                                    long beforeSeq, int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, MAX_PAGE_LIMIT));
+        return messageMapper.searchText(tenantId, conversationId, pattern, beforeSeq, safeLimit).stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
     private Message toDomain(MessagePO po) {
         return new Message(po.id, po.tenantId, po.conversationId, po.senderId, po.clientMsgId, po.seq,
                 MessageType.fromCode(po.msgType), po.content, SqlTime.toInstant(po.createdAt),

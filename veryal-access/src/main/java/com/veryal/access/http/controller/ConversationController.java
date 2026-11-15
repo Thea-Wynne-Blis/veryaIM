@@ -5,6 +5,7 @@ import com.veryal.access.http.dto.CreateConversationRequest;
 import com.veryal.access.http.dto.DeliveryResponse;
 import com.veryal.access.http.dto.MessagePageResponse;
 import com.veryal.access.http.dto.MessageResponse;
+import com.veryal.access.http.dto.ReadReceiptResponse;
 import com.veryal.access.http.dto.ReadRequest;
 import com.veryal.access.http.dto.SendMessageRequest;
 import com.veryal.access.http.dto.SendMessageResponse;
@@ -86,6 +87,16 @@ public class ConversationController {
                 user.tenantId(), user.userId(), conversationId, cursor, limit)));
     }
 
+    @GetMapping("/{conversationId}/messages/search")
+    public ApiResponse<MessagePageResponse> search(@CurrentUser AuthenticatedUser user,
+                                                   @PathVariable String conversationId,
+                                                   @RequestParam String keyword,
+                                                   @RequestParam(defaultValue = "0") long cursor,
+                                                   @RequestParam(defaultValue = "20") int limit) {
+        return ApiResponse.ok(MessagePageResponse.from(messageApplicationService.search(
+                user.tenantId(), user.userId(), conversationId, keyword, cursor, limit)));
+    }
+
     @PostMapping("/{conversationId}/read")
     public ApiResponse<Void> read(@CurrentUser AuthenticatedUser user,
                                   @PathVariable String conversationId,
@@ -101,6 +112,15 @@ public class ConversationController {
                                                @PathVariable long messageId) {
         return ApiResponse.ok(MessageResponse.from(messageApplicationService.recall(
                 user.tenantId(), user.userId(), conversationId, messageId)));
+    }
+
+    @GetMapping("/{conversationId}/read-receipts")
+    public ApiResponse<List<ReadReceiptResponse>> readReceipts(@CurrentUser AuthenticatedUser user,
+                                                               @PathVariable String conversationId) {
+        return ApiResponse.ok(conversationApplicationService.readReceipts(user.tenantId(),
+                        user.userId(), conversationId).stream()
+                .map(ReadReceiptResponse::from)
+                .toList());
     }
 
     @GetMapping("/{conversationId}/messages/{messageId}/deliveries")

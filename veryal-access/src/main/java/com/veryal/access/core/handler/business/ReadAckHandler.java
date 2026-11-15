@@ -28,6 +28,6 @@ public class ReadAckHandler implements CommandHandler {
         Connection connection = context.connection();
         ReadAck ack = context.payload(ReadAck.parser());
         conversationApplicationService.markRead(connection.tenantId(), connection.userId(),
-                ack.getConversationId(), ack.getReadSequence());
+                connection.deviceId(), ack.getConversationId(), ack.getReadSequence());
     }
 }

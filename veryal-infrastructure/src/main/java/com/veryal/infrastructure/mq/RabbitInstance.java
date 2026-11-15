@@ -38,4 +38,8 @@ public class RabbitInstance {
     public String gatewayPushRoutingKey() {
         return RabbitConstants.GATEWAY_PUSH_ROUTING_PREFIX + gatewayId;
     }
+
+    public String readReceiptQueueName() {
+        return RabbitConstants.READ_RECEIPT_QUEUE + "." + instanceId;
+    }
 }

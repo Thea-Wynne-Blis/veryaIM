@@ -11,6 +11,8 @@ public final class MessageEvents {
 
     public static final String GROUP_CREATED = "message.group.created";
 
+    public static final String READ_RECEIPT = "message.read";
+
     private MessageEvents() {
     }
 }
