@@ -93,6 +93,19 @@ class SocialPrivacyIntegrationTest {
         assertThat(postStatus("/api/v1/reports",
                 Map.of("targetType", "USER", "targetId", Long.toString(alice.userId()),
                         "reason", "self"), aliceLogin.token())).isEqualTo(400);
+
+        // 隐私策略 DIRECT：申请直接通过
+        UserResponse direct = register("sp_direct_" + suffix);
+        AuthResponse directLogin = login("sp_direct_" + suffix);
+        put("/api/v1/users/me/privacy", Map.of("friendPolicy", "DIRECT"), directLogin.token(),
+                new ParameterizedTypeReference<ApiResponse<UserPrivacyResponse>>() {
+                });
+        ApiResponse<com.veryal.access.http.dto.FriendRequestResponse> directRequest = post(
+                "/api/v1/friends/requests",
+                Map.of("toUserId", direct.userId(), "message", "direct"), aliceLogin.token(),
+                new ParameterizedTypeReference<>() {
+                });
+        assertThat(directRequest.data().status()).isEqualTo("ACCEPTED");
     }
 
     private UserResponse register(String username) {

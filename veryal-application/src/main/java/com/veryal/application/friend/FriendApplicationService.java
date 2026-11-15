@@ -66,11 +66,24 @@ public class FriendApplicationService {
             throw new BusinessException(ErrorCode.USER_BLOCKED);
         }
         userSocialService.ensureCanAddFriend(toUserId);
+        com.veryal.domain.identity.UserPrivacy.FriendPolicy policy =
+                userSocialService.friendPolicy(toUserId);
         String text = message == null ? null : message.trim();
         if (text != null && text.length() > MAX_MESSAGE_LENGTH) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "request message is too long");
         }
         Instant now = timeProvider.now();
+
+        if (policy == com.veryal.domain.identity.UserPrivacy.FriendPolicy.DIRECT) {
+            cancelPending(tenantId, toUserId, fromUserId);
+            addFriend(tenantId, fromUserId, toUserId, now);
+            addFriend(tenantId, toUserId, fromUserId, now);
+            FriendRequest accepted = new FriendRequest(idGenerator.nextId(), tenantId, fromUserId,
+                    toUserId, text, FriendRequestStatus.ACCEPTED, now, now);
+            friendRequestRepository.save(accepted);
+            publish(tenantId, FriendEventType.ACCEPTED, accepted, text, now);
+            return view(tenantId, accepted);
+        }
 
         FriendRequest reverse = friendRequestRepository.findBetween(tenantId, toUserId, fromUserId)
                 .filter(item -> item.status() == FriendRequestStatus.PENDING).orElse(null);

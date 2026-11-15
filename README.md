@@ -501,9 +501,9 @@ veryal:
 - `GET /api/v1/users/{id}/profile`：查看主页资料，按隐私设置决定是否展示在线状态；
 - `GET/PUT /api/v1/users/me/privacy`：隐私设置
   - `searchByUsername` / `searchByPhone`
-  - `friendPolicy`：`REJECT` / `VERIFY` / `DIRECT`
+  - `friendPolicy`：`REJECT`（拒绝）/ `VERIFY`（需验证）/ `DIRECT`（直接成为好友）
   - `showOnline` / `readReceipt` / `invitedToGroup`
-- 好友申请会校验对方 `friendPolicy=REJECT`，拒绝时返回 403；
+- 好友申请会校验对方 `friendPolicy=REJECT`，拒绝时返回 403；`DIRECT` 时申请立即通过并建立双向好友关系；
 - `POST /api/v1/reports`：举报用户/群/消息，写入 `im_report`；
 - `GET /api/v1/reports/me`：我的举报记录。
 

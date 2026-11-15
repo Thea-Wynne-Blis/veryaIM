@@ -79,8 +79,13 @@ public class UserSocialService {
     }
 
     @Transactional(readOnly = true)
+    public UserPrivacy.FriendPolicy friendPolicy(long userId) {
+        return privacy(userId).friendPolicy();
+    }
+
+    @Transactional(readOnly = true)
     public void ensureCanAddFriend(long targetUserId) {
-        if (privacy(targetUserId).friendPolicy() == UserPrivacy.FriendPolicy.REJECT) {
+        if (friendPolicy(targetUserId) == UserPrivacy.FriendPolicy.REJECT) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "target rejects friend requests");
         }
     }
