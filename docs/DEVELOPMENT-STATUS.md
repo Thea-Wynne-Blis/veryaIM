@@ -152,7 +152,8 @@
 - [x] 运营后台测试：SUPPORT 只读、封禁/解封、群解散、举报处理、概览
 - [x] ~~租户数据测试~~ 已随功能移除
 - [x] 1000 人群容量：999 个成员直插后建群并发送消息，H2 环境 343ms；100 个成员并发发送 233ms（约 429 条/秒）
-- [x] 云服务器 MySQL V12–V16 迁移实测：平台登录、租户创建、用量、导出、删除通过
+- [x] 云服务器 MySQL V12–V16 迁移实测（历史多租户链路）
+- [x] 云服务器 MySQL V17–V18 消费级冒烟：health UP、无 `tenantCode` 注册登录、`scope=USER`、隐私默认 `VERIFY`、自举报返回 400
 - [x] Testcontainers 矩阵：MySQL 8.0.30 + Redis 7.4 + RabbitMQ 3.13 启动完整应用，Flyway V1–V16，注册/登录/私聊消息通过（服务器 54s）
 - [x] HTTP 集成测试：注册→登录→建会话→发消息→幂等→历史→同步→已读→越权/未认证，并校验 Outbox 事件写入
 - [x] 群聊集成测试：建群、成员权限、群消息、群事件类型、非成员越权
@@ -224,7 +225,7 @@
 使用 MySQL 8.0.30 与 Redis 7.4 容器（`prod` profile，经 SSH 隧道连接）启动打包产物：
 
 - 数据访问层切换 MyBatis-Plus 后重新回归：注册、登录、创建会话、发送消息、幂等重发、历史查询链路在 MySQL 8.0.30 上全部通过。
-- Flyway 自动执行 `V1__init.sql` 到 `V18__social_privacy_report.sql`；V12–V16 已在云服务器 MySQL 8.0 实测，V17 删除租户产品表，V18 增加隐私与举报表。
+- Flyway 自动执行 `V1__init.sql` 到 `V18__social_privacy_report.sql`；V12–V16 已在云服务器 MySQL 8.0 实测，V17 删除租户产品表，V18 增加隐私与举报表；V17/V18 已完成云服务器 MySQL 冒烟。
 - `GET /actuator/health` 返回 `UP`（MySQL + Redis）。
 - HTTP 流程验证通过：注册 → 登录 → 创建单聊 → 发送消息（seq=1）→ 重复发送命中幂等（`duplicate=true`，同 messageId/seq）→ 历史消息 1 条 → 同步 1 条 → 已读上报。
 - 数据库核对：`im_user`、`im_conversation_sequence.last_seq=1`、`im_message` 记录存在。
