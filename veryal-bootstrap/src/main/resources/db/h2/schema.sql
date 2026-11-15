@@ -314,6 +314,21 @@ CREATE TABLE IF NOT EXISTS im_sensitive_word
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uk_sensitive_word ON im_sensitive_word (word);
 
+CREATE TABLE IF NOT EXISTS im_push_device
+(
+    id         BIGINT       NOT NULL PRIMARY KEY,
+    user_id    BIGINT       NOT NULL,
+    device_id  VARCHAR(64)  NOT NULL,
+    platform   VARCHAR(16)  NOT NULL,
+    token      VARCHAR(512) NOT NULL,
+    enabled    TINYINT      NOT NULL DEFAULT 1,
+    created_at TIMESTAMP(3) NOT NULL,
+    updated_at TIMESTAMP(3) NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_push_user_device ON im_push_device (user_id, device_id);
+CREATE INDEX IF NOT EXISTS idx_push_user_enabled ON im_push_device (user_id, enabled);
+CREATE INDEX IF NOT EXISTS idx_push_platform ON im_push_device (platform, enabled);
+
 
 
 

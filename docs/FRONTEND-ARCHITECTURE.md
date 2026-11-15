@@ -597,12 +597,15 @@ DELETE /api/v1/files/uploads/{uploadId}
 - 举报原因统计；
 - 审计筛选/分页。
 
-### 推送
+### 推送（已实现设备注册）
 
 | 接口 | 用途 |
 |---|---|
 | `POST /api/v1/push/devices` | 注册推送 token |
+| `GET /api/v1/push/devices` | 我的推送设备 |
 | `DELETE /api/v1/push/devices/{deviceId}` | 注销 token |
+
+APNs/FCM 真实投递由后端 provider 完成，前端只需注册设备 token。
 
 ---
 

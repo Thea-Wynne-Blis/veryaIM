@@ -81,6 +81,7 @@
 - [x] 群公告、全员禁言、成员禁言、@ 成员校验
 - [x] ~~租户数据导出（用户/群/管理员/用量）与硬删除（确认码）~~ 已移除
 - [x] 好友离线推送抽象（none/webhook provider，无在线连接时触发）
+- [x] 真实离线推送：设备 token、FCM HTTP v1、APNs HTTP/2 + ES256 JWT
 - [x] 1000 人群容量测试（建群 + 发消息 + 100 成员并发发送）
 - [x] 用户搜索 / 公开资料 / 隐私设置
 - [x] 举报用户 / 群 / 消息
@@ -208,7 +209,7 @@
 22. **多租户清理完成**：租户表、租户码、租户管理接口、租户管理员、用量/导出/删除已删除；V21 删除所有 `tenant_id` 列；Java 代码中的 `tenantId` 字段、参数、`TenantIds` 常量与测试断言已全部移除。
 23. **好友/黑名单能力边界**：好友事件已实时推送；黑名单只过滤私聊，不过滤群消息；拉黑不删除历史会话。
 24. **租户删除边界**：数据库硬删除已实现，但对象存储文件实体与 Outbox 历史不清理；导出不含消息正文，单次上限 10000 用户/群。
-25. **生产环境缺口**：离线推送只做 provider 抽象/Webhook 网关，未接真实 APNs/FCM 凭证；1000 人为容量 + 100 并发冒烟，不是独立 k6/JMeter 吞吐压测或 72h 稳定性测试；隐私/举报已有基础接口，运营后台用户/群/举报处理接口仍待补。
+25. **生产环境缺口**：FCM/APNs 协议已实现，但仓库不内置项目凭证；真实投递需配置 Service Account / APNs Key。1000 人为容量 + 100 并发冒烟，不是独立 k6/JMeter 吞吐压测或 72h 稳定性测试。
 
 ## 五、验证记录（2026-11-14）
 
@@ -216,11 +217,11 @@
 
 - 环境：Windows 11、JDK 21.0.11、Maven 3.9.4。
 - `mvn -B -ntp verify`：6 个代码模块 + bootstrap + 父工程全部构建成功。
-- 测试共 76 个（本机 75 通过 + 1 跳过；Testcontainers 矩阵在云服务器 Docker 29.8.1 上 1 个通过）：
+- 测试共 77 个（本机 76 通过 + 1 跳过；Testcontainers 矩阵在云服务器 Docker 29.8.1 上 1 个通过）：
   - `veryal-common`：雪花 ID、限流算法、TOTP、DFA 敏感词（15）。
   - `veryal-protocol`：Envelope 编解码、未知指令、版本校验、帧头格式、半包/粘包、非法魔数、超大帧、指令不一致（12）。
   - `veryal-application`：JWT、PBKDF2、Outbox 事件 JSON（9）。
-  - `veryal-bootstrap`：HTTP 全流程、用户搜索/隐私/举报、运营后台用户/群/举报/敏感词、运营管理员 MFA/Refresh/锁定/CRUD/审计、好友/黑名单/通讯录/实时通知、群聊/群管理/群公告/禁言、1000 人群容量、限流、审计、TLS、连接限制、缓存、文件、分片、图片压缩、多消息类型、撤回、搜索、已读回执、虚拟线程、TCP、WebSocket（39 通过 + 1 Testcontainers 跳过/服务器通过）。
+  - `veryal-bootstrap`：HTTP 全流程、用户搜索/隐私/举报/推送设备、运营后台、敏感词、好友、群聊、1000 人群、限流、审计、文件、撤回、搜索、已读、TCP/WebSocket（40 通过 + 1 Testcontainers 跳过/服务器通过）。
 - 可执行 jar 使用默认 `dev` profile 启动验证：H2 内存库 + 内存在线状态，`/actuator/health=UP`，注册接口返回成功。
 
 ### MySQL 8.0.30 + Redis 实际环境验证
@@ -228,7 +229,7 @@
 使用 MySQL 8.0.30 与 Redis 7.4 容器（`prod` profile，经 SSH 隧道连接）启动打包产物：
 
 - 数据访问层切换 MyBatis-Plus 后重新回归：注册、登录、创建会话、发送消息、幂等重发、历史查询链路在 MySQL 8.0.30 上全部通过。
-- Flyway 自动执行 `V1__init.sql` 到 `V21__drop_tenant_id.sql`；V17 删除租户产品表，V18 隐私/举报，V19 用户禁言，V20 敏感词，V21 删除全部 `tenant_id` 列；V17–V21 已完成云服务器 MySQL 冒烟。
+- Flyway 自动执行 `V1__init.sql` 到 `V22__push_device.sql`；V17 删除租户表，V18 隐私/举报，V19 禁言，V20 敏感词，V21 删除 `tenant_id`，V22 推送设备；V17–V21 已完成云服务器 MySQL 冒烟。
 - `GET /actuator/health` 返回 `UP`（MySQL + Redis）。
 - HTTP 流程验证通过：注册 → 登录 → 创建单聊 → 发送消息（seq=1）→ 重复发送命中幂等（`duplicate=true`，同 messageId/seq）→ 历史消息 1 条 → 同步 1 条 → 已读上报。
 - 数据库核对：`im_user`、`im_conversation_sequence.last_seq=1`、`im_message` 记录存在。

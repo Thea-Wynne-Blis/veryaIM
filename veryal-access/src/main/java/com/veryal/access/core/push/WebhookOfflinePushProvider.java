@@ -47,6 +47,9 @@ public class WebhookOfflinePushProvider implements OfflinePushProvider {
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(JsonUtils.toJson(Map.of(
                             "userId", message.userId(),
+                            "deviceId", message.deviceId(),
+                            "platform", message.platform().name(),
+                            "token", message.token(),
                             "title", message.title(),
                             "body", message.body(),
                             "data", message.data()))));

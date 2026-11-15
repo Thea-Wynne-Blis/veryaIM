@@ -159,6 +159,15 @@ veryal:
     provider: ${VERYAL_PUSH_PROVIDER:none}
     webhook-url: ${VERYAL_PUSH_WEBHOOK_URL:}
     webhook-token: ${VERYAL_PUSH_WEBHOOK_TOKEN:}
+    fcm:
+      project-id: ${VERYAL_PUSH_FCM_PROJECT_ID:}
+      service-account-json: ${VERYAL_PUSH_FCM_SERVICE_ACCOUNT_JSON:}
+    apns:
+      team-id: ${VERYAL_PUSH_APNS_TEAM_ID:}
+      key-id: ${VERYAL_PUSH_APNS_KEY_ID:}
+      private-key-path: ${VERYAL_PUSH_APNS_PRIVATE_KEY_PATH:}
+      topic: ${VERYAL_PUSH_APNS_TOPIC:}
+      production: ${VERYAL_PUSH_APNS_PRODUCTION:false}
 
 logging:
   level:

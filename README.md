@@ -215,6 +215,9 @@ public void acquire(long senderId) { ... }
 | GET / PUT | `/api/v1/users/me/privacy` | 查询 / 更新隐私设置 |
 | POST | `/api/v1/reports` | 举报用户 / 群 / 消息 |
 | GET | `/api/v1/reports/me` | 我的举报记录 |
+| POST | `/api/v1/push/devices` | 注册推送设备 token |
+| GET | `/api/v1/push/devices` | 我的推送设备 |
+| DELETE | `/api/v1/push/devices/{deviceId}` | 注销推送设备 |
 | GET | `/api/v1/platform/ops/dashboard` | 运营概览 |
 | GET | `/api/v1/platform/ops/users?keyword=` | 运营用户搜索 |
 | GET | `/api/v1/platform/ops/users/{id}` | 运营用户详情 |
@@ -281,18 +284,40 @@ public void acquire(long senderId) { ... }
 
 ### 好友离线推送
 
-好友事件在用户无在线连接时进入 `OfflinePushProvider`。默认 `none` 只记录日志；配置 `webhook` 后把
-`userId/title/body/data` POST 到厂商网关，由网关适配 APNs / FCM / 华为 / 小米等：
+好友事件在用户无在线连接时按 `im_push_device` 中启用的设备 token 投递。支持：
+
+- `none`：只记录日志；
+- `webhook`：POST 到厂商网关，由网关调用 APNs/FCM；
+- `fcm`：FCM HTTP v1，Service Account OAuth2；
+- `apns`：APNs HTTP/2 + ES256 JWT。
+
+配置：
 
 ```yaml
 veryal:
   push:
-    provider: none          # none | webhook
+    provider: ${VERYAL_PUSH_PROVIDER:none}   # none | webhook | fcm | apns
+    fcm:
+      project-id: ${VERYAL_PUSH_FCM_PROJECT_ID:}
+      service-account-json: ${VERYAL_PUSH_FCM_SERVICE_ACCOUNT_JSON:}
+    apns:
+      team-id: ${VERYAL_PUSH_APNS_TEAM_ID:}
+      key-id: ${VERYAL_PUSH_APNS_KEY_ID:}
+      private-key-path: ${VERYAL_PUSH_APNS_PRIVATE_KEY_PATH:}
+      topic: ${VERYAL_PUSH_APNS_TOPIC:}
+      production: ${VERYAL_PUSH_APNS_PRODUCTION:false}
     webhook-url: ${VERYAL_PUSH_WEBHOOK_URL:}
     webhook-token: ${VERYAL_PUSH_WEBHOOK_TOKEN:}
 ```
 
-直接对接 APNs/FCM 需要真实证书/Service Account，当前仓库不内置凭证，也未做设备 token 管理。
+设备注册：
+
+```http
+POST /api/v1/push/devices
+{"deviceId":"...","platform":"ANDROID","token":"fcm-token"}
+```
+
+> 真实 APNs/FCM 投递需要项目/证书/Service Account 凭证；仓库不内置凭证。
 
 ### 群公告与禁言
 
@@ -574,7 +599,7 @@ mvn test
 ```
 
 - 单元测试：雪花 ID、Envelope 编解码、Netty 帧拆包/粘包/非法帧、JWT、PBKDF2、Outbox 事件 JSON、限流算法（令牌桶/滑动窗口/固定窗口/注册表）、TLS 配置开关与快速失败、连接数限制、Caffeine 缓存配置、本地/云端存储策略。
-- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、运营管理员登录/MFA/Refresh Token/登录锁定/角色/审计、运营后台用户/群/举报处理、用户搜索/隐私/举报、好友申请/接受/拒绝/好友/黑名单/通讯录、好友实时通知、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群公告/禁言、1000 人群容量与 100 并发发送冒烟、群消息分页扇出、限流 429、审计日志、连接数超限拒绝、文件上传/下载/权限/删除、文件会话成员访问、分片上传/续传、图片压缩、多消息类型与文件归属校验、消息撤回、消息搜索、已读回执、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
+- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、运营管理员登录/MFA/Refresh Token/登录锁定/角色/审计、运营后台用户/群/举报/敏感词、用户搜索/隐私/举报/推送设备、好友申请/接受/拒绝/好友/黑名单/通讯录、好友实时通知、群建群/成员权限/群消息、群管理、群公告/禁言、1000 人群容量与 100 并发发送冒烟、限流、审计、TLS、连接限制、缓存、文件、分片、图片压缩、多消息类型、撤回、搜索、已读回执、TCP/WebSocket。
 
 集成测试使用 `test` profile，Netty Gateway 端口配置为 0（系统分配），不占用本机端口。
 

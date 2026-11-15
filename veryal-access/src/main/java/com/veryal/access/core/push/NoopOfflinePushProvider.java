@@ -17,7 +17,8 @@ public class NoopOfflinePushProvider implements OfflinePushProvider {
 
     @Override
     public void push(OfflinePushMessage message) {
-        log.debug("offline push (noop): userId={}, title={}, data={}", message.userId(),
-                message.title(), message.data());
+        log.debug("offline push (noop): userId={}, deviceId={}, platform={}, title={}, data={}",
+                message.userId(), message.deviceId(), message.platform(), message.title(),
+                message.data());
     }
 }
