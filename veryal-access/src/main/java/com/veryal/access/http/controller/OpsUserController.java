@@ -1,6 +1,7 @@
 package com.veryal.access.http.controller;
 
 import com.veryal.access.http.dto.OpsActionRequest;
+import com.veryal.access.http.dto.OpsMuteRequest;
 import com.veryal.access.http.security.PlatformAdminFilter;
 import com.veryal.application.ops.OpsPermission;
 import com.veryal.application.ops.OpsUserService;
@@ -63,5 +64,24 @@ public class OpsUserController {
         opsPermission.requireWrite(principal);
         return ApiResponse.ok(opsUserService.setStatus(principal.adminId(), userId,
                 UserStatus.ACTIVE, request == null ? null : request.reason()));
+    }
+
+    @PostMapping("/{userId}/mute")
+    public ApiResponse<OpsUserService.MuteView> mute(
+            @RequestAttribute(PlatformAdminFilter.ATTRIBUTE) PlatformPrincipal principal,
+            @PathVariable long userId, @RequestBody OpsMuteRequest request) {
+        opsPermission.requireWrite(principal);
+        java.time.Instant until = opsUserService.mute(principal.adminId(), userId,
+                request.minutes() == null ? 60 : request.minutes(), request.reason());
+        return ApiResponse.ok(new OpsUserService.MuteView(userId, until));
+    }
+
+    @PostMapping("/{userId}/unmute")
+    public ApiResponse<Void> unmute(
+            @RequestAttribute(PlatformAdminFilter.ATTRIBUTE) PlatformPrincipal principal,
+            @PathVariable long userId) {
+        opsPermission.requireWrite(principal);
+        opsUserService.unmute(principal.adminId(), userId);
+        return ApiResponse.ok();
     }
 }

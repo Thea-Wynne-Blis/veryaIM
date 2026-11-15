@@ -1,5 +1,6 @@
 package com.veryal.application.ops;
 
+import com.veryal.application.identity.UserMuteService;
 import com.veryal.application.platform.PlatformAuditRecorder;
 import com.veryal.common.core.TenantIds;
 import com.veryal.common.core.TimeProvider;
@@ -23,6 +24,7 @@ import java.util.List;
 public class OpsUserService {
 
     private final UserRepository userRepository;
+    private final UserMuteService userMuteService;
     private final PlatformAuditRecorder auditRecorder;
     private final TimeProvider timeProvider;
 
@@ -50,6 +52,22 @@ public class OpsUserService {
         return OpsUserView.from(updated);
     }
 
+    @Transactional
+    public java.time.Instant mute(long adminId, long userId, int minutes, String reason) {
+        require(userId);
+        java.time.Instant until = userMuteService.mute(adminId, userId, minutes, reason);
+        auditRecorder.record(adminId, "OPS_USER_MUTE", "user", Long.toString(userId),
+                "until=" + until + ",reason=" + (reason == null ? "" : reason));
+        return until;
+    }
+
+    @Transactional
+    public void unmute(long adminId, long userId) {
+        require(userId);
+        userMuteService.unmute(userId);
+        auditRecorder.record(adminId, "OPS_USER_UNMUTE", "user", Long.toString(userId), null);
+    }
+
     private User require(long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
@@ -62,5 +80,8 @@ public class OpsUserService {
             return new OpsUserView(user.id(), user.username(), user.nickname(), user.avatar(),
                     user.status().name(), user.createdAt());
         }
+    }
+
+    public record MuteView(long userId, Instant mutedUntil) {
     }
 }

@@ -308,6 +308,15 @@ CREATE INDEX IF NOT EXISTS idx_report_status ON im_report (status, created_at);
 CREATE INDEX IF NOT EXISTS idx_report_target ON im_report (target_type, target_id);
 CREATE INDEX IF NOT EXISTS idx_report_reporter ON im_report (reporter_id, created_at);
 
+CREATE TABLE IF NOT EXISTS im_user_mute
+(
+    user_id     BIGINT       NOT NULL PRIMARY KEY,
+    muted_until TIMESTAMP(3) NOT NULL,
+    reason      VARCHAR(255) NULL,
+    updated_by  BIGINT       NOT NULL,
+    updated_at  TIMESTAMP(3) NOT NULL
+);
+
 
 
 

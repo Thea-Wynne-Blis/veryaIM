@@ -220,6 +220,8 @@ public void acquire(long tenantId, long senderId) { ... }
 | GET | `/api/v1/platform/ops/users/{id}` | 运营用户详情 |
 | POST | `/api/v1/platform/ops/users/{id}/ban` | 封禁用户 |
 | POST | `/api/v1/platform/ops/users/{id}/unban` | 解封用户 |
+| POST | `/api/v1/platform/ops/users/{id}/mute` | 禁言用户（分钟） |
+| POST | `/api/v1/platform/ops/users/{id}/unmute` | 解除禁言 |
 | GET | `/api/v1/platform/ops/groups?keyword=` | 运营群搜索 |
 | GET | `/api/v1/platform/ops/groups/{id}` | 运营群详情/成员 |
 | POST | `/api/v1/platform/ops/groups/{id}/disband` | 解散群 |
@@ -521,6 +523,8 @@ GET  /api/v1/platform/ops/users?keyword=
 GET  /api/v1/platform/ops/users/{id}
 POST /api/v1/platform/ops/users/{id}/ban
 POST /api/v1/platform/ops/users/{id}/unban
+POST /api/v1/platform/ops/users/{id}/mute
+POST /api/v1/platform/ops/users/{id}/unmute
 GET  /api/v1/platform/ops/groups?keyword=
 GET  /api/v1/platform/ops/groups/{id}
 POST /api/v1/platform/ops/groups/{id}/disband

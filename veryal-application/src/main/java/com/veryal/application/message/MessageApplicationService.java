@@ -2,6 +2,7 @@ package com.veryal.application.message;
 
 import com.veryal.application.audit.AuditRecorder;
 import com.veryal.application.group.GroupModerationService;
+import com.veryal.application.identity.UserMuteService;
 import com.veryal.application.message.strategy.MessageContentContext;
 import com.veryal.application.message.strategy.MessageTypeStrategyFactory;
 import com.veryal.common.core.CursorPage;
@@ -61,6 +62,7 @@ public class MessageApplicationService {
     private final MessageTypeStrategyFactory messageTypeStrategyFactory;
     private final AuditRecorder auditRecorder;
     private final GroupModerationService groupModerationService;
+    private final UserMuteService userMuteService;
     private final MessageRecallNotifier messageRecallNotifier;
     private final IdGenerator idGenerator;
     private final TimeProvider timeProvider;
@@ -102,6 +104,7 @@ public class MessageApplicationService {
         }
 
         // 幂等命中不消耗限流额度；只有真正的新消息才检查发送速率。
+        userMuteService.ensureCanSend(command.senderId());
         messageRateLimiter.acquire(command.tenantId(), command.senderId());
         Instant now = timeProvider.now();
         long sequence = sequenceRepository.allocate(command.tenantId(), conversation.id());

@@ -83,6 +83,18 @@ class OpsBackendIntegrationTest {
                 Map.of("reason", "appeal"), adminToken)).isEqualTo(200);
         assertThat(loginStatus("ops_owner_" + suffix)).isEqualTo(200);
 
+        // 禁言后不能发送消息，解除后恢复
+        assertThat(postStatus("/api/v1/platform/ops/users/" + owner.userId() + "/mute",
+                Map.of("minutes", 60, "reason", "spam"), adminToken)).isEqualTo(200);
+        assertThat(postStatus("/api/v1/conversations/" + group.groupId() + "/messages",
+                Map.of("conversationId", group.groupId(), "clientMessageId", "muted-" + suffix,
+                        "type", "TEXT", "content", "muted"), ownerLogin.token())).isEqualTo(403);
+        assertThat(postStatus("/api/v1/platform/ops/users/" + owner.userId() + "/unmute",
+                Map.of(), adminToken)).isEqualTo(200);
+        assertThat(postStatus("/api/v1/conversations/" + group.groupId() + "/messages",
+                Map.of("conversationId", group.groupId(), "clientMessageId", "unmuted-" + suffix,
+                        "type", "TEXT", "content", "ok"), ownerLogin.token())).isEqualTo(200);
+
         OpsDashboardService.DashboardView dashboard = get(
                 "/api/v1/platform/ops/dashboard", supportToken,
                 new ParameterizedTypeReference<ApiResponse<OpsDashboardService.DashboardView>>() {

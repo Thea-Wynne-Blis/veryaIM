@@ -84,7 +84,7 @@
 - [x] 1000 人群容量测试（建群 + 发消息 + 100 成员并发发送）
 - [x] 用户搜索 / 公开资料 / 隐私设置
 - [x] 举报用户 / 群 / 消息
-- [x] 运营后台：用户搜索/封禁/解封、群搜索/解散、举报处理、概览、SUPPORT 只读
+- [x] 运营后台：用户搜索/封禁/解封/禁言/解禁、群搜索/解散、举报处理、概览、SUPPORT 只读
 - [x] 注解式限流（`@RateLimit` + AOP，登录按 IP、消息按用户，支持 SpEL）
 - [x] 好友（申请/接受/拒绝/取消、备注、删除）
 - [x] 好友实时通知（friend.notify Outbox + FRIEND_NOTIFY，MQ/本机直推；含拉黑/解除）
@@ -225,7 +225,7 @@
 使用 MySQL 8.0.30 与 Redis 7.4 容器（`prod` profile，经 SSH 隧道连接）启动打包产物：
 
 - 数据访问层切换 MyBatis-Plus 后重新回归：注册、登录、创建会话、发送消息、幂等重发、历史查询链路在 MySQL 8.0.30 上全部通过。
-- Flyway 自动执行 `V1__init.sql` 到 `V18__social_privacy_report.sql`；V12–V16 已在云服务器 MySQL 8.0 实测，V17 删除租户产品表，V18 增加隐私与举报表；V17/V18 已完成云服务器 MySQL 冒烟。
+- Flyway 自动执行 `V1__init.sql` 到 `V19__user_mute.sql`；V12–V16 已在云服务器 MySQL 8.0 实测，V17 删除租户产品表，V18 增加隐私与举报表，V19 增加用户禁言；V17/V18 已完成云服务器 MySQL 冒烟。
 - `GET /actuator/health` 返回 `UP`（MySQL + Redis）。
 - HTTP 流程验证通过：注册 → 登录 → 创建单聊 → 发送消息（seq=1）→ 重复发送命中幂等（`duplicate=true`，同 messageId/seq）→ 历史消息 1 条 → 同步 1 条 → 已读上报。
 - 数据库核对：`im_user`、`im_conversation_sequence.last_seq=1`、`im_message` 记录存在。

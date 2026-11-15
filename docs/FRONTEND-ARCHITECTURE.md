@@ -297,6 +297,8 @@ frontend/
 | `GET /api/v1/platform/ops/users/{id}` | 用户详情 |
 | `POST /api/v1/platform/ops/users/{id}/ban` | 封号 |
 | `POST /api/v1/platform/ops/users/{id}/unban` | 解封 |
+| `POST /api/v1/platform/ops/users/{id}/mute` | 禁言 |
+| `POST /api/v1/platform/ops/users/{id}/unmute` | 解除禁言 |
 | `GET /api/v1/platform/ops/groups?keyword=` | 群搜索 |
 | `GET /api/v1/platform/ops/groups/{id}` | 群详情/成员 |
 | `POST /api/v1/platform/ops/groups/{id}/disband` | 解散群 |
@@ -589,9 +591,8 @@ DELETE /api/v1/files/uploads/{uploadId}
 
 ### 运营（已实现，详见 4.4）
 
-已提供用户、群、举报、概览和审计接口。后续可补：
+已提供用户、群、举报、概览、禁言和审计接口。后续可补：
 
-- 用户禁言；
 - 内容审核；
 - 举报原因统计；
 - 审计筛选/分页。
