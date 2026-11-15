@@ -82,6 +82,14 @@ message MessageNotify {
   string client_message_id = 8;
 }
 
+message MessageRecall {
+  uint64 message_id = 1;
+  string conversation_id = 2;
+  uint64 sequence = 3;
+  uint64 recalled_by = 4;
+  int64 recalled_at = 5;
+}
+
 message DeliveryAck {
   string message_id = 1;
   string device_id = 2;

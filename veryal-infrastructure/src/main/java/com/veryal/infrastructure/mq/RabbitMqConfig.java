@@ -80,6 +80,13 @@ public class RabbitMqConfig {
     }
 
     @Bean
+    public Queue messageRecallQueue(RabbitInstance instance) {
+        return QueueBuilder.nonDurable(instance.messageRecallQueueName())
+                .autoDelete()
+                .build();
+    }
+
+    @Bean
     public Binding privateCreatedBinding(TopicExchange messageExchange, Queue messageDeliveryQueue) {
         return BindingBuilder.bind(messageDeliveryQueue).to(messageExchange)
                 .with(MessageEvents.PRIVATE_CREATED);
@@ -107,6 +114,12 @@ public class RabbitMqConfig {
     public Binding readReceiptBinding(TopicExchange messageExchange, Queue readReceiptQueue) {
         return BindingBuilder.bind(readReceiptQueue).to(messageExchange)
                 .with(MessageEvents.READ_RECEIPT);
+    }
+
+    @Bean
+    public Binding messageRecallBinding(TopicExchange messageExchange, Queue messageRecallQueue) {
+        return BindingBuilder.bind(messageRecallQueue).to(messageExchange)
+                .with(MessageEvents.MESSAGE_RECALLED);
     }
 
     @Bean

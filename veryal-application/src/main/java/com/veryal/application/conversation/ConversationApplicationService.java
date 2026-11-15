@@ -14,6 +14,7 @@ import com.veryal.domain.identity.UserRepository;
 import com.veryal.domain.message.MessageRepository;
 import com.veryal.domain.message.event.MessageEvents;
 import com.veryal.domain.message.event.ReadReceiptEvent;
+import com.veryal.domain.message.event.ReadReceiptNotifier;
 import com.veryal.domain.message.outbox.OutboxAppender;
 import com.veryal.domain.message.outbox.OutboxMessage;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +37,7 @@ public class ConversationApplicationService {
     private final MessageRepository messageRepository;
     private final UserRepository userRepository;
     private final OutboxAppender outboxAppender;
+    private final ReadReceiptNotifier readReceiptNotifier;
     private final IdGenerator idGenerator;
     private final TimeProvider timeProvider;
 
@@ -128,6 +130,7 @@ public class ConversationApplicationService {
                 userId, deviceId, updated.lastReadSeq(), now, memberIds);
         outboxAppender.append(new OutboxMessage(event.eventId(), conversationId,
                 MessageEvents.READ_RECEIPT, JsonUtils.toJsonBytes(event), now));
+        readReceiptNotifier.notify(event);
     }
 
     @Transactional(readOnly = true)

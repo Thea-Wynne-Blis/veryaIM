@@ -42,4 +42,8 @@ public class RabbitInstance {
     public String readReceiptQueueName() {
         return RabbitConstants.READ_RECEIPT_QUEUE + "." + instanceId;
     }
+
+    public String messageRecallQueueName() {
+        return RabbitConstants.MESSAGE_RECALL_QUEUE + "." + instanceId;
+    }
 }

@@ -13,6 +13,8 @@ public final class MessageEvents {
 
     public static final String READ_RECEIPT = "message.read";
 
+    public static final String MESSAGE_RECALLED = "message.recalled";
+
     private MessageEvents() {
     }
 }

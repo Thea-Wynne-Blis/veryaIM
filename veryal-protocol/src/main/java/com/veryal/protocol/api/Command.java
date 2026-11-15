@@ -24,6 +24,7 @@ public enum Command {
     SEND_MESSAGE(0x0100, true),
     SERVER_ACK(0x0101, true),
     MESSAGE_NOTIFY(0x0102, true),
+    MESSAGE_RECALL(0x0103, false),
     DELIVERY_ACK(0x0110, true),
     READ_ACK(0x0111, true),
     READ_NOTIFY(0x0112, false),

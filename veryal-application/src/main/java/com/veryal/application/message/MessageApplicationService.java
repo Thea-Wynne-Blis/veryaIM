@@ -26,6 +26,8 @@ import com.veryal.domain.message.MessagePolicy;
 import com.veryal.domain.message.MessageRepository;
 import com.veryal.domain.message.event.MessageCreatedEvent;
 import com.veryal.domain.message.event.MessageEvents;
+import com.veryal.domain.message.event.MessageRecalledEvent;
+import com.veryal.domain.message.event.MessageRecallNotifier;
 import com.veryal.domain.message.outbox.OutboxAppender;
 import com.veryal.domain.message.outbox.OutboxMessage;
 import lombok.RequiredArgsConstructor;
@@ -57,6 +59,7 @@ public class MessageApplicationService {
     private final RateLimiterRegistry rateLimiterRegistry;
     private final MessageTypeStrategyFactory messageTypeStrategyFactory;
     private final AuditRecorder auditRecorder;
+    private final MessageRecallNotifier messageRecallNotifier;
     private final IdGenerator idGenerator;
     private final TimeProvider timeProvider;
 
@@ -178,6 +181,12 @@ public class MessageApplicationService {
      */
     @Transactional
     public Message recall(long tenantId, long userId, String conversationId, long messageId) {
+        return recall(tenantId, userId, conversationId, messageId, null);
+    }
+
+    @Transactional
+    public Message recall(long tenantId, long userId, String conversationId, long messageId,
+                          String senderDeviceId) {
         requireMember(tenantId, conversationId, userId);
         Message message = messageRepository.findById(messageId)
                 .filter(item -> item.tenantId() == tenantId)
@@ -196,6 +205,14 @@ public class MessageApplicationService {
         messageRepository.markRecalled(tenantId, messageId, userId, now);
         auditRecorder.record(tenantId, userId, AuditAction.MESSAGE_RECALL, "message",
                 Long.toString(messageId), "conversation=" + conversationId);
+        List<Long> memberIds = conversationRepository.findMembers(conversationId).stream()
+                .map(ConversationMember::userId)
+                .toList();
+        MessageRecalledEvent event = new MessageRecalledEvent(RandomIds.newId(), tenantId,
+                conversationId, messageId, userId, senderDeviceId, message.seq(), now, memberIds);
+        outboxAppender.append(new OutboxMessage(event.eventId(), conversationId,
+                MessageEvents.MESSAGE_RECALLED, JsonUtils.toJsonBytes(event), now));
+        messageRecallNotifier.notify(event);
         return message.recall(userId, now);
     }
 

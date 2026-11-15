@@ -111,7 +111,7 @@ public class ConversationController {
                                                @PathVariable String conversationId,
                                                @PathVariable long messageId) {
         return ApiResponse.ok(MessageResponse.from(messageApplicationService.recall(
-                user.tenantId(), user.userId(), conversationId, messageId)));
+                user.tenantId(), user.userId(), conversationId, messageId, user.deviceId())));
     }
 
     @GetMapping("/{conversationId}/read-receipts")
