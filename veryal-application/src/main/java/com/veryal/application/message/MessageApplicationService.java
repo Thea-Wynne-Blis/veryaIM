@@ -19,6 +19,7 @@ import com.veryal.domain.conversation.ConversationRepository;
 import com.veryal.domain.conversation.ConversationType;
 import com.veryal.domain.delivery.DeliveryRecord;
 import com.veryal.domain.delivery.DeliveryRepository;
+import com.veryal.domain.friend.BlacklistRepository;
 import com.veryal.domain.message.ConversationSequenceRepository;
 import com.veryal.domain.message.DuplicateMessageException;
 import com.veryal.domain.message.Message;
@@ -54,6 +55,7 @@ public class MessageApplicationService {
     private final MessageRepository messageRepository;
     private final ConversationSequenceRepository sequenceRepository;
     private final ConversationRepository conversationRepository;
+    private final BlacklistRepository blacklistRepository;
     private final OutboxAppender outboxAppender;
     private final DeliveryRepository deliveryRepository;
     private final RateLimiterRegistry rateLimiterRegistry;
@@ -77,6 +79,16 @@ public class MessageApplicationService {
                         "conversation not found: " + command.conversationId()));
         conversationRepository.findMember(conversation.id(), command.senderId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CONVERSATION_MEMBER));
+        if (conversation.type() == ConversationType.PRIVATE) {
+            long peerId = conversationRepository.findMembers(conversation.id()).stream()
+                    .map(ConversationMember::userId)
+                    .filter(userId -> userId != command.senderId())
+                    .findFirst().orElse(0L);
+            if (peerId > 0 && blacklistRepository.exists(command.tenantId(), peerId,
+                    command.senderId())) {
+                throw new BusinessException(ErrorCode.USER_BLOCKED);
+            }
+        }
 
         Optional<Message> existing = messageRepository.findByIdempotencyKey(
                 command.tenantId(), command.senderId(), command.clientMessageId());
