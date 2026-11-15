@@ -58,6 +58,8 @@
 - [x] 消息搜索（会话内 TEXT/EMOJI，倒序游标，通配符转义，撤回排除）
 - [x] 已读回执（读游标推进写 Outbox，Gateway 广播 READ_NOTIFY，HTTP 查询）
 - [x] 贴纸 stickerId、语音时长、视频封面/缩略图字段校验
+- [x] 分片上传/断点续传（初始化、分片幂等、进度查询、合并、取消）
+- [x] 图片压缩（JPEG/PNG 超过 1920px 等比缩放、JPEG 重编码）
 - [x] 历史消息（游标分页，无 OFFSET）
 - [x] 消息序号（`im_conversation_sequence` 行锁原子分配）
 - [x] 发件箱 / 收件箱实时推送（单机直投或 Outbox + MQ）
@@ -103,6 +105,8 @@
 - [x] 消息搜索测试：文本命中、通配符转义、非成员 403、撤回排除
 - [x] 已读回执测试：读游标推进、回执查询、Outbox 事件唯一
 - [x] 贴纸/语音时长/视频封面字段校验测试
+- [x] 分片上传测试：小分片初始化、续传、缺片 409、合并下载
+- [x] 图片压缩测试：3000×1000 JPEG 缩放到 ≤1920 且体积下降
 - [x] HTTP 集成测试：注册→登录→建会话→发消息→幂等→历史→同步→已读→越权/未认证，并校验 Outbox 事件写入
 - [x] 群聊集成测试：建群、成员权限、群消息、群事件类型、非成员越权
 - [x] 群管理集成测试：管理员设置、改名、踢人、退群、群主/管理员权限边界
@@ -147,6 +151,8 @@
 16. **撤回尚未实时推送**：撤回已落库并隐藏历史原文，但未通过 MQ 下发撤回通知；客户端需要刷新历史/同步后才能看到。
 17. **已读回执依赖 MQ**：回执通过 Outbox → RabbitMQ → 各 Gateway 广播；MQ 关闭的单机/测试模式只更新游标，不实时推送 `READ_NOTIFY`。
 18. **搜索范围有限**：仅支持会话内 TEXT/EMOJI 内容，不含文件名、图片 OCR 与跨会话搜索。
+19. **分片暂存为单机目录**：分片写在 `veryal.upload.staging-path`，跨节点续传需要共享存储；完成时会把全部分片读入内存（默认上限 64MB）。
+20. **图片压缩仅覆盖 JPEG/PNG**：其他格式原样存储；不做视频转码、缩略图生成或时长探测。
 
 ## 五、验证记录（2026-11-14）
 
@@ -154,11 +160,11 @@
 
 - 环境：Windows 11、JDK 21.0.11、Maven 3.9.4。
 - `mvn -B -ntp verify`：6 个代码模块 + bootstrap + 父工程全部构建成功。
-- 测试共 59 个，全部通过：
+- 测试共 61 个，全部通过：
   - `veryal-common`：雪花 ID 唯一性/单调性/节点范围、限流算法（令牌桶/滑动窗口/固定窗口/注册表）（12）。
   - `veryal-protocol`：Envelope 编解码、未知指令、版本校验、帧头格式、半包/粘包、非法魔数、超大帧、指令不一致（12）。
   - `veryal-application`：JWT 签发/过期/篡改/错误密钥、PBKDF2、Outbox 事件 JSON（9）。
-  - `veryal-bootstrap`：HTTP 全流程（含 Outbox）、群聊、群管理、群生命周期、限流、审计、TLS 配置、连接限制、缓存配置、文件 API/会话权限、存储策略、多消息类型、消息撤回、消息搜索、已读回执、TCP 私聊/群聊端到端、WebSocket 端到端（26）。
+  - `veryal-bootstrap`：HTTP 全流程（含 Outbox）、群聊、群管理、群生命周期、限流、审计、TLS 配置、连接限制、缓存配置、文件 API/会话权限、存储策略、分片上传、图片压缩、多消息类型、消息撤回、消息搜索、已读回执、TCP 私聊/群聊端到端、WebSocket 端到端（28）。
 - 可执行 jar 使用默认 `dev` profile 启动验证：H2 内存库 + 内存在线状态，`/actuator/health=UP`，注册接口返回成功。
 
 ### MySQL 8.0.30 + Redis 实际环境验证
@@ -166,7 +172,7 @@
 使用 MySQL 8.0.30 与 Redis 7.4 容器（`prod` profile，经 SSH 隧道连接）启动打包产物：
 
 - 数据访问层切换 MyBatis-Plus 后重新回归：注册、登录、创建会话、发送消息、幂等重发、历史查询链路在 MySQL 8.0.30 上全部通过。
-- Flyway 自动执行 `V1__init.sql`、`V2__outbox.sql`、`V3__group.sql`、`V4__message_delivery.sql`、`V5__audit_log.sql`、`V6__file.sql`、`V7__message_recall_file_scope.sql`。
+- Flyway 自动执行 `V1__init.sql`、`V2__outbox.sql`、`V3__group.sql`、`V4__message_delivery.sql`、`V5__audit_log.sql`、`V6__file.sql`、`V7__message_recall_file_scope.sql`、`V8__upload_session.sql`。
 - `GET /actuator/health` 返回 `UP`（MySQL + Redis）。
 - HTTP 流程验证通过：注册 → 登录 → 创建单聊 → 发送消息（seq=1）→ 重复发送命中幂等（`duplicate=true`，同 messageId/seq）→ 历史消息 1 条 → 同步 1 条 → 已读上报。
 - 数据库核对：`im_user`、`im_conversation_sequence.last_seq=1`、`im_message` 记录存在。
@@ -223,13 +229,15 @@
 - 消息搜索：`hello` 命中两条、撤回后只剩一条；`%` 通配符被转义；非成员 403。
 - 已读回执：阅读第二/第一条消息后，回执只记录最大 seq 且 Outbox 仅一条 `message.read`。
 - 贴纸/语音/视频：合法 `stickerId`、`durationSeconds`、`coverFileId` 通过；非法 stickerId 返回 400。
+- 分片上传：10 字节按 4 字节分片，缺片返回 409；补齐后合并下载内容一致；重复分片幂等。
+- 图片压缩：3000×1000 JPEG 缩放后最长边 ≤1920，体积小于原图。
 
 > 验证用容器与数据库不包含仓库代码，仅用于确认 MySQL 方言、Flyway、Redis 在线状态与 RabbitMQ 投递链路在真实环境可用。
 
 ## 六、下一步计划（建议顺序）
 
 1. 撤回实时通知、已读回执单机直推（MQ 可选）。
-2. 分片上传/断点续传与图片压缩。
+2. 分片暂存共享化、断点跨节点续传、图片缩略图/视频转码。
 3. 放开群成员上限，批量建群/加成员与大群压测。
 4. 审计查询/归档、TLS 证书热加载与 mTLS。
 5. Testcontainers 集成测试矩阵 + 压测脚本；集群级限流。

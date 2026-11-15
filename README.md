@@ -23,6 +23,7 @@ VERYAL 是高性能、跨平台、可扩展的即时通讯基础设施。本仓�
 - **可选 TLS**：TCP 与 WebSocket Gateway 支持 TLS 1.2/1.3（PEM 证书链 + 私钥）；HTTP 通过 Spring Boot `server.ssl` 开启。
 - **连接数治理**：单节点总连接数与单 IP 连接数可配置，准入处理器在 TLS/协议握手前拒绝超限连接，并输出拒绝指标。
 - **文件存储策略**：`local` / `minio` / `oss` 三种实现，`veryal.storage.type` 选择；文件本体不入 MySQL，元数据与 SHA-256 落库，支持上传、下载、删除、临时 URL。
+- **分片上传/断点续传**：初始化会话 → 逐片上传 → 查询已上传分片 → 完成后合并；图片上传自动缩放/压缩。
 - **多消息类型**：TEXT / EMOJI / IMAGE / AUDIO / VIDEO / FILE / SYSTEM，采用策略 + 工厂校验内容格式与文件归属。
 - Lombok 消除样板代码，Hutool 提供 ID / 字符串等基础工具。
 
@@ -182,6 +183,11 @@ docker compose up -d --build
 | POST | `/api/v1/conversations/{id}/read` | 上报已读序号 |
 | GET | `/api/v1/sync/messages?conversationId=...&cursor=...&limit=...` | 离线同步 |
 | POST | `/api/v1/files` | 上传文件（multipart，字段 `file`，可选 `conversationId` 绑定会话） |
+| POST | `/api/v1/files/uploads` | 初始化分片上传 |
+| PUT | `/api/v1/files/uploads/{uploadId}/chunks/{index}` | 上传分片（`application/octet-stream`） |
+| GET | `/api/v1/files/uploads/{uploadId}` | 查询分片上传进度 |
+| POST | `/api/v1/files/uploads/{uploadId}/complete` | 合并分片并生成文件 |
+| DELETE | `/api/v1/files/uploads/{uploadId}` | 取消分片上传 |
 | GET | `/api/v1/files/{fileId}` | 文件元数据 |
 | GET | `/api/v1/files/{fileId}/content` | 下载文件（仅上传者） |
 | GET | `/api/v1/files/{fileId}/url?ttlSeconds=600` | 临时访问 URL（MinIO/OSS 为预签名地址，本地为下载路径） |
@@ -321,6 +327,21 @@ veryal:
 - 上传先写对象存储，再写 `im_file`；元数据失败会补偿删除对象。
 - 当前文件若绑定 `conversationId`，会话成员可下载；否则仅上传者可下载/删除。文件消息的成员引用权限与此一致。
 
+### 分片上传与图片压缩
+
+```yaml
+veryal:
+  upload:
+    staging-path: ${VERYAL_UPLOAD_STAGING:./data/uploads}
+    chunk-size-bytes: ${VERYAL_UPLOAD_CHUNK_SIZE:5242880}
+    max-size-bytes: ${VERYAL_UPLOAD_MAX_SIZE:67108864}
+```
+
+- 流程：`POST /files/uploads` 初始化 → `PUT .../chunks/{index}` 逐片上传（重复上传幂等）→ `GET ...` 查看已上传索引 → `POST .../complete` 合并。
+- 分片暂存在本机 `staging-path`；完成后合并为完整对象并写入当前存储策略，再落 `im_file`。
+- 普通上传仍限制 20MB；分片上传默认上限 64MB。
+- JPEG/PNG 图片：最长边超过 1920px 时等比缩放；JPEG 以 0.85 质量重编码；解码失败或压缩变大时保留原图。
+
 ## 一致性设计
 
 - 消息写入：校验成员 → 幂等检查 → 分配会话序号（`SELECT ... FOR UPDATE`）→ 插入消息 → 写入 Outbox → 更新会话时间，同一数据库事务内完成。
@@ -342,7 +363,7 @@ mvn test
 ```
 
 - 单元测试：雪花 ID、Envelope 编解码、Netty 帧拆包/粘包/非法帧、JWT、PBKDF2、Outbox 事件 JSON、限流算法（令牌桶/滑动窗口/固定窗口/注册表）、TLS 配置开关与快速失败、连接数限制、Caffeine 缓存配置、本地/云端存储策略。
-- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群消息分页扇出、限流 429、审计日志、连接数超限拒绝、文件上传/下载/权限/删除、文件会话成员访问、多消息类型与文件归属校验、消息撤回、消息搜索、已读回执、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
+- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、群建群/成员权限/群消息、群管理（管理员/改名/踢人/退群/转让/解散）、群消息分页扇出、限流 429、审计日志、连接数超限拒绝、文件上传/下载/权限/删除、文件会话成员访问、分片上传/续传、图片压缩、多消息类型与文件归属校验、消息撤回、消息搜索、已读回执、TCP 私聊/群聊端到端（登录/心跳/发送/实时推送/投递记录）、WebSocket 握手与登录心跳。
 
 集成测试使用 `test` profile，Netty Gateway 端口配置为 0（系统分配），不占用本机端口。
 
@@ -361,7 +382,7 @@ mvn test
 
 - V0.3：已完成 Outbox + RabbitMQ + 重试/DLQ + 多实例实时投递；后续补充投递记录表与跨节点路由优化。
 - V0.4：群聊、群管理（含群主转让/解散）、群消息分页扇出、Redis 网关路由、策略模式限流、审计日志、可选 TLS、连接数上限已完成；继续补充审计查询与大群压测。
-- V0.5：Caffeine 两级缓存完善、文件存储（local/MinIO/OSS）、多消息类型、消息撤回/搜索/已读回执、多租户、开放 API / SDK。
+- V0.5：Caffeine 两级缓存完善、文件存储（local/MinIO/OSS）、分片上传/图片压缩、多消息类型、消息撤回/搜索/已读回执、多租户、开放 API / SDK。
 - V1.0：管理后台、完整群聊/好友体系、监控告警、私有化部署。
 
 详细进度与差距见 [docs/DEVELOPMENT-STATUS.md](docs/DEVELOPMENT-STATUS.md)。
