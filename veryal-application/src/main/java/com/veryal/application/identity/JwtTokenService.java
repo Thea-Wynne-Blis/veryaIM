@@ -4,6 +4,7 @@ import com.veryal.common.exception.AuthenticationException;
 import com.veryal.common.exception.ErrorCode;
 import com.veryal.common.json.JsonUtils;
 import com.veryal.common.core.RandomIds;
+import com.veryal.common.core.TenantIds;
 import com.veryal.common.core.TimeProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -35,12 +36,11 @@ public class JwtTokenService {
     private final TokenProperties properties;
     private final TimeProvider timeProvider;
 
-    public IssuedToken issue(long userId, long tenantId, String deviceId) {
+    public IssuedToken issue(long userId, String deviceId) {
         Instant now = timeProvider.now();
         Instant expiresAt = now.plus(properties.ttl());
         String payload = JsonUtils.toJson(Map.of(
                 "sub", Long.toString(userId),
-                "tid", tenantId,
                 "did", deviceId == null ? "" : deviceId,
                 "iss", properties.issuer(),
                 "iat", now.getEpochSecond(),
@@ -80,7 +80,8 @@ public class JwtTokenService {
             throw new AuthenticationException(ErrorCode.TOKEN_EXPIRED, "token expired");
         }
         try {
-            return new AuthenticatedUser(Long.parseLong(claims.sub()), claims.tid(), claims.did(), claims.jti());
+            return new AuthenticatedUser(Long.parseLong(claims.sub()),
+                    TenantIds.DEFAULT_TENANT_ID, claims.did(), claims.jti());
         } catch (NumberFormatException e) {
             throw new AuthenticationException(ErrorCode.TOKEN_INVALID, "invalid token subject", e);
         }
@@ -112,6 +113,6 @@ public class JwtTokenService {
     /**
      * JWT 载荷。字段名遵循 JWT 注册声明。
      */
-    record TokenClaims(String sub, long tid, String did, String iss, long iat, long exp, String jti) {
+    record TokenClaims(String sub, String did, String iss, long iat, long exp, String jti) {
     }
 }

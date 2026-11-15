@@ -477,6 +477,7 @@ veryal:
   {"scope":"PLATFORM","role":"PLATFORM_ADMIN","token":"...","adminId":1001,"username":"admin"}
   ```
 - 普通用户登录返回 `scope=USER`、`role=USER`；
+- 普通用户 JWT 不再携带 `tid` / 租户声明；内部固定默认空间仅用于兼容历史数据。
 - 前端根据 `scope` 路由：`PLATFORM` 进入运营后台，`USER` 进入 IM 客户端；
 - 两套 Token 完全分离，跨 scope 不能互用。
 - 支持 TOTP MFA、Refresh Token 轮换、登录失败锁定。

@@ -78,7 +78,7 @@ public class AuthApplicationService {
         }
         Instant now = timeProvider.now();
         Device device = bindDevice(user.id(), command, now);
-        IssuedToken issuedToken = tokenService.issue(user.id(), tenantId, device.deviceId());
+        IssuedToken issuedToken = tokenService.issue(user.id(), device.deviceId());
         auditRecorder.record(tenantId, user.id(), AuditAction.LOGIN, "user",
                 Long.toString(user.id()), "device=" + device.deviceId());
         return new AuthResult(UserProfile.from(user), device.deviceId(), issuedToken.token(),

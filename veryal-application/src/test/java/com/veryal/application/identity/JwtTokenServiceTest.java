@@ -20,7 +20,7 @@ class JwtTokenServiceTest {
         JwtTokenService service = new JwtTokenService(
                 new TokenProperties(SECRET, "veryal", Duration.ofMinutes(10)), time);
 
-        IssuedToken issued = service.issue(1001L, 1L, "device-1");
+        IssuedToken issued = service.issue(1001L, "device-1");
         AuthenticatedUser user = service.parse(issued.token());
 
         assertThat(user.userId()).isEqualTo(1001L);
@@ -34,7 +34,7 @@ class JwtTokenServiceTest {
         MutableTimeProvider time = new MutableTimeProvider(Instant.parse("2026-01-01T00:00:00Z"));
         JwtTokenService service = new JwtTokenService(
                 new TokenProperties(SECRET, "veryal", Duration.ofMinutes(1)), time);
-        IssuedToken issued = service.issue(1001L, 1L, "device-1");
+        IssuedToken issued = service.issue(1001L, "device-1");
 
         time.advance(Duration.ofMinutes(2));
 
@@ -47,9 +47,9 @@ class JwtTokenServiceTest {
     void rejectsTamperedSignature() {
         JwtTokenService service = new JwtTokenService(
                 new TokenProperties(SECRET, "veryal", Duration.ofMinutes(10)), TimeProvider.system());
-        String token = service.issue(1001L, 1L, "device-1").token();
+        String token = service.issue(1001L, "device-1").token();
         String[] parts = token.split("\\.");
-        // 改签名段首字符，确保解码后的签名字节一定变化（末尾 base64 字符含无用填充位）。
+        // 篡改签名首字符，确保解码后的签名字节一定变化。
         char[] signature = parts[2].toCharArray();
         signature[0] = signature[0] == 'A' ? 'B' : 'A';
         String tampered = parts[0] + "." + parts[1] + "." + new String(signature);
@@ -60,11 +60,12 @@ class JwtTokenServiceTest {
     @Test
     void rejectsTokenSignedByAnotherSecret() {
         JwtTokenService issuer = new JwtTokenService(
-                new TokenProperties("another-secret-0123456789abcdefgh", "veryal", Duration.ofMinutes(10)),
-                TimeProvider.system());
+                new TokenProperties("another-secret-0123456789abcdefgh", "veryal",
+                        Duration.ofMinutes(10)), TimeProvider.system());
         JwtTokenService verifier = new JwtTokenService(
-                new TokenProperties(SECRET, "veryal", Duration.ofMinutes(10)), TimeProvider.system());
-        String token = issuer.issue(1001L, 1L, "device-1").token();
+                new TokenProperties(SECRET, "veryal", Duration.ofMinutes(10)),
+                TimeProvider.system());
+        String token = issuer.issue(1001L, "device-1").token();
 
         assertThatThrownBy(() -> verifier.parse(token)).isInstanceOf(AuthenticationException.class);
     }
@@ -72,8 +73,10 @@ class JwtTokenServiceTest {
     @Test
     void rejectsMalformedToken() {
         JwtTokenService service = new JwtTokenService(
-                new TokenProperties(SECRET, "veryal", Duration.ofMinutes(10)), TimeProvider.system());
-        assertThatThrownBy(() -> service.parse("not-a-jwt")).isInstanceOf(AuthenticationException.class);
+                new TokenProperties(SECRET, "veryal", Duration.ofMinutes(10)),
+                TimeProvider.system());
+        assertThatThrownBy(() -> service.parse("not-a-jwt"))
+                .isInstanceOf(AuthenticationException.class);
         assertThatThrownBy(() -> service.parse("")).isInstanceOf(AuthenticationException.class);
     }
 
