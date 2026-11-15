@@ -228,6 +228,9 @@ public void acquire(long tenantId, long senderId) { ... }
 | GET | `/api/v1/platform/ops/reports?status=` | 举报列表 |
 | GET | `/api/v1/platform/ops/reports/{id}` | 举报详情 |
 | POST | `/api/v1/platform/ops/reports/{id}/handle` | 处理举报 |
+| GET | `/api/v1/platform/ops/sensitive-words` | 敏感词列表 |
+| POST | `/api/v1/platform/ops/sensitive-words` | 新增敏感词 |
+| DELETE | `/api/v1/platform/ops/sensitive-words/{id}` | 删除敏感词 |
 | POST | `/api/v1/friends/requests` | 发送好友申请 |
 | GET | `/api/v1/friends/requests?direction=incoming` | 好友申请列表 |
 | POST | `/api/v1/friends/requests/{requestId}/accept` | 接受好友申请 |
@@ -531,7 +534,18 @@ POST /api/v1/platform/ops/groups/{id}/disband
 GET  /api/v1/platform/ops/reports?status=PENDING
 GET  /api/v1/platform/ops/reports/{id}
 POST /api/v1/platform/ops/reports/{id}/handle
+GET  /api/v1/platform/ops/sensitive-words
+POST /api/v1/platform/ops/sensitive-words
+DELETE /api/v1/platform/ops/sensitive-words/{id}
 ```
+
+### 敏感词内容审核
+
+- 词库存于 `im_sensitive_word`（V20），运营后台增删；
+- 使用 **DFA Trie** 扫描文本，词库变更后重建内存 Trie；
+- 文本消息（`TEXT`）命中敏感词返回 `40007 SENSITIVE_CONTENT`；
+- 支持 JSON `{"text":"..."}` 与普通文本；
+- 词库启动时加载，新增/删除后实时刷新。
 
 ### 好友与黑名单
 

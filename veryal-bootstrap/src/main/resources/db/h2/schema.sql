@@ -317,6 +317,15 @@ CREATE TABLE IF NOT EXISTS im_user_mute
     updated_at  TIMESTAMP(3) NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS im_sensitive_word
+(
+    id         BIGINT       NOT NULL PRIMARY KEY,
+    word       VARCHAR(64)  NOT NULL,
+    enabled    TINYINT      NOT NULL DEFAULT 1,
+    created_at TIMESTAMP(3) NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_sensitive_word ON im_sensitive_word (word);
+
 
 
 

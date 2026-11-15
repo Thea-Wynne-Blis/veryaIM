@@ -85,6 +85,7 @@
 - [x] 用户搜索 / 公开资料 / 隐私设置
 - [x] 举报用户 / 群 / 消息
 - [x] 运营后台：用户搜索/封禁/解封/禁言/解禁、群搜索/解散、举报处理、概览、SUPPORT 只读
+- [x] 敏感词 DFA 内容审核（词库、运营增删、TEXT 消息拦截）
 - [x] 注解式限流（`@RateLimit` + AOP，登录按 IP、消息按用户，支持 SpEL）
 - [x] 好友（申请/接受/拒绝/取消、备注、删除）
 - [x] 好友实时通知（friend.notify Outbox + FRIEND_NOTIFY，MQ/本机直推；含拉黑/解除）
@@ -149,7 +150,8 @@
 - [x] 群管理测试：公告、全员禁言、成员禁言、@ 非成员拒绝
 - [x] 注解式限流：消息第 6 条 429（经 `@RateLimit` 切面），登录注解按 IP
 - [x] 社交隐私测试：搜索、关闭搜索、拒绝好友申请、允许申请、举报与举报记录
-- [x] 运营后台测试：SUPPORT 只读、封禁/解封、群解散、举报处理、概览
+- [x] 运营后台测试：SUPPORT 只读、封禁/解封、禁言/解禁、群解散、举报处理、概览
+- [x] 敏感词测试：DFA 命中/替换/大小写，运营新增词库后消息 400，删除后恢复
 - [x] ~~租户数据测试~~ 已随功能移除
 - [x] 1000 人群容量：999 个成员直插后建群并发送消息，H2 环境 343ms；100 个成员并发发送 233ms（约 429 条/秒）
 - [x] 云服务器 MySQL V12–V16 迁移实测（历史多租户链路）
@@ -213,11 +215,11 @@
 
 - 环境：Windows 11、JDK 21.0.11、Maven 3.9.4。
 - `mvn -B -ntp verify`：6 个代码模块 + bootstrap + 父工程全部构建成功。
-- 测试共 72 个（本机 71 通过 + 1 跳过；Testcontainers 矩阵在云服务器 Docker 29.8.1 上 1 个通过）：
-  - `veryal-common`：雪花 ID、限流算法、TOTP（12）。
+- 测试共 76 个（本机 75 通过 + 1 跳过；Testcontainers 矩阵在云服务器 Docker 29.8.1 上 1 个通过）：
+  - `veryal-common`：雪花 ID、限流算法、TOTP、DFA 敏感词（15）。
   - `veryal-protocol`：Envelope 编解码、未知指令、版本校验、帧头格式、半包/粘包、非法魔数、超大帧、指令不一致（12）。
   - `veryal-application`：JWT、PBKDF2、Outbox 事件 JSON（9）。
-  - `veryal-bootstrap`：HTTP 全流程、用户搜索/隐私/举报、运营后台用户/群/举报、运营管理员 MFA/Refresh/锁定/CRUD/审计、好友/黑名单/通讯录/实时通知、群聊/群管理/群公告/禁言、1000 人群容量、限流、审计、TLS、连接限制、缓存、文件、分片、图片压缩、多消息类型、撤回、搜索、已读回执、虚拟线程、TCP、WebSocket（38 通过 + 1 Testcontainers 跳过/服务器通过）。
+  - `veryal-bootstrap`：HTTP 全流程、用户搜索/隐私/举报、运营后台用户/群/举报/敏感词、运营管理员 MFA/Refresh/锁定/CRUD/审计、好友/黑名单/通讯录/实时通知、群聊/群管理/群公告/禁言、1000 人群容量、限流、审计、TLS、连接限制、缓存、文件、分片、图片压缩、多消息类型、撤回、搜索、已读回执、虚拟线程、TCP、WebSocket（39 通过 + 1 Testcontainers 跳过/服务器通过）。
 - 可执行 jar 使用默认 `dev` profile 启动验证：H2 内存库 + 内存在线状态，`/actuator/health=UP`，注册接口返回成功。
 
 ### MySQL 8.0.30 + Redis 实际环境验证
@@ -225,7 +227,7 @@
 使用 MySQL 8.0.30 与 Redis 7.4 容器（`prod` profile，经 SSH 隧道连接）启动打包产物：
 
 - 数据访问层切换 MyBatis-Plus 后重新回归：注册、登录、创建会话、发送消息、幂等重发、历史查询链路在 MySQL 8.0.30 上全部通过。
-- Flyway 自动执行 `V1__init.sql` 到 `V19__user_mute.sql`；V12–V16 已在云服务器 MySQL 8.0 实测，V17 删除租户产品表，V18 增加隐私与举报表，V19 增加用户禁言；V17/V18 已完成云服务器 MySQL 冒烟。
+- Flyway 自动执行 `V1__init.sql` 到 `V20__sensitive_word.sql`；V12–V16 已在云服务器 MySQL 8.0 实测，V17 删除租户产品表，V18 隐私/举报，V19 用户禁言，V20 敏感词；V17/V18/V19 已完成云服务器 MySQL 冒烟。
 - `GET /actuator/health` 返回 `UP`（MySQL + Redis）。
 - HTTP 流程验证通过：注册 → 登录 → 创建单聊 → 发送消息（seq=1）→ 重复发送命中幂等（`duplicate=true`，同 messageId/seq）→ 历史消息 1 条 → 同步 1 条 → 已读上报。
 - 数据库核对：`im_user`、`im_conversation_sequence.last_seq=1`、`im_message` 记录存在。
