@@ -94,6 +94,7 @@ public class AuthApplicationService {
     @Transactional(readOnly = true)
     public AuthenticatedUser authenticate(String token) {
         AuthenticatedUser principal = tokenService.parse(token);
+        tenantApplicationService.ensureActive(principal.tenantId());
         User user = userRepository.findById(principal.userId())
                 .orElseThrow(() -> new AuthenticationException(ErrorCode.TOKEN_INVALID, "user not found"));
         user.ensureActive();

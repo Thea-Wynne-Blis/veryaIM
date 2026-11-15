@@ -77,11 +77,20 @@ class MultiTenantIntegrationTest {
 
         String disabledCode = "d" + suffix.substring(Math.max(0, suffix.length() - 8));
         TenantResponse disabled = createTenant(disabledCode, "Disabled " + suffix, 10, 10, 0);
+        register("disabled_user_" + suffix, disabledCode);
+        AuthResponse disabledLogin = login("disabled_user_" + suffix, "du-" + suffix, disabledCode);
         ResponseEntity<ApiResponse<TenantResponse>> disable = rest.exchange(
                 "/api/v1/platform/tenants/" + disabled.tenantId() + "/disable", HttpMethod.POST,
                 new HttpEntity<>(adminHeaders()), new ParameterizedTypeReference<>() {
                 });
         assertThat(disable.getStatusCode().is2xxSuccessful()).isTrue();
+
+        // 已签发 token 在租户停用后立即失效
+        ResponseEntity<ApiResponse<UserResponse>> me = rest.exchange("/api/v1/auth/me",
+                HttpMethod.GET, new HttpEntity<>(headers(disabledLogin.token())),
+                new ParameterizedTypeReference<>() {
+                });
+        assertThat(me.getStatusCode().value()).isEqualTo(403);
 
         ResponseEntity<ApiResponse<AuthResponse>> login = rest.exchange("/api/v1/auth/login",
                 HttpMethod.POST,

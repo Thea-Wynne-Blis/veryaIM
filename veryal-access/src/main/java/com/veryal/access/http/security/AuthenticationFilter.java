@@ -5,6 +5,7 @@ import com.veryal.application.identity.AuthApplicationService;
 import com.veryal.common.core.ApiResponse;
 import com.veryal.common.exception.AuthenticationException;
 import com.veryal.common.exception.ErrorCode;
+import com.veryal.common.exception.VeryalException;
 import com.veryal.common.json.JsonUtils;
 import com.veryal.common.observability.LogFields;
 import com.veryal.common.observability.TraceContext;
@@ -72,6 +73,8 @@ public class AuthenticationFilter extends OncePerRequestFilter {
                 TraceContext.put(LogFields.DEVICE_ID, user.deviceId());
                 filterChain.doFilter(request, response);
             } catch (AuthenticationException e) {
+                writeError(response, e.errorCode(), e.getMessage());
+            } catch (VeryalException e) {
                 writeError(response, e.errorCode(), e.getMessage());
             } catch (RuntimeException e) {
                 writeError(response, ErrorCode.INTERNAL_ERROR, "internal error");

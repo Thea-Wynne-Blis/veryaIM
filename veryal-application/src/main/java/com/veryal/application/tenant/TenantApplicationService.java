@@ -48,6 +48,14 @@ public class TenantApplicationService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.TENANT_NOT_FOUND));
     }
 
+    public Tenant ensureActive(long tenantId) {
+        Tenant tenant = require(tenantId);
+        if (tenant.status() != TenantStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.TENANT_DISABLED, "tenant is disabled");
+        }
+        return tenant;
+    }
+
     public void assertCanAddUser(long tenantId) {
         Tenant tenant = require(tenantId);
         if (tenant.maxUsers() > 0 && userRepository.count(tenantId) >= tenant.maxUsers()) {
