@@ -178,6 +178,8 @@ docker compose up -d --build
 | POST | `/api/v1/platform/admins/{id}/password` | 重置管理员密码 |
 | POST | `/api/v1/platform/admins/{id}/role` | 调整管理员角色 |
 | GET | `/api/v1/platform/tenants/{id}/usage` | 平台查看租户用量 |
+| GET | `/api/v1/platform/tenants/{id}/export` | 导出租户用户/群/管理员/用量 |
+| DELETE | `/api/v1/platform/tenants/{id}` | 硬删除租户（`confirmCode` 必须等于租户码） |
 | POST | `/api/v1/platform/tenants/{id}/admins/{userId}` | 平台任命租户管理员 |
 | GET / PUT | `/api/v1/users/me` | 查询 / 修改资料 |
 | GET | `/api/v1/users/me/devices` | 设备列表 |
@@ -408,6 +410,14 @@ veryal:
 - **HTTP**：生产 profile 开启 `spring.threads.virtual.enabled=true`，Tomcat 请求使用虚拟线程。
 - **CPU 密集型操作**（JWT 签名、图片压缩、序列化）不会因虚拟线程变快；这类任务应继续受 CPU/有界执行器约束，并优先通过压测确认收益。
 - 虚拟线程不是银弹：数据库连接池、Redis、RabbitMQ 的吞吐仍是瓶颈，建议先做连接数与 P99 压测再调整并发。
+
+### 租户数据导出与删除
+
+- `GET /platform/tenants/{id}/export` 返回租户、用量、用户、群、管理员列表（单次最多 10000 条，不含消息正文）；
+- `DELETE /platform/tenants/{id}` 需 `{"confirmCode":"租户码"}`，仅 `PLATFORM_ADMIN`；
+- 硬删除覆盖：消息/投递/会话/群/文件元数据/上传会话/审计/好友/黑名单/租户管理员/设备/用户/租户；
+- **对象存储中的文件实体不会自动删除**，需由存储生命周期策略清理；
+- 删除操作写平台审计 `TENANT_DELETE`。
 
 ### 租户管理员与用量
 
