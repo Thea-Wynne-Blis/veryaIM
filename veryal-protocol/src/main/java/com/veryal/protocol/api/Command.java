@@ -29,6 +29,8 @@ public enum Command {
     READ_ACK(0x0111, true),
     READ_NOTIFY(0x0112, false),
 
+    FRIEND_NOTIFY(0x0120, false),
+
     ERROR(0x01FF, false);
 
     private static final Map<Integer, Command> BY_CODE;

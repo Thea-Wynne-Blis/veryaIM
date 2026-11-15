@@ -1,17 +1,25 @@
 package com.veryal.application.friend;
 
+import com.veryal.common.core.RandomIds;
 import com.veryal.common.core.TimeProvider;
 import com.veryal.common.exception.BusinessException;
 import com.veryal.common.exception.ErrorCode;
 import com.veryal.common.id.IdGenerator;
+import com.veryal.common.json.JsonUtils;
 import com.veryal.domain.friend.BlacklistRepository;
 import com.veryal.domain.friend.Friend;
+import com.veryal.domain.friend.FriendEvent;
+import com.veryal.domain.friend.FriendEventType;
+import com.veryal.domain.friend.FriendEvents;
+import com.veryal.domain.friend.FriendNotifier;
 import com.veryal.domain.friend.FriendRepository;
 import com.veryal.domain.friend.FriendRequest;
 import com.veryal.domain.friend.FriendRequestRepository;
 import com.veryal.domain.friend.FriendRequestStatus;
 import com.veryal.domain.identity.User;
 import com.veryal.domain.identity.UserRepository;
+import com.veryal.domain.message.outbox.OutboxAppender;
+import com.veryal.domain.message.outbox.OutboxMessage;
 import com.veryal.domain.presence.PresenceRepository;
 import com.veryal.domain.presence.PresenceStatus;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +44,8 @@ public class FriendApplicationService {
     private final BlacklistRepository blacklistRepository;
     private final UserRepository userRepository;
     private final PresenceRepository presenceRepository;
+    private final OutboxAppender outboxAppender;
+    private final FriendNotifier friendNotifier;
     private final IdGenerator idGenerator;
     private final TimeProvider timeProvider;
 
@@ -81,6 +91,7 @@ public class FriendApplicationService {
                     FriendRequestStatus.PENDING, existing.createdAt(), now);
             friendRequestRepository.update(request);
         }
+        publish(tenantId, FriendEventType.REQUEST, request, text, now);
         return view(tenantId, request);
     }
 
@@ -94,6 +105,7 @@ public class FriendApplicationService {
                 request.toUserId(), request.message(), FriendRequestStatus.ACCEPTED,
                 request.createdAt(), now);
         friendRequestRepository.update(accepted);
+        publish(tenantId, FriendEventType.ACCEPTED, accepted, accepted.message(), now);
         return view(tenantId, accepted);
     }
 
@@ -104,6 +116,7 @@ public class FriendApplicationService {
                 request.toUserId(), request.message(), FriendRequestStatus.REJECTED,
                 request.createdAt(), timeProvider.now());
         friendRequestRepository.update(rejected);
+        publish(tenantId, FriendEventType.REJECTED, rejected, rejected.message(), rejected.updatedAt());
         return view(tenantId, rejected);
     }
 
@@ -114,6 +127,7 @@ public class FriendApplicationService {
                 request.toUserId(), request.message(), FriendRequestStatus.CANCELED,
                 request.createdAt(), timeProvider.now());
         friendRequestRepository.update(canceled);
+        publish(tenantId, FriendEventType.CANCELED, canceled, canceled.message(), canceled.updatedAt());
         return view(tenantId, canceled);
     }
 
@@ -204,8 +218,17 @@ public class FriendApplicationService {
         return friendRequestRepository.countPendingIncoming(tenantId, userId);
     }
 
-    private void addFriend(long tenantId, long userId, long friendId, Instant now) {
-        if (friendRepository.find(tenantId, userId, friendId).isPresent()) {
+    private void publish(long tenantId, FriendEventType type, FriendRequest request, String message,
+                         Instant at) {
+        FriendEvent event = new FriendEvent(RandomIds.newId(), tenantId, type, request.id(),
+                request.fromUserId(), request.toUserId(), message, at,
+                List.of(request.fromUserId(), request.toUserId()));
+        outboxAppender.append(new OutboxMessage(event.eventId(), "friend:" + request.id(),
+                FriendEvents.NOTIFY, JsonUtils.toJsonBytes(event), at));
+        friendNotifier.notify(event);
+    }
+
+    private void addFriend(long tenantId, long userId, long friendId, Instant now) {        if (friendRepository.find(tenantId, userId, friendId).isPresent()) {
             return;
         }
         friendRepository.save(new Friend(idGenerator.nextId(), tenantId, userId, friendId, null, now));

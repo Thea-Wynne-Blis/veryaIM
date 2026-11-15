@@ -46,4 +46,8 @@ public class RabbitInstance {
     public String messageRecallQueueName() {
         return RabbitConstants.MESSAGE_RECALL_QUEUE + "." + instanceId;
     }
+
+    public String friendEventQueueName() {
+        return RabbitConstants.FRIEND_EVENT_QUEUE + "." + instanceId;
+    }
 }

@@ -108,6 +108,15 @@ message ReadNotify {
   int64 read_at = 4;
 }
 
+message FriendNotify {
+  uint32 event_type = 1;
+  uint64 request_id = 2;
+  uint64 from_user_id = 3;
+  uint64 to_user_id = 4;
+  string message = 5;
+  int64 at = 6;
+}
+
 // ---------------------------------------------------------------------------
 // 错误
 // ---------------------------------------------------------------------------
