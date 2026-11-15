@@ -45,7 +45,7 @@ public class HeartbeatHandler extends SimpleChannelInboundHandler<ProtocolMessag
         connection.heartbeat(now);
         if (connection.authenticated()) {
             try {
-                sessionService.heartbeat(new AuthenticatedUser(connection.userId(), connection.tenantId(),
+                sessionService.heartbeat(new AuthenticatedUser(connection.userId(),
                         connection.deviceId(), connection.tokenId()), connection.connectionId());
             } catch (RuntimeException e) {
                 log.warn("heartbeat lease renewal failed: connectionId={}", connection.connectionId(), e);

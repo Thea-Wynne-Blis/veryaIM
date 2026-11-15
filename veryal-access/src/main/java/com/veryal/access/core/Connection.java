@@ -24,7 +24,6 @@ public final class Connection {
     private final AtomicLong sequence = new AtomicLong();
 
     private volatile long userId;
-    private volatile long tenantId;
     private volatile String deviceId;
     private volatile String tokenId;
     private volatile Instant lastHeartbeat;
@@ -47,9 +46,8 @@ public final class Connection {
         this.status = ConnectionStatus.AUTHENTICATING;
     }
 
-    public void markOnline(long userId, long tenantId, String deviceId, String tokenId, Instant now) {
+    public void markOnline(long userId, String deviceId, String tokenId, Instant now) {
         this.userId = userId;
-        this.tenantId = tenantId;
         this.deviceId = deviceId;
         this.tokenId = tokenId;
         this.lastHeartbeat = now;
@@ -112,10 +110,6 @@ public final class Connection {
 
     public long userId() {
         return userId;
-    }
-
-    public long tenantId() {
-        return tenantId;
     }
 
     public String deviceId() {

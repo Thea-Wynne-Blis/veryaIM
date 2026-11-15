@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * 已读回执事件。由读游标推进后写入 Outbox，各 Gateway 广播给会话成员的在线连接。
  */
-public record ReadReceiptEvent(String eventId, long tenantId, String conversationId, long readerId,
+public record ReadReceiptEvent(String eventId, String conversationId, long readerId,
                                String readerDeviceId, long readSequence, Instant readAt,
                                List<Long> memberUserIds) {
 
@@ -14,7 +14,7 @@ public record ReadReceiptEvent(String eventId, long tenantId, String conversatio
         if (eventId == null || eventId.isBlank()) {
             throw new IllegalArgumentException("eventId must not be blank");
         }
-        if (tenantId <= 0 || readerId <= 0 || readSequence < 0) {
+        if (readerId <= 0 || readSequence < 0) {
             throw new IllegalArgumentException("invalid read receipt ids/sequence");
         }
         if (conversationId == null || conversationId.isBlank()) {

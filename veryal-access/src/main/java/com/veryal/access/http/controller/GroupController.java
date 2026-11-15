@@ -42,12 +42,12 @@ public class GroupController {
     public ApiResponse<GroupResponse> create(@CurrentUser AuthenticatedUser user,
                                              @Valid @RequestBody CreateGroupRequest request) {
         return ApiResponse.ok(GroupResponse.from(groupApplicationService.create(
-                user.tenantId(), user.userId(), request.name(), request.memberIds())));
+                user.userId(), request.name(), request.memberIds())));
     }
 
     @GetMapping
     public ApiResponse<List<GroupSummaryResponse>> list(@CurrentUser AuthenticatedUser user) {
-        return ApiResponse.ok(groupApplicationService.list(user.tenantId(), user.userId()).stream()
+        return ApiResponse.ok(groupApplicationService.list(user.userId()).stream()
                 .map(GroupSummaryResponse::from)
                 .toList());
     }
@@ -56,7 +56,7 @@ public class GroupController {
     public ApiResponse<GroupResponse> get(@CurrentUser AuthenticatedUser user,
                                           @PathVariable String groupId) {
         return ApiResponse.ok(GroupResponse.from(groupApplicationService.get(
-                user.tenantId(), user.userId(), groupId)));
+                user.userId(), groupId)));
     }
 
     @PostMapping("/{groupId}/members")
@@ -64,7 +64,7 @@ public class GroupController {
                                                  @PathVariable String groupId,
                                                  @Valid @RequestBody AddGroupMembersRequest request) {
         return ApiResponse.ok(GroupResponse.from(groupApplicationService.addMembers(
-                user.tenantId(), user.userId(), groupId, request.userIds())));
+                user.userId(), groupId, request.userIds())));
     }
 
     @PutMapping("/{groupId}")
@@ -72,12 +72,12 @@ public class GroupController {
                                              @PathVariable String groupId,
                                              @Valid @RequestBody UpdateGroupRequest request) {
         return ApiResponse.ok(GroupResponse.from(groupApplicationService.rename(
-                user.tenantId(), user.userId(), groupId, request.name())));
+                user.userId(), groupId, request.name())));
     }
 
     @PostMapping("/{groupId}/leave")
     public ApiResponse<Void> leave(@CurrentUser AuthenticatedUser user, @PathVariable String groupId) {
-        groupApplicationService.leave(user.tenantId(), user.userId(), groupId);
+        groupApplicationService.leave(user.userId(), groupId);
         return ApiResponse.ok();
     }
 
@@ -86,7 +86,7 @@ public class GroupController {
                                            @PathVariable String groupId,
                                            @PathVariable long userId) {
         return ApiResponse.ok(GroupResponse.from(groupApplicationService.kick(
-                user.tenantId(), user.userId(), groupId, userId)));
+                user.userId(), groupId, userId)));
     }
 
     @PutMapping("/{groupId}/members/{userId}/role")
@@ -95,7 +95,7 @@ public class GroupController {
                                                  @PathVariable long userId,
                                                  @Valid @RequestBody GroupRoleRequest request) {
         return ApiResponse.ok(GroupResponse.from(groupApplicationService.changeRole(
-                user.tenantId(), user.userId(), groupId, userId, parseRole(request.role()))));
+                user.userId(), groupId, userId, parseRole(request.role()))));
     }
 
     @PostMapping("/{groupId}/transfer")
@@ -103,13 +103,13 @@ public class GroupController {
                                                @PathVariable String groupId,
                                                @Valid @RequestBody TransferGroupRequest request) {
         return ApiResponse.ok(GroupResponse.from(groupApplicationService.transferOwner(
-                user.tenantId(), user.userId(), groupId, request.newOwnerId())));
+                user.userId(), groupId, request.newOwnerId())));
     }
 
     @DeleteMapping("/{groupId}")
     public ApiResponse<Void> disband(@CurrentUser AuthenticatedUser user,
                                      @PathVariable String groupId) {
-        groupApplicationService.disband(user.tenantId(), user.userId(), groupId);
+        groupApplicationService.disband(user.userId(), groupId);
         return ApiResponse.ok();
     }
 

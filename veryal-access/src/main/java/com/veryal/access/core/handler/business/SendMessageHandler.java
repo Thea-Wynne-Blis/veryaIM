@@ -46,7 +46,7 @@ public class SendMessageHandler implements CommandHandler {
         SendMessageRequest request = context.payload(SendMessageRequest.parser());
         MessageType messageType = MessageType.fromCode(request.getMessageType());
         SendMessageResult result = messageApplicationService.send(new SendMessageCommand(
-                connection.tenantId(), connection.userId(), connection.deviceId(),
+                connection.userId(), connection.deviceId(),
                 request.getConversationId(), request.getClientMessageId(), messageType,
                 request.getContent().toByteArray()));
 

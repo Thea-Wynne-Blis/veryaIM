@@ -10,11 +10,11 @@ public interface FriendRepository {
 
     void save(Friend friend);
 
-    Optional<Friend> find(long tenantId, long userId, long friendId);
+    Optional<Friend> find(long userId, long friendId);
 
-    List<Friend> listByUser(long tenantId, long userId, int limit);
+    List<Friend> listByUser(long userId, int limit);
 
-    void updateRemark(long tenantId, long userId, long friendId, String remark);
+    void updateRemark(long userId, long friendId, String remark);
 
-    void delete(long tenantId, long userId, long friendId);
+    void delete(long userId, long friendId);
 }

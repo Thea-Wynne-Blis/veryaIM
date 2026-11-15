@@ -34,7 +34,7 @@ public interface ConversationRepository {
     void updateMemberCursor(ConversationMember member);
 
     /** 查询用户参与的会话，按更新时间倒序。 */
-    List<Conversation> findByUser(long tenantId, long userId);
+    List<Conversation> findByUser(long userId);
 
     /**
      * 删除会话及其全部成员（解散群使用）。

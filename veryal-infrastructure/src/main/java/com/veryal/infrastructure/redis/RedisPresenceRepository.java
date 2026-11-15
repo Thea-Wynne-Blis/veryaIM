@@ -45,7 +45,7 @@ public class RedisPresenceRepository implements PresenceRepository {
         if (current == null || !current.connectionId().equals(connectionId)) {
             return;
         }
-        PresenceRecord renewed = new PresenceRecord(current.userId(), current.tenantId(), current.deviceId(),
+        PresenceRecord renewed = new PresenceRecord(current.userId(), current.deviceId(),
                 current.gatewayId(), current.connectionId(), now, current.status());
         redisTemplate.opsForHash().put(key, deviceId, JsonUtils.toJson(renewed));
         redisTemplate.expire(key, PRESENCE_TTL);

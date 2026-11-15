@@ -13,7 +13,6 @@ import com.veryal.application.identity.UserProfile;
 import com.veryal.application.message.MessageApplicationService;
 import com.veryal.bootstrap.support.TcpTestClient;
 import com.veryal.common.core.CursorPage;
-import com.veryal.common.core.TenantIds;
 import com.veryal.domain.delivery.DeliveryRepository;
 import com.veryal.domain.message.Message;
 import com.veryal.domain.message.MessageType;
@@ -65,17 +64,12 @@ class TcpGatewayIntegrationTest {
         String suffix = Long.toString(System.nanoTime());
         String aliceName = "tcp_alice_" + suffix;
         String bobName = "tcp_bob_" + suffix;
-        UserProfile alice = authApplicationService.register(TenantIds.DEFAULT_TENANT_ID,
-                new RegisterCommand(aliceName, "password123", "Alice"));
-        UserProfile bob = authApplicationService.register(TenantIds.DEFAULT_TENANT_ID,
-                new RegisterCommand(bobName, "password123", "Bob"));
-        AuthResult aliceLogin = authApplicationService.login(TenantIds.DEFAULT_TENANT_ID,
-                new LoginCommand(aliceName, "password123", "tcp-device-a-" + suffix, "LINUX", "alice"));
-        AuthResult bobLogin = authApplicationService.login(TenantIds.DEFAULT_TENANT_ID,
-                new LoginCommand(bobName, "password123", "tcp-device-b-" + suffix, "LINUX", "bob"));
+        UserProfile alice = authApplicationService.register(new RegisterCommand(aliceName, "password123", "Alice"));
+        UserProfile bob = authApplicationService.register(new RegisterCommand(bobName, "password123", "Bob"));
+        AuthResult aliceLogin = authApplicationService.login(new LoginCommand(aliceName, "password123", "tcp-device-a-" + suffix, "LINUX", "alice"));
+        AuthResult bobLogin = authApplicationService.login(new LoginCommand(bobName, "password123", "tcp-device-b-" + suffix, "LINUX", "bob"));
 
-        String conversationId = conversationApplicationService.createPrivate(TenantIds.DEFAULT_TENANT_ID,
-                alice.userId(), bob.userId()).conversationId();
+        String conversationId = conversationApplicationService.createPrivate(alice.userId(), bob.userId()).conversationId();
 
         int port = tcpGatewayServer.boundPort();
         assertThat(port).isPositive();
@@ -128,8 +122,7 @@ class TcpGatewayIntegrationTest {
                     .setDeliveredSequence(1L)
                     .build());
             awaitDeliveryRecord(Long.parseLong(ack.getServerMessageId()), "tcp-device-b-" + suffix);
-            var deliveries = messageApplicationService.listDeliveries(TenantIds.DEFAULT_TENANT_ID,
-                    bob.userId(), conversationId, Long.parseLong(ack.getServerMessageId()));
+            var deliveries = messageApplicationService.listDeliveries(bob.userId(), conversationId, Long.parseLong(ack.getServerMessageId()));
             assertThat(deliveries).hasSize(1);
             assertThat(deliveries.get(0).deviceId()).isEqualTo("tcp-device-b-" + suffix);
             bobClient.send(Command.READ_ACK, ReadAck.newBuilder()
@@ -160,17 +153,13 @@ class TcpGatewayIntegrationTest {
         String suffix = Long.toString(System.nanoTime());
         String ownerName = "tcp_group_owner_" + suffix;
         String memberName = "tcp_group_member_" + suffix;
-        UserProfile owner = authApplicationService.register(TenantIds.DEFAULT_TENANT_ID,
-                new RegisterCommand(ownerName, "password123", "Owner"));
-        UserProfile member = authApplicationService.register(TenantIds.DEFAULT_TENANT_ID,
-                new RegisterCommand(memberName, "password123", "Member"));
+        UserProfile owner = authApplicationService.register(new RegisterCommand(ownerName, "password123", "Owner"));
+        UserProfile member = authApplicationService.register(new RegisterCommand(memberName, "password123", "Member"));
         String ownerDevice = "tcp-group-owner-" + suffix;
         String memberDevice = "tcp-group-member-" + suffix;
-        AuthResult ownerLogin = authApplicationService.login(TenantIds.DEFAULT_TENANT_ID,
-                new LoginCommand(ownerName, "password123", ownerDevice, "LINUX", "owner"));
-        AuthResult memberLogin = authApplicationService.login(TenantIds.DEFAULT_TENANT_ID,
-                new LoginCommand(memberName, "password123", memberDevice, "LINUX", "member"));
-        GroupView group = groupApplicationService.create(TenantIds.DEFAULT_TENANT_ID, owner.userId(),
+        AuthResult ownerLogin = authApplicationService.login(new LoginCommand(ownerName, "password123", ownerDevice, "LINUX", "owner"));
+        AuthResult memberLogin = authApplicationService.login(new LoginCommand(memberName, "password123", memberDevice, "LINUX", "member"));
+        GroupView group = groupApplicationService.create(owner.userId(),
                 "tcp-group-" + suffix, List.of(member.userId()));
 
         try (TcpTestClient ownerClient = TcpTestClient.connect(tcpGatewayServer.boundPort());
@@ -200,12 +189,11 @@ class TcpGatewayIntegrationTest {
     }
 
     private CursorPage<Message> awaitHistory(String conversationId, UserProfile sender) throws InterruptedException {
-        CursorPage<Message> history = messageApplicationService.history(TenantIds.DEFAULT_TENANT_ID,
-                sender.userId(), conversationId, 0, 10);
+        CursorPage<Message> history = messageApplicationService.history(sender.userId(), conversationId, 0, 10);
         long deadline = System.currentTimeMillis() + 3000;
         while (history.items().isEmpty() && System.currentTimeMillis() < deadline) {
             Thread.sleep(50);
-            history = messageApplicationService.history(TenantIds.DEFAULT_TENANT_ID, sender.userId(),
+            history = messageApplicationService.history(sender.userId(),
                     conversationId, 0, 10);
         }
         return history;

@@ -1,6 +1,5 @@
 package com.veryal.application.ops;
 
-import com.veryal.common.core.TenantIds;
 import com.veryal.domain.group.GroupRepository;
 import com.veryal.domain.identity.UserRepository;
 import com.veryal.domain.message.MessageRepository;
@@ -25,8 +24,8 @@ public class OpsDashboardService {
     @Transactional(readOnly = true)
     public DashboardView dashboard() {
         return new DashboardView(
-                userRepository.count(TenantIds.DEFAULT_TENANT_ID),
-                groupRepository.countByTenant(TenantIds.DEFAULT_TENANT_ID),
+                userRepository.count(),
+                groupRepository.count(),
                 messageRepository.countAll(),
                 reportRepository.countByStatus(ReportStatus.PENDING));
     }

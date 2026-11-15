@@ -28,16 +28,15 @@ public class SyncApplicationService {
     private final ConversationRepository conversationRepository;
 
     @Transactional(readOnly = true)
-    public CursorPage<Message> syncMessages(long tenantId, long userId, String conversationId,
+    public CursorPage<Message> syncMessages(long userId, String conversationId,
                                             long cursor, int limit) {
         Conversation conversation = conversationRepository.findById(conversationId)
-                .filter(item -> item.tenantId() == tenantId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND));
         conversationRepository.findMember(conversation.id(), userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CONVERSATION_MEMBER));
 
         int pageSize = limit <= 0 ? 100 : Math.min(limit, MAX_SYNC_LIMIT);
-        List<Message> messages = messageRepository.pageAfter(tenantId, conversationId, Math.max(cursor, 0), pageSize + 1);
+        List<Message> messages = messageRepository.pageAfter(conversationId, Math.max(cursor, 0), pageSize + 1);
         boolean hasMore = messages.size() > pageSize;
         if (hasMore) {
             messages = messages.subList(0, pageSize);

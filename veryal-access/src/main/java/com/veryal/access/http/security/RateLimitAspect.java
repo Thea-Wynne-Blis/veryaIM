@@ -59,10 +59,6 @@ public class RateLimitAspect {
                 AuthenticatedUser user = findUser(joinPoint.getArgs());
                 yield user == null ? "ip:" + clientIp() : "user:" + user.userId();
             }
-            case TENANT -> {
-                AuthenticatedUser user = findUser(joinPoint.getArgs());
-                yield user == null ? "ip:" + clientIp() : "tenant:" + user.tenantId();
-            }
             case CUSTOM -> throw new IllegalStateException(
                     "@RateLimit(key=...) is required for CUSTOM dimension");
         };

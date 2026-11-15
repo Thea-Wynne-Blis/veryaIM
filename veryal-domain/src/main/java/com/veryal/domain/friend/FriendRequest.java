@@ -5,12 +5,12 @@ import java.time.Instant;
 /**
  * 好友申请。
  */
-public record FriendRequest(long id, long tenantId, long fromUserId, long toUserId,
+public record FriendRequest(long id, long fromUserId, long toUserId,
                             String message, FriendRequestStatus status, Instant createdAt,
                             Instant updatedAt) {
 
     public FriendRequest {
-        if (id <= 0 || tenantId <= 0 || fromUserId <= 0 || toUserId <= 0) {
+        if (id <= 0 || fromUserId <= 0 || toUserId <= 0) {
             throw new IllegalArgumentException("friend request ids must be positive");
         }
         if (fromUserId == toUserId) {

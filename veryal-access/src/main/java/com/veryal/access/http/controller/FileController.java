@@ -56,22 +56,20 @@ public class FileController {
         } catch (IOException e) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "failed to read uploaded file");
         }
-        return ApiResponse.ok(FileResponse.from(fileApplicationService.upload(user.tenantId(),
-                user.userId(), conversationId, file.getOriginalFilename(), file.getContentType(), content)));
+        return ApiResponse.ok(FileResponse.from(fileApplicationService.upload(user.userId(), conversationId, file.getOriginalFilename(), file.getContentType(), content)));
     }
 
     @GetMapping("/{fileId}")
     public ApiResponse<FileResponse> get(@CurrentUser AuthenticatedUser user,
                                          @PathVariable long fileId) {
         return ApiResponse.ok(FileResponse.from(
-                fileApplicationService.get(user.tenantId(), user.userId(), fileId)));
+                fileApplicationService.get(user.userId(), fileId)));
     }
 
     @PostMapping("/uploads")
     public ApiResponse<UploadSessionResponse> initUpload(@CurrentUser AuthenticatedUser user,
                                                          @Valid @RequestBody InitUploadRequest request) {
-        return ApiResponse.ok(UploadSessionResponse.from(chunkedUploadService.init(user.tenantId(),
-                user.userId(), request.filename(), request.contentType(), request.sizeBytes(),
+        return ApiResponse.ok(UploadSessionResponse.from(chunkedUploadService.init(user.userId(), request.filename(), request.contentType(), request.sizeBytes(),
                 request.conversationId())));
     }
 
@@ -82,27 +80,27 @@ public class FileController {
                                                           @PathVariable int index,
                                                           @RequestBody byte[] chunk) {
         return ApiResponse.ok(UploadSessionResponse.from(chunkedUploadService.uploadChunk(
-                user.tenantId(), user.userId(), uploadId, index, chunk)));
+                user.userId(), uploadId, index, chunk)));
     }
 
     @GetMapping("/uploads/{uploadId}")
     public ApiResponse<UploadSessionResponse> uploadStatus(@CurrentUser AuthenticatedUser user,
                                                            @PathVariable long uploadId) {
         return ApiResponse.ok(UploadSessionResponse.from(chunkedUploadService.status(
-                user.tenantId(), user.userId(), uploadId)));
+                user.userId(), uploadId)));
     }
 
     @PostMapping("/uploads/{uploadId}/complete")
     public ApiResponse<FileResponse> completeUpload(@CurrentUser AuthenticatedUser user,
                                                     @PathVariable long uploadId) {
         return ApiResponse.ok(FileResponse.from(chunkedUploadService.complete(
-                user.tenantId(), user.userId(), uploadId)));
+                user.userId(), uploadId)));
     }
 
     @DeleteMapping("/uploads/{uploadId}")
     public ApiResponse<Void> cancelUpload(@CurrentUser AuthenticatedUser user,
                                           @PathVariable long uploadId) {
-        chunkedUploadService.cancel(user.tenantId(), user.userId(), uploadId);
+        chunkedUploadService.cancel(user.userId(), uploadId);
         return ApiResponse.ok();
     }
 
@@ -110,7 +108,7 @@ public class FileController {
     public ResponseEntity<byte[]> download(@CurrentUser AuthenticatedUser user,
                                            @PathVariable long fileId) {
         FileApplicationService.FileContent content = fileApplicationService.download(
-                user.tenantId(), user.userId(), fileId);
+                user.userId(), fileId);
         MediaType mediaType;
         try {
             mediaType = MediaType.parseMediaType(content.file().contentType());
@@ -131,7 +129,7 @@ public class FileController {
                                             @PathVariable long fileId,
                                             @RequestParam(defaultValue = "600") long ttlSeconds) {
         long ttl = Math.max(1, Math.min(MAX_URL_TTL_SECONDS, ttlSeconds));
-        String url = fileApplicationService.presignedUrl(user.tenantId(), user.userId(), fileId,
+        String url = fileApplicationService.presignedUrl(user.userId(), fileId,
                 Duration.ofSeconds(ttl));
         if (url == null) {
             return ApiResponse.ok(new FileUrlResponse("/api/v1/files/" + fileId + "/content", 0));
@@ -142,7 +140,7 @@ public class FileController {
     @DeleteMapping("/{fileId}")
     public ApiResponse<Void> delete(@CurrentUser AuthenticatedUser user,
                                     @PathVariable long fileId) {
-        fileApplicationService.delete(user.tenantId(), user.userId(), fileId);
+        fileApplicationService.delete(user.userId(), fileId);
         return ApiResponse.ok();
     }
 }

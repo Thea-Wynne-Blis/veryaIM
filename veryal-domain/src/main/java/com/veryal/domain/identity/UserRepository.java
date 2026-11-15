@@ -10,19 +10,19 @@ public interface UserRepository {
 
     Optional<User> findById(long userId);
 
-    Optional<User> findByUsername(long tenantId, String username);
+    Optional<User> findByUsername(String username);
 
-    boolean existsByUsername(long tenantId, String username);
+    boolean existsByUsername(String username);
 
     void save(User user);
 
     void update(User user);
 
-    long count(long tenantId);
+    long count();
 
-    List<User> findByTenant(long tenantId, int limit);
+    List<User> findAll(int limit);
 
-    List<User> search(long tenantId, String keyword, int limit);
+    List<User> search(String keyword, int limit);
 
-    List<User> searchAll(long tenantId, String keyword, int limit);
+    List<User> searchAll(String keyword, int limit);
 }

@@ -1,7 +1,6 @@
 package com.veryal.infrastructure.mysql.repository;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.veryal.common.core.TenantIds;
 import com.veryal.domain.file.FileRepository;
 import com.veryal.domain.file.FileStatus;
 import com.veryal.domain.file.StorageType;
@@ -43,14 +42,14 @@ public class MyBatisFileRepository implements FileRepository {
     }
 
     @Override
-    public Optional<StoredFile> findById(long tenantId, long fileId) {
+    public Optional<StoredFile> findById(long fileId) {
         FilePO po = fileMapper.selectOne(Wrappers.<FilePO>lambdaQuery()
                 .eq(FilePO::getId, fileId));
         return Optional.ofNullable(po).map(this::toDomain);
     }
 
     @Override
-    public void markDeleted(long tenantId, long fileId, Instant deletedAt) {
+    public void markDeleted(long fileId, Instant deletedAt) {
         fileMapper.update(null, Wrappers.<FilePO>lambdaUpdate()
                 .eq(FilePO::getId, fileId)
                 .set(FilePO::getStatus, FileStatus.DELETED.code())
@@ -58,12 +57,12 @@ public class MyBatisFileRepository implements FileRepository {
     }
 
     @Override
-    public long totalBytes(long tenantId) {
+    public long totalBytes() {
         return fileMapper.selectTotalBytes();
     }
 
     private StoredFile toDomain(FilePO po) {
-        return new StoredFile(po.id, TenantIds.DEFAULT_TENANT_ID, po.uploaderId, po.objectKey,
+        return new StoredFile(po.id, po.uploaderId, po.objectKey,
                 po.originalName, po.contentType, po.sizeBytes, po.sha256,
                 StorageType.valueOf(po.storageType),
                 FileStatus.fromCode(po.status), SqlTime.toInstant(po.createdAt),

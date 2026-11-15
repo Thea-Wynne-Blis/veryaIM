@@ -5,7 +5,6 @@ import com.veryal.access.http.dto.AuthResponse;
 import com.veryal.access.http.dto.GroupResponse;
 import com.veryal.access.http.dto.UserResponse;
 import com.veryal.common.core.ApiResponse;
-import com.veryal.common.core.TenantIds;
 import com.veryal.domain.audit.AuditLog;
 import com.veryal.domain.audit.AuditRepository;
 import org.junit.jupiter.api.Test;
@@ -55,12 +54,10 @@ class AuditIntegrationTest {
                 ownerLogin.token(), new ParameterizedTypeReference<ApiResponse<GroupResponse>>() {
                 });
 
-        List<AuditLog> logs = auditRepository.findByOperator(TenantIds.DEFAULT_TENANT_ID,
-                owner.userId(), 20);
+        List<AuditLog> logs = auditRepository.findByOperator(owner.userId(), 20);
         assertThat(logs).extracting(AuditLog::action)
                 .contains("LOGIN", "GROUP_CREATE", "GROUP_MEMBER_REMOVE");
-        assertThat(logs).allMatch(log -> log.tenantId() == TenantIds.DEFAULT_TENANT_ID
-                && log.operatorId() == owner.userId());
+        assertThat(logs).allMatch(log -> log.operatorId() == owner.userId());
 
         ResponseEntity<ApiResponse<List<AuditLogResponse>>> endpoint = rest.exchange(
                 "/api/v1/users/me/audit-logs?limit=20", HttpMethod.GET,

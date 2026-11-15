@@ -26,10 +26,10 @@ public class AuditRecorder {
     private final TimeProvider timeProvider;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void record(long tenantId, long operatorId, AuditAction action, String targetType,
+    public void record(long operatorId, AuditAction action, String targetType,
                        String targetId, String detail) {
         try {
-            auditRepository.append(new AuditLog(idGenerator.nextId(), tenantId, operatorId,
+            auditRepository.append(new AuditLog(idGenerator.nextId(), operatorId,
                     action.name(), targetType, targetId, detail, timeProvider.now()));
         } catch (RuntimeException e) {
             log.warn("audit record failed: action={}, operator={}, target={}:{}", action, operatorId,

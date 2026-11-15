@@ -9,7 +9,7 @@ public interface UploadRepository {
 
     void save(UploadSession session);
 
-    Optional<UploadSession> findById(long tenantId, long uploadId);
+    Optional<UploadSession> findById(long uploadId);
 
-    void markStatus(long tenantId, long uploadId, UploadStatus status, Long fileId);
+    void markStatus(long uploadId, UploadStatus status, Long fileId);
 }

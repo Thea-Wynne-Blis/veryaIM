@@ -34,19 +34,19 @@ public class GroupModerationService {
     private final GroupRepository groupRepository;
     private final TimeProvider timeProvider;
 
-    public ModerationView get(long tenantId, long userId, String groupId) {
-        Group group = requireGroup(tenantId, groupId);
+    public ModerationView get(long userId, String groupId) {
+        Group group = requireGroup(groupId);
         requireMember(groupId, userId);
         GroupSetting setting = moderationRepository.findSetting(groupId)
-                .orElse(GroupSetting.empty(groupId, tenantId));
+                .orElse(GroupSetting.empty(groupId));
         Instant mutedUntil = moderationRepository.findMutedUntil(groupId, userId).orElse(null);
         return new ModerationView(groupId, setting.announcement(), setting.muteAll(), mutedUntil);
     }
 
     @Transactional
-    public ModerationView updateAnnouncement(long tenantId, long operatorId, String groupId,
+    public ModerationView updateAnnouncement(long operatorId, String groupId,
                                              String announcement) {
-        Group group = requireGroup(tenantId, groupId);
+        Group group = requireGroup(groupId);
         requireManager(group, operatorId);
         String value = announcement == null ? "" : announcement.trim();
         if (value.length() > MAX_ANNOUNCEMENT) {
@@ -54,8 +54,8 @@ public class GroupModerationService {
                     "announcement too long (max " + MAX_ANNOUNCEMENT + ")");
         }
         GroupSetting current = moderationRepository.findSetting(groupId)
-                .orElse(GroupSetting.empty(groupId, tenantId));
-        GroupSetting updated = new GroupSetting(groupId, tenantId, value.isEmpty() ? null : value,
+                .orElse(GroupSetting.empty(groupId));
+        GroupSetting updated = new GroupSetting(groupId, value.isEmpty() ? null : value,
                 current.muteAll(), timeProvider.now(), operatorId);
         moderationRepository.saveSetting(updated);
         return new ModerationView(groupId, updated.announcement(), updated.muteAll(),
@@ -63,13 +63,13 @@ public class GroupModerationService {
     }
 
     @Transactional
-    public ModerationView setMuteAll(long tenantId, long operatorId, String groupId,
+    public ModerationView setMuteAll(long operatorId, String groupId,
                                      boolean muteAll) {
-        Group group = requireGroup(tenantId, groupId);
+        Group group = requireGroup(groupId);
         requireManager(group, operatorId);
         GroupSetting current = moderationRepository.findSetting(groupId)
-                .orElse(GroupSetting.empty(groupId, tenantId));
-        GroupSetting updated = new GroupSetting(groupId, tenantId, current.announcement(), muteAll,
+                .orElse(GroupSetting.empty(groupId));
+        GroupSetting updated = new GroupSetting(groupId, current.announcement(), muteAll,
                 timeProvider.now(), operatorId);
         moderationRepository.saveSetting(updated);
         return new ModerationView(groupId, updated.announcement(), updated.muteAll(),
@@ -77,9 +77,9 @@ public class GroupModerationService {
     }
 
     @Transactional
-    public ModerationView muteMember(long tenantId, long operatorId, String groupId, long targetId,
+    public ModerationView muteMember(long operatorId, String groupId, long targetId,
                                      int minutes) {
-        Group group = requireGroup(tenantId, groupId);
+        Group group = requireGroup(groupId);
         GroupMember operator = requireManager(group, operatorId);
         GroupMember target = requireMember(groupId, targetId);
         if (targetId == group.ownerId()) {
@@ -104,11 +104,11 @@ public class GroupModerationService {
                 moderationRepository.findMutedUntil(groupId, targetId).orElse(null));
     }
 
-    public void ensureCanSend(long tenantId, String groupId, long senderId) {
-        Group group = requireGroup(tenantId, groupId);
+    public void ensureCanSend(String groupId, long senderId) {
+        Group group = requireGroup(groupId);
         GroupMember sender = requireMember(groupId, senderId);
         GroupSetting setting = moderationRepository.findSetting(groupId)
-                .orElse(GroupSetting.empty(groupId, tenantId));
+                .orElse(GroupSetting.empty(groupId));
         if (setting.muteAll() && !sender.role().manager()) {
             throw new BusinessException(ErrorCode.GROUP_MUTED, "group is muted");
         }
@@ -159,9 +159,8 @@ public class GroupModerationService {
         }
     }
 
-    private Group requireGroup(long tenantId, String groupId) {
+    private Group requireGroup(String groupId) {
         return groupRepository.findById(groupId)
-                .filter(group -> group.tenantId() == tenantId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND));
     }
 

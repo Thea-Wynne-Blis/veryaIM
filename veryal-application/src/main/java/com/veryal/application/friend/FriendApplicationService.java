@@ -52,17 +52,17 @@ public class FriendApplicationService {
     private final TimeProvider timeProvider;
 
     @Transactional
-    public FriendRequestView sendRequest(long tenantId, long fromUserId, long toUserId, String message) {
+    public FriendRequestView sendRequest(long fromUserId, long toUserId, String message) {
         if (fromUserId == toUserId) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "cannot add yourself as friend");
         }
-        User target = requireUser(tenantId, toUserId);
+        User target = requireUser(toUserId);
         target.ensureActive();
-        if (friendRepository.find(tenantId, fromUserId, toUserId).isPresent()) {
+        if (friendRepository.find(fromUserId, toUserId).isPresent()) {
             throw new BusinessException(ErrorCode.ALREADY_FRIEND);
         }
-        if (blacklistRepository.exists(tenantId, toUserId, fromUserId)
-                || blacklistRepository.exists(tenantId, fromUserId, toUserId)) {
+        if (blacklistRepository.exists(toUserId, fromUserId)
+                || blacklistRepository.exists(fromUserId, toUserId)) {
             throw new BusinessException(ErrorCode.USER_BLOCKED);
         }
         userSocialService.ensureCanAddFriend(toUserId);
@@ -75,95 +75,95 @@ public class FriendApplicationService {
         Instant now = timeProvider.now();
 
         if (policy == com.veryal.domain.identity.UserPrivacy.FriendPolicy.DIRECT) {
-            cancelPending(tenantId, toUserId, fromUserId);
-            addFriend(tenantId, fromUserId, toUserId, now);
-            addFriend(tenantId, toUserId, fromUserId, now);
-            FriendRequest accepted = new FriendRequest(idGenerator.nextId(), tenantId, fromUserId,
+            cancelPending(toUserId, fromUserId);
+            addFriend(fromUserId, toUserId, now);
+            addFriend(toUserId, fromUserId, now);
+            FriendRequest accepted = new FriendRequest(idGenerator.nextId(), fromUserId,
                     toUserId, text, FriendRequestStatus.ACCEPTED, now, now);
             friendRequestRepository.save(accepted);
-            publish(tenantId, FriendEventType.ACCEPTED, accepted, text, now);
-            return view(tenantId, accepted);
+            publish(FriendEventType.ACCEPTED, accepted, text, now);
+            return view(accepted);
         }
 
-        FriendRequest reverse = friendRequestRepository.findBetween(tenantId, toUserId, fromUserId)
+        FriendRequest reverse = friendRequestRepository.findBetween(toUserId, fromUserId)
                 .filter(item -> item.status() == FriendRequestStatus.PENDING).orElse(null);
         if (reverse != null) {
             throw new BusinessException(ErrorCode.FRIEND_REQUEST_EXISTS,
                     "reverse pending request exists, accept it instead");
         }
 
-        FriendRequest existing = friendRequestRepository.findBetween(tenantId, fromUserId, toUserId)
+        FriendRequest existing = friendRequestRepository.findBetween(fromUserId, toUserId)
                 .orElse(null);
         if (existing != null && existing.status() == FriendRequestStatus.PENDING) {
             throw new BusinessException(ErrorCode.FRIEND_REQUEST_EXISTS);
         }
         FriendRequest request;
         if (existing == null) {
-            request = new FriendRequest(idGenerator.nextId(), tenantId, fromUserId, toUserId, text,
+            request = new FriendRequest(idGenerator.nextId(), fromUserId, toUserId, text,
                     FriendRequestStatus.PENDING, now, now);
             friendRequestRepository.save(request);
         } else {
-            request = new FriendRequest(existing.id(), tenantId, fromUserId, toUserId, text,
+            request = new FriendRequest(existing.id(), fromUserId, toUserId, text,
                     FriendRequestStatus.PENDING, existing.createdAt(), now);
             friendRequestRepository.update(request);
         }
-        publish(tenantId, FriendEventType.REQUEST, request, text, now);
-        return view(tenantId, request);
+        publish(FriendEventType.REQUEST, request, text, now);
+        return view(request);
     }
 
     @Transactional
-    public FriendRequestView accept(long tenantId, long userId, long requestId) {
-        FriendRequest request = requireRequest(tenantId, userId, requestId, true);
+    public FriendRequestView accept(long userId, long requestId) {
+        FriendRequest request = requireRequest(userId, requestId, true);
         Instant now = timeProvider.now();
-        addFriend(tenantId, request.fromUserId(), request.toUserId(), now);
-        addFriend(tenantId, request.toUserId(), request.fromUserId(), now);
-        FriendRequest accepted = new FriendRequest(request.id(), tenantId, request.fromUserId(),
+        addFriend(request.fromUserId(), request.toUserId(), now);
+        addFriend(request.toUserId(), request.fromUserId(), now);
+        FriendRequest accepted = new FriendRequest(request.id(), request.fromUserId(),
                 request.toUserId(), request.message(), FriendRequestStatus.ACCEPTED,
                 request.createdAt(), now);
         friendRequestRepository.update(accepted);
-        publish(tenantId, FriendEventType.ACCEPTED, accepted, accepted.message(), now);
-        return view(tenantId, accepted);
+        publish(FriendEventType.ACCEPTED, accepted, accepted.message(), now);
+        return view(accepted);
     }
 
     @Transactional
-    public FriendRequestView reject(long tenantId, long userId, long requestId) {
-        FriendRequest request = requireRequest(tenantId, userId, requestId, true);
-        FriendRequest rejected = new FriendRequest(request.id(), tenantId, request.fromUserId(),
+    public FriendRequestView reject(long userId, long requestId) {
+        FriendRequest request = requireRequest(userId, requestId, true);
+        FriendRequest rejected = new FriendRequest(request.id(), request.fromUserId(),
                 request.toUserId(), request.message(), FriendRequestStatus.REJECTED,
                 request.createdAt(), timeProvider.now());
         friendRequestRepository.update(rejected);
-        publish(tenantId, FriendEventType.REJECTED, rejected, rejected.message(), rejected.updatedAt());
-        return view(tenantId, rejected);
+        publish(FriendEventType.REJECTED, rejected, rejected.message(), rejected.updatedAt());
+        return view(rejected);
     }
 
     @Transactional
-    public FriendRequestView cancel(long tenantId, long userId, long requestId) {
-        FriendRequest request = requireRequest(tenantId, userId, requestId, false);
-        FriendRequest canceled = new FriendRequest(request.id(), tenantId, request.fromUserId(),
+    public FriendRequestView cancel(long userId, long requestId) {
+        FriendRequest request = requireRequest(userId, requestId, false);
+        FriendRequest canceled = new FriendRequest(request.id(), request.fromUserId(),
                 request.toUserId(), request.message(), FriendRequestStatus.CANCELED,
                 request.createdAt(), timeProvider.now());
         friendRequestRepository.update(canceled);
-        publish(tenantId, FriendEventType.CANCELED, canceled, canceled.message(), canceled.updatedAt());
-        return view(tenantId, canceled);
+        publish(FriendEventType.CANCELED, canceled, canceled.message(), canceled.updatedAt());
+        return view(canceled);
     }
 
     @Transactional(readOnly = true)
-    public List<FriendRequestView> incoming(long tenantId, long userId, int limit) {
-        return friendRequestRepository.listIncoming(tenantId, userId, limit(limit)).stream()
-                .map(item -> view(tenantId, item))
+    public List<FriendRequestView> incoming(long userId, int limit) {
+        return friendRequestRepository.listIncoming(userId, limit(limit)).stream()
+                .map(item -> view(item))
                 .toList();
     }
 
     @Transactional(readOnly = true)
-    public List<FriendRequestView> outgoing(long tenantId, long userId, int limit) {
-        return friendRequestRepository.listOutgoing(tenantId, userId, limit(limit)).stream()
-                .map(item -> view(tenantId, item))
+    public List<FriendRequestView> outgoing(long userId, int limit) {
+        return friendRequestRepository.listOutgoing(userId, limit(limit)).stream()
+                .map(item -> view(item))
                 .toList();
     }
 
     @Transactional(readOnly = true)
-    public List<FriendView> listFriends(long tenantId, long userId) {
-        return friendRepository.listByUser(tenantId, userId, MAX_LIST_SIZE).stream()
+    public List<FriendView> listFriends(long userId) {
+        return friendRepository.listByUser(userId, MAX_LIST_SIZE).stream()
                 .map(friend -> {
                     User user = userRepository.findById(friend.friendId()).orElse(null);
                     String nickname = user == null ? "" : user.nickname();
@@ -175,50 +175,50 @@ public class FriendApplicationService {
     }
 
     @Transactional
-    public void updateRemark(long tenantId, long userId, long friendId, String remark) {
-        friendRepository.find(tenantId, userId, friendId)
+    public void updateRemark(long userId, long friendId, String remark) {
+        friendRepository.find(userId, friendId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.FRIEND_REQUEST_NOT_FOUND,
                         "friend not found"));
         String value = remark == null ? null : remark.trim();
         if (value != null && value.length() > 64) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "remark is too long");
         }
-        friendRepository.updateRemark(tenantId, userId, friendId, value);
+        friendRepository.updateRemark(userId, friendId, value);
     }
 
     @Transactional
-    public void deleteFriend(long tenantId, long userId, long friendId) {
-        friendRepository.delete(tenantId, userId, friendId);
-        friendRepository.delete(tenantId, friendId, userId);
+    public void deleteFriend(long userId, long friendId) {
+        friendRepository.delete(userId, friendId);
+        friendRepository.delete(friendId, userId);
     }
 
     @Transactional
-    public void block(long tenantId, long userId, long blockedUserId) {
+    public void block(long userId, long blockedUserId) {
         if (userId == blockedUserId) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "cannot block yourself");
         }
-        requireUser(tenantId, blockedUserId);
-        if (!blacklistRepository.exists(tenantId, userId, blockedUserId)) {
-            blacklistRepository.save(tenantId, userId, blockedUserId);
+        requireUser(blockedUserId);
+        if (!blacklistRepository.exists(userId, blockedUserId)) {
+            blacklistRepository.save(userId, blockedUserId);
         }
-        friendRepository.delete(tenantId, userId, blockedUserId);
-        friendRepository.delete(tenantId, blockedUserId, userId);
-        cancelPending(tenantId, userId, blockedUserId);
-        cancelPending(tenantId, blockedUserId, userId);
-        publishRaw(tenantId, FriendEventType.BLOCKED, 0L, userId, blockedUserId, null,
+        friendRepository.delete(userId, blockedUserId);
+        friendRepository.delete(blockedUserId, userId);
+        cancelPending(userId, blockedUserId);
+        cancelPending(blockedUserId, userId);
+        publishRaw(FriendEventType.BLOCKED, 0L, userId, blockedUserId, null,
                 timeProvider.now());
     }
 
     @Transactional
-    public void unblock(long tenantId, long userId, long blockedUserId) {
-        blacklistRepository.delete(tenantId, userId, blockedUserId);
-        publishRaw(tenantId, FriendEventType.UNBLOCKED, 0L, userId, blockedUserId, null,
+    public void unblock(long userId, long blockedUserId) {
+        blacklistRepository.delete(userId, blockedUserId);
+        publishRaw(FriendEventType.UNBLOCKED, 0L, userId, blockedUserId, null,
                 timeProvider.now());
     }
 
     @Transactional(readOnly = true)
-    public List<BlockedUserView> listBlocked(long tenantId, long userId) {
-        return blacklistRepository.list(tenantId, userId, MAX_LIST_SIZE).stream()
+    public List<BlockedUserView> listBlocked(long userId) {
+        return blacklistRepository.list(userId, MAX_LIST_SIZE).stream()
                 .map(id -> {
                     User user = userRepository.findById(id).orElse(null);
                     return new BlockedUserView(id, user == null ? "" : user.nickname(),
@@ -230,45 +230,45 @@ public class FriendApplicationService {
     /**
      * 私聊发送校验：接收者把发送者拉黑时拒绝。
      */
-    public boolean blocked(long tenantId, long userId, long otherUserId) {
-        return blacklistRepository.exists(tenantId, otherUserId, userId);
+    public boolean blocked(long userId, long otherUserId) {
+        return blacklistRepository.exists(otherUserId, userId);
     }
 
-    public long pendingIncoming(long tenantId, long userId) {
-        return friendRequestRepository.countPendingIncoming(tenantId, userId);
+    public long pendingIncoming(long userId) {
+        return friendRequestRepository.countPendingIncoming(userId);
     }
 
-    private void publish(long tenantId, FriendEventType type, FriendRequest request, String message,
+    private void publish(FriendEventType type, FriendRequest request, String message,
                          Instant at) {
-        publishRaw(tenantId, type, request.id(), request.fromUserId(), request.toUserId(),
+        publishRaw(type, request.id(), request.fromUserId(), request.toUserId(),
                 message, at);
     }
 
-    private void publishRaw(long tenantId, FriendEventType type, long requestId, long fromUserId,
+    private void publishRaw(FriendEventType type, long requestId, long fromUserId,
                             long toUserId, String message, Instant at) {
-        FriendEvent event = new FriendEvent(RandomIds.newId(), tenantId, type, requestId,
+        FriendEvent event = new FriendEvent(RandomIds.newId(), type, requestId,
                 fromUserId, toUserId, message, at, List.of(fromUserId, toUserId));
         outboxAppender.append(new OutboxMessage(event.eventId(), "friend:" + requestId,
                 FriendEvents.NOTIFY, JsonUtils.toJsonBytes(event), at));
         friendNotifier.notify(event);
     }
 
-    private void addFriend(long tenantId, long userId, long friendId, Instant now) {        if (friendRepository.find(tenantId, userId, friendId).isPresent()) {
+    private void addFriend(long userId, long friendId, Instant now) {        if (friendRepository.find(userId, friendId).isPresent()) {
             return;
         }
-        friendRepository.save(new Friend(idGenerator.nextId(), tenantId, userId, friendId, null, now));
+        friendRepository.save(new Friend(idGenerator.nextId(), userId, friendId, null, now));
     }
 
-    private void cancelPending(long tenantId, long fromUserId, long toUserId) {
-        friendRequestRepository.findBetween(tenantId, fromUserId, toUserId)
+    private void cancelPending(long fromUserId, long toUserId) {
+        friendRequestRepository.findBetween(fromUserId, toUserId)
                 .filter(item -> item.status() == FriendRequestStatus.PENDING)
-                .ifPresent(item -> friendRequestRepository.update(new FriendRequest(item.id(), tenantId,
+                .ifPresent(item -> friendRequestRepository.update(new FriendRequest(item.id(),
                         item.fromUserId(), item.toUserId(), item.message(),
                         FriendRequestStatus.CANCELED, item.createdAt(), timeProvider.now())));
     }
 
-    private FriendRequest requireRequest(long tenantId, long userId, long requestId, boolean incoming) {
-        FriendRequest request = friendRequestRepository.findById(tenantId, requestId)
+    private FriendRequest requireRequest(long userId, long requestId, boolean incoming) {
+        FriendRequest request = friendRequestRepository.findById(requestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.FRIEND_REQUEST_NOT_FOUND));
         long owner = incoming ? request.toUserId() : request.fromUserId();
         if (owner != userId) {
@@ -280,7 +280,7 @@ public class FriendApplicationService {
         return request;
     }
 
-    private FriendRequestView view(long tenantId, FriendRequest request) {
+    private FriendRequestView view(FriendRequest request) {
         String fromNickname = userRepository.findById(request.fromUserId())
                 .map(User::nickname).orElse("");
         String toNickname = userRepository.findById(request.toUserId())
@@ -288,9 +288,8 @@ public class FriendApplicationService {
         return FriendRequestView.of(request, fromNickname, toNickname);
     }
 
-    private User requireUser(long tenantId, long userId) {
+    private User requireUser(long userId) {
         return userRepository.findById(userId)
-                .filter(user -> user.tenantId() == tenantId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
     }
 

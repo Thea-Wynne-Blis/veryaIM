@@ -1,6 +1,5 @@
 package com.veryal.infrastructure.mysql.repository;
 
-import com.veryal.common.core.TenantIds;
 import com.veryal.domain.group.GroupModerationRepository;
 import com.veryal.domain.group.GroupSetting;
 import com.veryal.infrastructure.mysql.SqlTime;
@@ -25,8 +24,7 @@ public class MyBatisGroupModerationRepository implements GroupModerationReposito
     @Override
     public Optional<GroupSetting> findSetting(String groupId) {
         GroupSettingPO po = moderationMapper.selectSetting(groupId);
-        return Optional.ofNullable(po).map(item -> new GroupSetting(item.groupId,
-                TenantIds.DEFAULT_TENANT_ID, item.announcement, item.muteAll == 1,
+        return Optional.ofNullable(po).map(item -> new GroupSetting(item.groupId, item.announcement, item.muteAll == 1,
                 SqlTime.toInstant(item.updatedAt), item.updatedBy));
     }
 

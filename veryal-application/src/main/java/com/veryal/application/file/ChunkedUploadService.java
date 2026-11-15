@@ -41,7 +41,7 @@ public class ChunkedUploadService {
     private final IdGenerator idGenerator;
     private final TimeProvider timeProvider;
 
-    public UploadSessionView init(long tenantId, long uploaderId, String filename, String contentType,
+    public UploadSessionView init(long uploaderId, String filename, String contentType,
                                   long sizeBytes, String conversationId) {
         if (sizeBytes <= 0) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "sizeBytes must be positive");
@@ -56,7 +56,7 @@ public class ChunkedUploadService {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "invalid chunk count");
         }
         long uploadId = idGenerator.nextId();
-        UploadSession session = new UploadSession(uploadId, tenantId, uploaderId,
+        UploadSession session = new UploadSession(uploadId, uploaderId,
                 sanitizeName(filename), normalizeType(contentType), sizeBytes, chunkSize, totalChunks,
                 blankToNull(conversationId), UploadStatus.ACTIVE, timeProvider.now(), null);
         uploadRepository.save(session);
@@ -68,9 +68,9 @@ public class ChunkedUploadService {
         return view(session);
     }
 
-    public UploadSessionView uploadChunk(long tenantId, long uploaderId, long uploadId, int index,
+    public UploadSessionView uploadChunk(long uploaderId, long uploadId, int index,
                                          byte[] chunk) {
-        UploadSession session = requireActive(tenantId, uploaderId, uploadId);
+        UploadSession session = requireActive(uploaderId, uploadId);
         if (index < 0 || index >= session.totalChunks()) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "chunk index out of range");
         }
@@ -92,13 +92,13 @@ public class ChunkedUploadService {
         return view(session);
     }
 
-    public UploadSessionView status(long tenantId, long uploaderId, long uploadId) {
-        UploadSession session = requireOwned(tenantId, uploaderId, uploadId);
+    public UploadSessionView status(long uploaderId, long uploadId) {
+        UploadSession session = requireOwned(uploaderId, uploadId);
         return view(session);
     }
 
-    public FileView complete(long tenantId, long uploaderId, long uploadId) {
-        UploadSession session = requireActive(tenantId, uploaderId, uploadId);
+    public FileView complete(long uploaderId, long uploadId) {
+        UploadSession session = requireActive(uploaderId, uploadId);
         List<Integer> uploaded = uploadedIndices(uploadId);
         if (uploaded.size() != session.totalChunks()) {
             throw new BusinessException(ErrorCode.CONFLICT,
@@ -123,35 +123,35 @@ public class ChunkedUploadService {
         if (content.length != session.sizeBytes()) {
             throw new BusinessException(ErrorCode.CONFLICT, "assembled size mismatch");
         }
-        FileView file = fileApplicationService.store(tenantId, uploaderId, session.conversationId(),
+        FileView file = fileApplicationService.store(uploaderId, session.conversationId(),
                 session.filename(), session.contentType(), content);
-        uploadRepository.markStatus(tenantId, uploadId, UploadStatus.COMPLETED, file.fileId());
+        uploadRepository.markStatus(uploadId, UploadStatus.COMPLETED, file.fileId());
         cleanup(uploadId);
         return file;
     }
 
-    public void cancel(long tenantId, long uploaderId, long uploadId) {
-        UploadSession session = requireOwned(tenantId, uploaderId, uploadId);
+    public void cancel(long uploaderId, long uploadId) {
+        UploadSession session = requireOwned(uploaderId, uploadId);
         if (session.status() == UploadStatus.CANCELED) {
             return;
         }
         if (session.status() == UploadStatus.COMPLETED) {
             throw new BusinessException(ErrorCode.CONFLICT, "upload already completed");
         }
-        uploadRepository.markStatus(tenantId, uploadId, UploadStatus.CANCELED, null);
+        uploadRepository.markStatus(uploadId, UploadStatus.CANCELED, null);
         cleanup(uploadId);
     }
 
-    private UploadSession requireActive(long tenantId, long uploaderId, long uploadId) {
-        UploadSession session = requireOwned(tenantId, uploaderId, uploadId);
+    private UploadSession requireActive(long uploaderId, long uploadId) {
+        UploadSession session = requireOwned(uploaderId, uploadId);
         if (session.status() != UploadStatus.ACTIVE) {
             throw new BusinessException(ErrorCode.CONFLICT, "upload session is not active");
         }
         return session;
     }
 
-    private UploadSession requireOwned(long tenantId, long uploaderId, long uploadId) {
-        UploadSession session = uploadRepository.findById(tenantId, uploadId)
+    private UploadSession requireOwned(long uploaderId, long uploadId) {
+        UploadSession session = uploadRepository.findById(uploadId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "upload session not found"));
         if (session.uploaderId() != uploaderId) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "upload session does not belong to user");

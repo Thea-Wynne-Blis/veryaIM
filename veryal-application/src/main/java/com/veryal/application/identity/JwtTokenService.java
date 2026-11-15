@@ -4,7 +4,6 @@ import com.veryal.common.exception.AuthenticationException;
 import com.veryal.common.exception.ErrorCode;
 import com.veryal.common.json.JsonUtils;
 import com.veryal.common.core.RandomIds;
-import com.veryal.common.core.TenantIds;
 import com.veryal.common.core.TimeProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -80,8 +79,7 @@ public class JwtTokenService {
             throw new AuthenticationException(ErrorCode.TOKEN_EXPIRED, "token expired");
         }
         try {
-            return new AuthenticatedUser(Long.parseLong(claims.sub()),
-                    TenantIds.DEFAULT_TENANT_ID, claims.did(), claims.jti());
+            return new AuthenticatedUser(Long.parseLong(claims.sub()), claims.did(), claims.jti());
         } catch (NumberFormatException e) {
             throw new AuthenticationException(ErrorCode.TOKEN_INVALID, "invalid token subject", e);
         }

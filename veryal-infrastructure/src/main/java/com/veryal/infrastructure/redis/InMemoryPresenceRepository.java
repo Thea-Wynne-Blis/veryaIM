@@ -33,7 +33,7 @@ public class InMemoryPresenceRepository implements PresenceRepository {
             return;
         }
         devices.computeIfPresent(deviceId, (key, current) -> current.connectionId().equals(connectionId)
-                ? new PresenceRecord(current.userId(), current.tenantId(), current.deviceId(), current.gatewayId(),
+                ? new PresenceRecord(current.userId(), current.deviceId(), current.gatewayId(),
                 current.connectionId(), now, current.status())
                 : current);
     }

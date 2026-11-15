@@ -1,7 +1,6 @@
 package com.veryal.infrastructure.mysql.repository;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.veryal.common.core.TenantIds;
 import com.veryal.domain.message.DuplicateMessageException;
 import com.veryal.domain.message.Message;
 import com.veryal.domain.message.MessageRepository;
@@ -35,7 +34,7 @@ public class MyBatisMessageRepository implements MessageRepository {
     }
 
     @Override
-    public Optional<Message> findByIdempotencyKey(long tenantId, long senderId, String clientMsgId) {
+    public Optional<Message> findByIdempotencyKey(long senderId, String clientMsgId) {
         return Optional.ofNullable(messageMapper.selectOne(Wrappers.<MessagePO>lambdaQuery()
                         .eq(MessagePO::getSenderId, senderId)
                         .eq(MessagePO::getClientMsgId, clientMsgId)))
@@ -47,12 +46,12 @@ public class MyBatisMessageRepository implements MessageRepository {
         try {
             messageMapper.insert(toPO(message));
         } catch (DuplicateKeyException e) {
-            throw new DuplicateMessageException(message.tenantId(), message.senderId(), message.clientMsgId());
+            throw new DuplicateMessageException(message.senderId(), message.clientMsgId());
         }
     }
 
     @Override
-    public List<Message> pageAfter(long tenantId, String conversationId, long afterSeq, int limit) {
+    public List<Message> pageAfter(String conversationId, long afterSeq, int limit) {
         int safeLimit = Math.max(1, Math.min(limit, MAX_PAGE_LIMIT));
         return messageMapper.selectPageAfter(conversationId, afterSeq, safeLimit).stream()
                 .map(this::toDomain)
@@ -60,7 +59,7 @@ public class MyBatisMessageRepository implements MessageRepository {
     }
 
     @Override
-    public Optional<Message> findLatest(long tenantId, String conversationId) {
+    public Optional<Message> findLatest(String conversationId) {
         return Optional.ofNullable(messageMapper.selectOne(Wrappers.<MessagePO>lambdaQuery()
                         .eq(MessagePO::getConversationId, conversationId)
                         .orderByDesc(MessagePO::getSeq)
@@ -69,12 +68,12 @@ public class MyBatisMessageRepository implements MessageRepository {
     }
 
     @Override
-    public long maxSeq(long tenantId, String conversationId) {
+    public long maxSeq(String conversationId) {
         return messageMapper.selectMaxSeq(conversationId);
     }
 
     @Override
-    public void markRecalled(long tenantId, long messageId, long recalledBy, java.time.Instant recalledAt) {
+    public void markRecalled(long messageId, long recalledBy, java.time.Instant recalledAt) {
         messageMapper.update(null, Wrappers.<MessagePO>lambdaUpdate()
                 .eq(MessagePO::getId, messageId)
                 .isNull(MessagePO::getRecalledAt)
@@ -83,7 +82,7 @@ public class MyBatisMessageRepository implements MessageRepository {
     }
 
     @Override
-    public List<Message> searchText(long tenantId, String conversationId, String pattern,
+    public List<Message> searchText(String conversationId, String pattern,
                                     long beforeSeq, int limit) {
         int safeLimit = Math.max(1, Math.min(limit, MAX_PAGE_LIMIT));
         return messageMapper.searchText(conversationId, pattern, beforeSeq, safeLimit).stream()
@@ -92,17 +91,12 @@ public class MyBatisMessageRepository implements MessageRepository {
     }
 
     @Override
-    public long countByTenant(long tenantId) {
-        return messageMapper.selectCountAll();
-    }
-
-    @Override
     public long countAll() {
         return messageMapper.selectCount(null);
     }
 
     private Message toDomain(MessagePO po) {
-        return new Message(po.id, TenantIds.DEFAULT_TENANT_ID, po.conversationId, po.senderId,
+        return new Message(po.id, po.conversationId, po.senderId,
                 po.clientMsgId, po.seq, MessageType.fromCode(po.msgType), po.content,
                 SqlTime.toInstant(po.createdAt),
                 po.recalledAt == null ? null : SqlTime.toInstant(po.recalledAt), po.recalledBy);

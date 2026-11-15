@@ -46,19 +46,18 @@ public class ConversationApplicationService {
      * 创建（或获取已存在的）单聊会话。同一对用户永远只有一个单聊会话。
      */
     @Transactional
-    public ConversationView createPrivate(long tenantId, long userId, long peerUserId) {
+    public ConversationView createPrivate(long userId, long peerUserId) {
         if (userId == peerUserId) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "cannot create private conversation with self");
         }
         User peer = userRepository.findById(peerUserId)
-                .filter(user -> user.tenantId() == tenantId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND, "peer user not found"));
         peer.ensureActive();
         Instant now = timeProvider.now();
         String conversationId = ConversationIds.privateId(userId, peerUserId);
         Conversation conversation = conversationRepository.findById(conversationId).orElse(null);
         if (conversation == null) {
-            Conversation created = Conversation.createPrivate(tenantId, userId, peerUserId, now);
+            Conversation created = Conversation.createPrivate(userId, peerUserId, now);
             if (conversationRepository.saveIfAbsent(created)) {
                 conversation = created;
             } else {
@@ -73,13 +72,13 @@ public class ConversationApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public List<ConversationSummary> list(long tenantId, long userId) {
-        return conversationRepository.findByUser(tenantId, userId).stream()
+    public List<ConversationSummary> list(long userId) {
+        return conversationRepository.findByUser(userId).stream()
                 .map(conversation -> {
                     ConversationMember member = conversationRepository.findMember(conversation.id(), userId)
                             .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CONVERSATION_MEMBER));
                     return new ConversationSummary(conversation.id(), conversation.type(), member.lastReadSeq(),
-                            messageRepository.maxSeq(tenantId, conversation.id()), conversation.updatedAt());
+                            messageRepository.maxSeq(conversation.id()), conversation.updatedAt());
                 })
                 .toList();
     }
@@ -88,9 +87,8 @@ public class ConversationApplicationService {
      * 校验会话存在、租户一致且用户是成员。
      */
     @Transactional(readOnly = true)
-    public ConversationMember requireMember(long tenantId, String conversationId, long userId) {
+    public ConversationMember requireMember(String conversationId, long userId) {
         Conversation conversation = conversationRepository.findById(conversationId)
-                .filter(item -> item.tenantId() == tenantId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND,
                         "conversation not found: " + conversationId));
         return conversationRepository.findMember(conversation.id(), userId)
@@ -98,8 +96,8 @@ public class ConversationApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public ConversationView view(String conversationId, long tenantId, long userId) {
-        requireMember(tenantId, conversationId, userId);
+    public ConversationView view(String conversationId, long userId) {
+        requireMember(conversationId, userId);
         Conversation conversation = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND));
         return view(conversation);
@@ -109,14 +107,14 @@ public class ConversationApplicationService {
      * 推进读游标。游标只前进不后退；真正推进时写入已读回执事件（Outbox）。
      */
     @Transactional
-    public void markRead(long tenantId, long userId, String conversationId, long readSequence) {
-        markRead(tenantId, userId, null, conversationId, readSequence);
+    public void markRead(long userId, String conversationId, long readSequence) {
+        markRead(userId, null, conversationId, readSequence);
     }
 
     @Transactional
-    public void markRead(long tenantId, long userId, String deviceId, String conversationId,
+    public void markRead(long userId, String deviceId, String conversationId,
                          long readSequence) {
-        ConversationMember member = requireMember(tenantId, conversationId, userId);
+        ConversationMember member = requireMember(conversationId, userId);
         if (readSequence < 0) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "read sequence must not be negative");
         }
@@ -129,7 +127,7 @@ public class ConversationApplicationService {
         List<Long> memberIds = conversationRepository.findMembers(conversationId).stream()
                 .map(ConversationMember::userId)
                 .toList();
-        ReadReceiptEvent event = new ReadReceiptEvent(RandomIds.newId(), tenantId, conversationId,
+        ReadReceiptEvent event = new ReadReceiptEvent(RandomIds.newId(), conversationId,
                 userId, deviceId, updated.lastReadSeq(), now, memberIds);
         outboxAppender.append(new OutboxMessage(event.eventId(), conversationId,
                 MessageEvents.READ_RECEIPT, JsonUtils.toJsonBytes(event), now));
@@ -137,8 +135,8 @@ public class ConversationApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public List<ConversationMember> readReceipts(long tenantId, long userId, String conversationId) {
-        requireMember(tenantId, conversationId, userId);
+    public List<ConversationMember> readReceipts(long userId, String conversationId) {
+        requireMember(conversationId, userId);
         return conversationRepository.findMembers(conversationId);
     }
 
@@ -146,8 +144,8 @@ public class ConversationApplicationService {
      * 推进同步游标（Delivery ACK 到达后调用）。游标只前进不后退。
      */
     @Transactional
-    public void advanceSyncCursor(long tenantId, long userId, String conversationId, long syncSequence) {
-        ConversationMember member = requireMember(tenantId, conversationId, userId);
+    public void advanceSyncCursor(long userId, String conversationId, long syncSequence) {
+        ConversationMember member = requireMember(conversationId, userId);
         if (syncSequence < 0) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "sync sequence must not be negative");
         }
@@ -155,8 +153,8 @@ public class ConversationApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public List<Long> recipientIds(long tenantId, String conversationId, long senderId) {
-        requireMember(tenantId, conversationId, senderId);
+    public List<Long> recipientIds(String conversationId, long senderId) {
+        requireMember(conversationId, senderId);
         return conversationRepository.findMembers(conversationId).stream()
                 .map(ConversationMember::userId)
                 .filter(userId -> userId != senderId)

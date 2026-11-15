@@ -26,7 +26,7 @@ public class LogoutHandler implements CommandHandler {
     @Override
     public void handle(CommandContext context) {
         Connection connection = context.connection();
-        sessionApplicationService.offline(new AuthenticatedUser(connection.userId(), connection.tenantId(),
+        sessionApplicationService.offline(new AuthenticatedUser(connection.userId(),
                 connection.deviceId(), connection.tokenId()), connection.connectionId());
         connection.close();
     }

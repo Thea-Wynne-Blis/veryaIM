@@ -18,7 +18,7 @@ public class MyBatisConversationSequenceRepository implements ConversationSequen
     private final ConversationSequenceMapper sequenceMapper;
 
     @Override
-    public long allocate(long tenantId, String conversationId) {
+    public long allocate(String conversationId) {
         sequenceMapper.insertIgnore(conversationId);
         long current = sequenceMapper.selectForUpdate(conversationId);
         long next = current + 1;
@@ -27,7 +27,7 @@ public class MyBatisConversationSequenceRepository implements ConversationSequen
     }
 
     @Override
-    public long current(long tenantId, String conversationId) {
+    public long current(String conversationId) {
         Long current = sequenceMapper.selectCurrent(conversationId);
         return current == null ? 0L : current;
     }

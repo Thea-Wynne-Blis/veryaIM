@@ -74,18 +74,16 @@ public class MessageApplicationService {
         MessagePolicy.validateConversationId(command.conversationId());
         MessagePolicy.validateClientMessageId(command.clientMessageId());
         MessagePolicy.validate(command.messageType(), command.content());
-        messageTypeStrategyFactory.validate(new MessageContentContext(command.tenantId(),
+        messageTypeStrategyFactory.validate(new MessageContentContext(
                 command.senderId(), command.conversationId(), command.messageType(), command.content()));
 
         Conversation conversation = conversationRepository.findById(command.conversationId())
-                .filter(item -> item.tenantId() == command.tenantId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND,
                         "conversation not found: " + command.conversationId()));
         conversationRepository.findMember(conversation.id(), command.senderId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CONVERSATION_MEMBER));
         if (conversation.type() == ConversationType.GROUP) {
-            groupModerationService.ensureCanSend(command.tenantId(), conversation.id(),
-                    command.senderId());
+            groupModerationService.ensureCanSend(conversation.id(), command.senderId());
             groupModerationService.validateMentions(conversation.id(), command.content());
         }
         if (conversation.type() == ConversationType.PRIVATE) {
@@ -93,14 +91,13 @@ public class MessageApplicationService {
                     .map(ConversationMember::userId)
                     .filter(userId -> userId != command.senderId())
                     .findFirst().orElse(0L);
-            if (peerId > 0 && blacklistRepository.exists(command.tenantId(), peerId,
-                    command.senderId())) {
+            if (peerId > 0 && blacklistRepository.exists(peerId, command.senderId())) {
                 throw new BusinessException(ErrorCode.USER_BLOCKED);
             }
         }
 
         Optional<Message> existing = messageRepository.findByIdempotencyKey(
-                command.tenantId(), command.senderId(), command.clientMessageId());
+                command.senderId(), command.clientMessageId());
         if (existing.isPresent()) {
             return new SendMessageResult(existing.get(), null, true);
         }
@@ -108,17 +105,17 @@ public class MessageApplicationService {
         // 幂等命中不消耗限流额度；只有真正的新消息才检查发送速率。
         sensitiveWordService.checkMessage(command.messageType(), command.content());
         userMuteService.ensureCanSend(command.senderId());
-        messageRateLimiter.acquire(command.tenantId(), command.senderId());
+        messageRateLimiter.acquire(command.senderId());
         Instant now = timeProvider.now();
-        long sequence = sequenceRepository.allocate(command.tenantId(), conversation.id());
-        Message message = Message.create(idGenerator.nextId(), command.tenantId(), conversation.id(),
+        long sequence = sequenceRepository.allocate(conversation.id());
+        Message message = Message.create(idGenerator.nextId(), conversation.id(),
                 command.senderId(), command.clientMessageId(), sequence, command.messageType(),
                 command.content(), now);
         try {
             messageRepository.append(message);
         } catch (DuplicateMessageException e) {
             Message duplicate = messageRepository.findByIdempotencyKey(
-                            command.tenantId(), command.senderId(), command.clientMessageId())
+                            command.senderId(), command.clientMessageId())
                     .orElseThrow(() -> e);
             return new SendMessageResult(duplicate, null, true);
         }
@@ -131,11 +128,11 @@ public class MessageApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public CursorPage<Message> history(long tenantId, long userId, String conversationId,
+    public CursorPage<Message> history(long userId, String conversationId,
                                        long cursor, int limit) {
-        requireMember(tenantId, conversationId, userId);
+        requireMember(conversationId, userId);
         int pageSize = clampLimit(limit);
-        List<Message> messages = messageRepository.pageAfter(tenantId, conversationId, cursor, pageSize + 1);
+        List<Message> messages = messageRepository.pageAfter(conversationId, cursor, pageSize + 1);
         boolean hasMore = messages.size() > pageSize;
         if (hasMore) {
             messages = messages.subList(0, pageSize);
@@ -148,9 +145,9 @@ public class MessageApplicationService {
      * 会话内文本/表情搜索，按 seq 倒序返回；cursor 为上一页最后一条 seq。
      */
     @Transactional(readOnly = true)
-    public CursorPage<Message> search(long tenantId, long userId, String conversationId,
+    public CursorPage<Message> search(long userId, String conversationId,
                                       String keyword, long cursor, int limit) {
-        requireMember(tenantId, conversationId, userId);
+        requireMember(conversationId, userId);
         String query = keyword == null ? "" : keyword.trim();
         if (query.isEmpty() || query.length() > 64) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT,
@@ -160,7 +157,7 @@ public class MessageApplicationService {
         String escaped = query.replace("!", "!!").replace("%", "!%").replace("_", "!_");
         String pattern = "%" + escaped + "%";
         long beforeSeq = cursor <= 0 ? Long.MAX_VALUE : cursor;
-        List<Message> messages = messageRepository.searchText(tenantId, conversationId, pattern,
+        List<Message> messages = messageRepository.searchText(conversationId, pattern,
                 beforeSeq, pageSize + 1);
         boolean hasMore = messages.size() > pageSize;
         if (hasMore) {
@@ -175,38 +172,37 @@ public class MessageApplicationService {
      *
      * @return 消息所属会话 ID
      */
-    public String acknowledgeDelivery(long tenantId, long userId, long messageId, String deviceId,
+    public String acknowledgeDelivery(long userId, long messageId, String deviceId,
                                       long deliveredSequence) {
         Message message = messageRepository.findById(messageId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MESSAGE_NOT_FOUND));
-        requireMember(tenantId, message.conversationId(), userId);
+        requireMember(message.conversationId(), userId);
         String normalizedDeviceId = deviceId == null || deviceId.isBlank()
                 ? Long.toString(userId) : deviceId;
-        deliveryRepository.record(new DeliveryRecord(idGenerator.nextId(), tenantId, message.id(),
+        deliveryRepository.record(new DeliveryRecord(idGenerator.nextId(), message.id(),
                 message.conversationId(), userId, normalizedDeviceId, deliveredSequence,
                 timeProvider.now()));
         return message.conversationId();
     }
 
     @Transactional(readOnly = true)
-    public long latestSequence(long tenantId, String conversationId) {
-        return messageRepository.maxSeq(tenantId, conversationId);
+    public long latestSequence(String conversationId) {
+        return messageRepository.maxSeq(conversationId);
     }
 
     /**
      * 撤回消息：仅发送者本人，且必须在发送后 2 分钟内；重复撤回保持幂等。
      */
     @Transactional
-    public Message recall(long tenantId, long userId, String conversationId, long messageId) {
-        return recall(tenantId, userId, conversationId, messageId, null);
+    public Message recall(long userId, String conversationId, long messageId) {
+        return recall(userId, conversationId, messageId, null);
     }
 
     @Transactional
-    public Message recall(long tenantId, long userId, String conversationId, long messageId,
+    public Message recall(long userId, String conversationId, long messageId,
                           String senderDeviceId) {
-        requireMember(tenantId, conversationId, userId);
+        requireMember(conversationId, userId);
         Message message = messageRepository.findById(messageId)
-                .filter(item -> item.tenantId() == tenantId)
                 .filter(item -> item.conversationId().equals(conversationId))
                 .orElseThrow(() -> new BusinessException(ErrorCode.MESSAGE_NOT_FOUND));
         if (message.senderId() != userId) {
@@ -219,13 +215,13 @@ public class MessageApplicationService {
         if (now.isAfter(message.createdAt().plus(RECALL_WINDOW))) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "recall window expired");
         }
-        messageRepository.markRecalled(tenantId, messageId, userId, now);
-        auditRecorder.record(tenantId, userId, AuditAction.MESSAGE_RECALL, "message",
+        messageRepository.markRecalled(messageId, userId, now);
+        auditRecorder.record(userId, AuditAction.MESSAGE_RECALL, "message",
                 Long.toString(messageId), "conversation=" + conversationId);
         List<Long> memberIds = conversationRepository.findMembers(conversationId).stream()
                 .map(ConversationMember::userId)
                 .toList();
-        MessageRecalledEvent event = new MessageRecalledEvent(RandomIds.newId(), tenantId,
+        MessageRecalledEvent event = new MessageRecalledEvent(RandomIds.newId(),
                 conversationId, messageId, userId, senderDeviceId, message.seq(), now, memberIds);
         outboxAppender.append(new OutboxMessage(event.eventId(), conversationId,
                 MessageEvents.MESSAGE_RECALLED, JsonUtils.toJsonBytes(event), now));
@@ -237,9 +233,9 @@ public class MessageApplicationService {
      * 查询单条消息的设备投递记录（仅会话成员可见）。
      */
     @Transactional(readOnly = true)
-    public List<DeliveryRecord> listDeliveries(long tenantId, long userId, String conversationId,
+    public List<DeliveryRecord> listDeliveries(long userId, String conversationId,
                                                long messageId) {
-        requireMember(tenantId, conversationId, userId);
+        requireMember(conversationId, userId);
         Message message = messageRepository.findById(messageId)
                 .filter(item -> item.conversationId().equals(conversationId))
                 .orElseThrow(() -> new BusinessException(ErrorCode.MESSAGE_NOT_FOUND));
@@ -247,9 +243,8 @@ public class MessageApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public void requireMember(long tenantId, String conversationId, long userId) {
+    public void requireMember(String conversationId, long userId) {
         Conversation conversation = conversationRepository.findById(conversationId)
-                .filter(item -> item.tenantId() == tenantId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND));
         conversationRepository.findMember(conversation.id(), userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CONVERSATION_MEMBER));
@@ -267,8 +262,8 @@ public class MessageApplicationService {
                         .map(ConversationMember::userId)
                         .filter(userId -> userId != command.senderId())
                         .toList();
-        return new MessageCreatedEvent(RandomIds.newId(), eventType, message.tenantId(),
-                message.conversationId(), message.id(), message.senderId(), command.senderDeviceId(),
+        return new MessageCreatedEvent(RandomIds.newId(), eventType, message.conversationId(),
+                message.id(), message.senderId(), command.senderDeviceId(),
                 message.seq(), message.type().code(), message.content(), now,
                 message.clientMsgId(), recipients);
     }

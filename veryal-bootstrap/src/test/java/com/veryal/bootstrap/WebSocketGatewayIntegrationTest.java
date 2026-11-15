@@ -7,7 +7,6 @@ import com.veryal.application.identity.LoginCommand;
 import com.veryal.application.identity.RegisterCommand;
 import com.veryal.application.identity.UserProfile;
 import com.veryal.bootstrap.support.TestFrames;
-import com.veryal.common.core.TenantIds;
 import com.veryal.protocol.api.Command;
 import com.veryal.protocol.api.ProtocolMessage;
 import com.veryal.protocol.protobuf.EnvelopeCodec;
@@ -50,10 +49,8 @@ class WebSocketGatewayIntegrationTest {
     void clientCanLoginAndHeartbeatOverWebSocket() throws Exception {
         String suffix = Long.toString(System.nanoTime());
         String username = "ws_user_" + suffix;
-        authApplicationService.register(TenantIds.DEFAULT_TENANT_ID,
-                new RegisterCommand(username, "password123", "WebSocket User"));
-        AuthResult login = authApplicationService.login(TenantIds.DEFAULT_TENANT_ID,
-                new LoginCommand(username, "password123", "ws-device-" + suffix, "WEB", "browser"));
+        authApplicationService.register(new RegisterCommand(username, "password123", "WebSocket User"));
+        AuthResult login = authApplicationService.login(new LoginCommand(username, "password123", "ws-device-" + suffix, "WEB", "browser"));
 
         int port = webSocketGatewayServer.boundPort();
         assertThat(port).isPositive();

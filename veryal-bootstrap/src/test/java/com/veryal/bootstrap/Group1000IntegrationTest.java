@@ -78,10 +78,10 @@ class Group1000IntegrationTest {
                 + "(id, username, nickname, avatar, status, password_hash, "
                 + "created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", rows);
 
-        GroupView group = groupApplicationService.create(1L, owner.userId(), "1000 Group",
+        GroupView group = groupApplicationService.create(owner.userId(), "1000 Group",
                 memberIds);
         assertThat(group.memberIds()).hasSize(1000);
-        messageApplicationService.send(new SendMessageCommand(1L, owner.userId(), "load-device",
+        messageApplicationService.send(new SendMessageCommand(owner.userId(), "load-device",
                 group.groupId(), "load-msg-" + suffix, MessageType.TEXT,
                 "hello 1000".getBytes(StandardCharsets.UTF_8)));
         long elapsedMs = (System.nanoTime() - start) / 1_000_000;
@@ -98,7 +98,7 @@ class Group1000IntegrationTest {
                 long senderId = memberIds.get(i);
                 int index = i;
                 futures.add(pool.submit(() -> messageApplicationService.send(
-                        new SendMessageCommand(1L, senderId, "load-device", group.groupId(),
+                        new SendMessageCommand(senderId, "load-device", group.groupId(),
                                 "load-concurrent-" + suffix + "-" + index, MessageType.TEXT,
                                 ("concurrent " + index).getBytes(StandardCharsets.UTF_8)))));
             }

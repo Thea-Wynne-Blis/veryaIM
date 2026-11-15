@@ -37,7 +37,7 @@ public class UserSocialController {
     public ApiResponse<List<UserSearchResponse>> search(@CurrentUser AuthenticatedUser user,
                                                         @RequestParam String keyword,
                                                         @RequestParam(defaultValue = "20") int limit) {
-        return ApiResponse.ok(userSocialService.search(user.tenantId(), user.userId(), keyword,
+        return ApiResponse.ok(userSocialService.search(user.userId(), keyword,
                         Math.max(1, Math.min(limit, 50))).stream()
                 .map(UserSearchResponse::from)
                 .toList());
@@ -47,7 +47,7 @@ public class UserSocialController {
     public ApiResponse<UserProfileResponse> profile(@CurrentUser AuthenticatedUser user,
                                                     @PathVariable long userId) {
         return ApiResponse.ok(UserProfileResponse.from(
-                userSocialService.profile(user.tenantId(), user.userId(), userId)));
+                userSocialService.profile(user.userId(), userId)));
     }
 
     @GetMapping("/me/privacy")

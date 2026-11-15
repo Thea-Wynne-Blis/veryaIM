@@ -10,12 +10,9 @@ public interface FileRepository {
 
     void save(StoredFile file);
 
-    Optional<StoredFile> findById(long tenantId, long fileId);
+    Optional<StoredFile> findById(long fileId);
 
-    void markDeleted(long tenantId, long fileId, Instant deletedAt);
+    void markDeleted(long fileId, Instant deletedAt);
 
-    /**
-     * 租户未删除文件总字节数，用于存储配额。
-     */
-    long totalBytes(long tenantId);
+    long totalBytes();
 }

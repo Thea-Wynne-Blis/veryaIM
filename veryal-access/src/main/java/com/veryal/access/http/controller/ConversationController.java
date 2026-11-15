@@ -49,12 +49,12 @@ public class ConversationController {
     public ApiResponse<ConversationResponse> create(@CurrentUser AuthenticatedUser user,
                                                     @Valid @RequestBody CreateConversationRequest request) {
         return ApiResponse.ok(ConversationResponse.from(conversationApplicationService.createPrivate(
-                user.tenantId(), user.userId(), request.peerUserId())));
+                user.userId(), request.peerUserId())));
     }
 
     @GetMapping
     public ApiResponse<List<ConversationResponse>> list(@CurrentUser AuthenticatedUser user) {
-        return ApiResponse.ok(conversationApplicationService.list(user.tenantId(), user.userId()).stream()
+        return ApiResponse.ok(conversationApplicationService.list(user.userId()).stream()
                 .map(ConversationResponse::from)
                 .toList());
     }
@@ -63,7 +63,7 @@ public class ConversationController {
     public ApiResponse<ConversationResponse> get(@CurrentUser AuthenticatedUser user,
                                                  @PathVariable String conversationId) {
         return ApiResponse.ok(ConversationResponse.from(
-                conversationApplicationService.view(conversationId, user.tenantId(), user.userId())));
+                conversationApplicationService.view(conversationId, user.userId())));
     }
 
     @PostMapping("/{conversationId}/messages")
@@ -73,7 +73,7 @@ public class ConversationController {
         MessageType type = parseType(request.type());
         byte[] content = parseContent(request);
         SendMessageResult result = messageApplicationService.send(new SendMessageCommand(
-                user.tenantId(), user.userId(), user.deviceId(), conversationId,
+                user.userId(), user.deviceId(), conversationId,
                 request.clientMessageId(), type, content));
         return ApiResponse.ok(SendMessageResponse.from(result));
     }
@@ -84,7 +84,7 @@ public class ConversationController {
                                                     @RequestParam(defaultValue = "0") long cursor,
                                                     @RequestParam(defaultValue = "50") int limit) {
         return ApiResponse.ok(MessagePageResponse.from(messageApplicationService.history(
-                user.tenantId(), user.userId(), conversationId, cursor, limit)));
+                user.userId(), conversationId, cursor, limit)));
     }
 
     @GetMapping("/{conversationId}/messages/search")
@@ -94,14 +94,14 @@ public class ConversationController {
                                                    @RequestParam(defaultValue = "0") long cursor,
                                                    @RequestParam(defaultValue = "20") int limit) {
         return ApiResponse.ok(MessagePageResponse.from(messageApplicationService.search(
-                user.tenantId(), user.userId(), conversationId, keyword, cursor, limit)));
+                user.userId(), conversationId, keyword, cursor, limit)));
     }
 
     @PostMapping("/{conversationId}/read")
     public ApiResponse<Void> read(@CurrentUser AuthenticatedUser user,
                                   @PathVariable String conversationId,
                                   @Valid @RequestBody ReadRequest request) {
-        conversationApplicationService.markRead(user.tenantId(), user.userId(), conversationId,
+        conversationApplicationService.markRead(user.userId(), conversationId,
                 request.readSequence());
         return ApiResponse.ok();
     }
@@ -111,14 +111,13 @@ public class ConversationController {
                                                @PathVariable String conversationId,
                                                @PathVariable long messageId) {
         return ApiResponse.ok(MessageResponse.from(messageApplicationService.recall(
-                user.tenantId(), user.userId(), conversationId, messageId, user.deviceId())));
+                user.userId(), conversationId, messageId, user.deviceId())));
     }
 
     @GetMapping("/{conversationId}/read-receipts")
     public ApiResponse<List<ReadReceiptResponse>> readReceipts(@CurrentUser AuthenticatedUser user,
                                                                @PathVariable String conversationId) {
-        return ApiResponse.ok(conversationApplicationService.readReceipts(user.tenantId(),
-                        user.userId(), conversationId).stream()
+        return ApiResponse.ok(conversationApplicationService.readReceipts(user.userId(), conversationId).stream()
                 .map(ReadReceiptResponse::from)
                 .toList());
     }
@@ -127,7 +126,7 @@ public class ConversationController {
     public ApiResponse<List<DeliveryResponse>> deliveries(@CurrentUser AuthenticatedUser user,
                                                           @PathVariable String conversationId,
                                                           @PathVariable long messageId) {
-        return ApiResponse.ok(messageApplicationService.listDeliveries(user.tenantId(), user.userId(),
+        return ApiResponse.ok(messageApplicationService.listDeliveries(user.userId(),
                         conversationId, messageId).stream()
                 .map(DeliveryResponse::from)
                 .toList());

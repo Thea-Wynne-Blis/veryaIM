@@ -1,7 +1,6 @@
 package com.veryal.infrastructure.mysql.repository;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.veryal.common.core.TenantIds;
 import com.veryal.domain.friend.Friend;
 import com.veryal.domain.friend.FriendRepository;
 import com.veryal.infrastructure.mysql.SqlTime;
@@ -28,7 +27,7 @@ public class MyBatisFriendRepository implements FriendRepository {
     }
 
     @Override
-    public Optional<Friend> find(long tenantId, long userId, long friendId) {
+    public Optional<Friend> find(long userId, long friendId) {
         return Optional.ofNullable(friendMapper.selectOne(Wrappers.<FriendPO>lambdaQuery()
                         .eq(FriendPO::getUserId, userId)
                         .eq(FriendPO::getFriendId, friendId)))
@@ -36,7 +35,7 @@ public class MyBatisFriendRepository implements FriendRepository {
     }
 
     @Override
-    public List<Friend> listByUser(long tenantId, long userId, int limit) {
+    public List<Friend> listByUser(long userId, int limit) {
         return friendMapper.selectList(Wrappers.<FriendPO>lambdaQuery()
                         .eq(FriendPO::getUserId, userId)
                         .orderByDesc(FriendPO::getCreatedAt)
@@ -47,7 +46,7 @@ public class MyBatisFriendRepository implements FriendRepository {
     }
 
     @Override
-    public void updateRemark(long tenantId, long userId, long friendId, String remark) {
+    public void updateRemark(long userId, long friendId, String remark) {
         friendMapper.update(null, Wrappers.<FriendPO>lambdaUpdate()
                 .eq(FriendPO::getUserId, userId)
                 .eq(FriendPO::getFriendId, friendId)
@@ -55,14 +54,14 @@ public class MyBatisFriendRepository implements FriendRepository {
     }
 
     @Override
-    public void delete(long tenantId, long userId, long friendId) {
+    public void delete(long userId, long friendId) {
         friendMapper.delete(Wrappers.<FriendPO>lambdaQuery()
                 .eq(FriendPO::getUserId, userId)
                 .eq(FriendPO::getFriendId, friendId));
     }
 
     private Friend toDomain(FriendPO po) {
-        return new Friend(po.id, TenantIds.DEFAULT_TENANT_ID, po.userId, po.friendId, po.remark,
+        return new Friend(po.id, po.userId, po.friendId, po.remark,
                 SqlTime.toInstant(po.createdAt));
     }
 

@@ -43,18 +43,18 @@ public class AuthApplicationService {
     private final AuditRecorder auditRecorder;
 
     @Transactional
-    public UserProfile register(long tenantId, RegisterCommand command) {
+    public UserProfile register(RegisterCommand command) {
         String username = command.username() == null ? "" : command.username().trim();
         if (!USERNAME_PATTERN.matcher(username).matches()) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT,
                     "username must be 3-32 characters of letters, digits or underscore");
         }
         validatePassword(command.password());
-        if (userRepository.existsByUsername(tenantId, username)) {
+        if (userRepository.existsByUsername(username)) {
             throw new BusinessException(ErrorCode.USERNAME_ALREADY_EXISTS);
         }
         Instant now = timeProvider.now();
-        User user = User.register(idGenerator.nextId(), tenantId, username, command.nickname(),
+        User user = User.register(idGenerator.nextId(), username, command.nickname(),
                 passwordHasher.hash(command.password()), now);
         try {
             userRepository.save(user);
@@ -65,12 +65,12 @@ public class AuthApplicationService {
     }
 
     @Transactional
-    public AuthResult login(long tenantId, LoginCommand command) {
+    public AuthResult login(LoginCommand command) {
         if (command.deviceId() == null || command.deviceId().isBlank()
                 || command.deviceId().length() > MAX_DEVICE_ID_LENGTH) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "invalid deviceId");
         }
-        User user = userRepository.findByUsername(tenantId, command.username())
+        User user = userRepository.findByUsername(command.username())
                 .orElseThrow(() -> new AuthenticationException(ErrorCode.AUTHENTICATION_FAILED));
         user.ensureActive();
         if (!passwordHasher.matches(command.password(), user.passwordHash())) {
@@ -79,7 +79,7 @@ public class AuthApplicationService {
         Instant now = timeProvider.now();
         Device device = bindDevice(user.id(), command, now);
         IssuedToken issuedToken = tokenService.issue(user.id(), device.deviceId());
-        auditRecorder.record(tenantId, user.id(), AuditAction.LOGIN, "user",
+        auditRecorder.record(user.id(), AuditAction.LOGIN, "user",
                 Long.toString(user.id()), "device=" + device.deviceId());
         return new AuthResult(UserProfile.from(user), device.deviceId(), issuedToken.token(),
                 issuedToken.expiresAt().getEpochSecond() - now.getEpochSecond());

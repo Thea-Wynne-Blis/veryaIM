@@ -5,15 +5,12 @@ import java.time.Instant;
 /**
  * 文件元数据。文件本体存放在对象存储，MySQL 只保存引用。
  */
-public record StoredFile(long id, long tenantId, long uploaderId, String objectKey,
+public record StoredFile(long id, long uploaderId, String objectKey,
                          String originalName, String contentType, long sizeBytes, String sha256,
                          StorageType storageType, FileStatus status, Instant createdAt,
                          Instant deletedAt, String conversationId) {
 
     public StoredFile {
-        if (id <= 0 || tenantId <= 0 || uploaderId <= 0) {
-            throw new IllegalArgumentException("file ids must be positive");
-        }
         if (objectKey == null || objectKey.isBlank()) {
             throw new IllegalArgumentException("objectKey must not be blank");
         }

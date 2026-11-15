@@ -1,7 +1,6 @@
 package com.veryal.application.ops;
 
 import com.veryal.application.platform.PlatformAuditRecorder;
-import com.veryal.common.core.TenantIds;
 import com.veryal.common.exception.BusinessException;
 import com.veryal.common.exception.ErrorCode;
 import com.veryal.domain.conversation.ConversationRepository;
@@ -32,7 +31,7 @@ public class OpsGroupService {
     @Transactional(readOnly = true)
     public List<OpsGroupView> search(String keyword, int limit) {
         String value = keyword == null ? "" : keyword.trim();
-        return groupRepository.search(TenantIds.DEFAULT_TENANT_ID, value,
+        return groupRepository.search(value,
                         Math.max(1, Math.min(limit, 100))).stream()
                 .map(group -> new OpsGroupView(group.id(), group.name(), group.ownerId(),
                         groupRepository.countMembers(group.id()), group.createdAt()))
@@ -66,7 +65,6 @@ public class OpsGroupService {
 
     private Group require(String groupId) {
         return groupRepository.findById(groupId)
-                .filter(group -> group.tenantId() == TenantIds.DEFAULT_TENANT_ID)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND));
     }
 

@@ -9,7 +9,7 @@ import java.util.List;
  * <p>由应用层在消息事务内写入 Outbox，再由 MQ 消费者驱动实时投递。
  * 事件包含接收者快照，单聊/群聊都无需消费者回查成员关系。</p>
  */
-public record MessageCreatedEvent(String eventId, String eventType, long tenantId, String conversationId,
+public record MessageCreatedEvent(String eventId, String eventType, String conversationId,
                                   long messageId, long senderId, String senderDeviceId,
                                   long seq, int messageType, byte[] content, Instant createdAt,
                                   String clientMessageId, List<Long> recipientUserIds) {

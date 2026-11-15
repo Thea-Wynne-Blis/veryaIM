@@ -9,7 +9,7 @@ public interface AuditRepository {
 
     void append(AuditLog log);
 
-    List<AuditLog> findByOperator(long tenantId, long operatorId, int limit);
+    List<AuditLog> findByOperator(long operatorId, int limit);
 
-    long countByAction(long tenantId, String action);
+    long countByAction(String action);
 }

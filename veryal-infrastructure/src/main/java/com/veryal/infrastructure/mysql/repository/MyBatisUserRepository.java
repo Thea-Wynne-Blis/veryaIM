@@ -1,7 +1,6 @@
 package com.veryal.infrastructure.mysql.repository;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.veryal.common.core.TenantIds;
 import com.veryal.domain.identity.User;
 import com.veryal.domain.identity.UserRepository;
 import com.veryal.domain.identity.UserStatus;
@@ -29,14 +28,14 @@ public class MyBatisUserRepository implements UserRepository {
     }
 
     @Override
-    public Optional<User> findByUsername(long tenantId, String username) {
+    public Optional<User> findByUsername(String username) {
         return Optional.ofNullable(userMapper.selectOne(Wrappers.<UserPO>lambdaQuery()
                         .eq(UserPO::getUsername, username)))
                 .map(this::toDomain);
     }
 
     @Override
-    public boolean existsByUsername(long tenantId, String username) {
+    public boolean existsByUsername(String username) {
         Long count = userMapper.selectCount(Wrappers.<UserPO>lambdaQuery()
                 .eq(UserPO::getUsername, username));
         return count != null && count > 0;
@@ -53,13 +52,13 @@ public class MyBatisUserRepository implements UserRepository {
     }
 
     @Override
-    public long count(long tenantId) {
+    public long count() {
         Long count = userMapper.selectCount(Wrappers.<UserPO>lambdaQuery());
         return count == null ? 0L : count;
     }
 
     @Override
-    public List<User> findByTenant(long tenantId, int limit) {
+    public List<User> findAll(int limit) {
         return userMapper.selectList(Wrappers.<UserPO>lambdaQuery()
                         .orderByAsc(UserPO::getId)
                         .last("LIMIT " + Math.max(1, Math.min(limit, 10000))))
@@ -69,7 +68,7 @@ public class MyBatisUserRepository implements UserRepository {
     }
 
     @Override
-    public List<User> search(long tenantId, String keyword, int limit) {
+    public List<User> search(String keyword, int limit) {
         String value = keyword == null ? "" : keyword.trim();
         return userMapper.selectList(Wrappers.<UserPO>lambdaQuery()
                         .eq(UserPO::getStatus, UserStatus.ACTIVE.code())
@@ -85,7 +84,7 @@ public class MyBatisUserRepository implements UserRepository {
     }
 
     @Override
-    public List<User> searchAll(long tenantId, String keyword, int limit) {
+    public List<User> searchAll(String keyword, int limit) {
         String value = keyword == null ? "" : keyword.trim();
         return userMapper.selectList(Wrappers.<UserPO>lambdaQuery()
                         .and(wrapper -> wrapper
@@ -100,7 +99,7 @@ public class MyBatisUserRepository implements UserRepository {
     }
 
     private User toDomain(UserPO po) {
-        return new User(po.id, TenantIds.DEFAULT_TENANT_ID, po.username, po.nickname, po.avatar,
+        return new User(po.id, po.username, po.nickname, po.avatar,
                 UserStatus.fromCode(po.status), po.passwordHash,
                 SqlTime.toInstant(po.createdAt), SqlTime.toInstant(po.updatedAt));
     }

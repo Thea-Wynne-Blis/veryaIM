@@ -10,10 +10,10 @@ public interface ConversationSequenceRepository {
     /**
      * 原子分配下一个会话序号。
      */
-    long allocate(long tenantId, String conversationId);
+    long allocate(String conversationId);
 
     /**
      * 读取当前最大序号，不存在时返回 0。
      */
-    long current(long tenantId, String conversationId);
+    long current(String conversationId);
 }

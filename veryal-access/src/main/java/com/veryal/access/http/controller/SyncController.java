@@ -32,6 +32,6 @@ public class SyncController {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "invalid conversationId");
         }
         return ApiResponse.ok(MessagePageResponse.from(syncApplicationService.syncMessages(
-                user.tenantId(), user.userId(), conversationId, cursor, limit)));
+                user.userId(), conversationId, cursor, limit)));
     }
 }

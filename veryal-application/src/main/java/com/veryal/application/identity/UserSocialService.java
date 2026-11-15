@@ -30,13 +30,13 @@ public class UserSocialService {
     private final TimeProvider timeProvider;
 
     @Transactional(readOnly = true)
-    public List<UserSearchView> search(long tenantId, long requesterId, String keyword, int limit) {
+    public List<UserSearchView> search(long requesterId, String keyword, int limit) {
         String value = keyword == null ? "" : keyword.trim();
         if (value.isEmpty() || value.length() > MAX_KEYWORD_LENGTH) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT,
                     "search keyword must be 1-" + MAX_KEYWORD_LENGTH + " characters");
         }
-        return userRepository.search(tenantId, value, limit).stream()
+        return userRepository.search(value, limit).stream()
                 .filter(user -> user.id() != requesterId)
                 .filter(user -> privacy(user.id()).searchByUsername())
                 .map(user -> new UserSearchView(user.id(), user.username(), user.nickname(),
@@ -45,9 +45,8 @@ public class UserSocialService {
     }
 
     @Transactional(readOnly = true)
-    public UserProfileView profile(long tenantId, long requesterId, long targetId) {
+    public UserProfileView profile(long requesterId, long targetId) {
         User user = userRepository.findById(targetId)
-                .filter(item -> item.tenantId() == tenantId)
                 .filter(User::active)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         UserPrivacy privacy = privacy(targetId);

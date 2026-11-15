@@ -19,12 +19,12 @@ public class ContactApplicationService {
     private final FriendApplicationService friendApplicationService;
     private final GroupRepository groupRepository;
 
-    public ContactView contacts(long tenantId, long userId) {
-        List<FriendView> friends = friendApplicationService.listFriends(tenantId, userId);
-        List<GroupContact> groups = groupRepository.findByUser(tenantId, userId).stream()
+    public ContactView contacts(long userId) {
+        List<FriendView> friends = friendApplicationService.listFriends(userId);
+        List<GroupContact> groups = groupRepository.findByUser(userId).stream()
                 .map(group -> new GroupContact(group.id(), group.name()))
                 .toList();
-        long pending = friendApplicationService.pendingIncoming(tenantId, userId);
+        long pending = friendApplicationService.pendingIncoming(userId);
         return new ContactView(friends, groups, pending);
     }
 

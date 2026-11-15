@@ -5,13 +5,10 @@ import com.veryal.domain.message.MessageType;
 /**
  * 消息内容校验策略上下文。
  */
-public record MessageContentContext(long tenantId, long senderId, String conversationId,
+public record MessageContentContext(long senderId, String conversationId,
                                     MessageType type, byte[] content) {
 
     public MessageContentContext {
-        if (tenantId <= 0 || senderId <= 0) {
-            throw new IllegalArgumentException("tenantId/senderId must be positive");
-        }
         if (conversationId == null || conversationId.isBlank()) {
             throw new IllegalArgumentException("conversationId must not be blank");
         }

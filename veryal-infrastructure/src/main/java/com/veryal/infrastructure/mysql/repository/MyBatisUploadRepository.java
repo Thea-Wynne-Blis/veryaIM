@@ -1,7 +1,6 @@
 package com.veryal.infrastructure.mysql.repository;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.veryal.common.core.TenantIds;
 import com.veryal.domain.file.UploadRepository;
 import com.veryal.domain.file.UploadSession;
 import com.veryal.domain.file.UploadStatus;
@@ -40,14 +39,14 @@ public class MyBatisUploadRepository implements UploadRepository {
     }
 
     @Override
-    public Optional<UploadSession> findById(long tenantId, long uploadId) {
+    public Optional<UploadSession> findById(long uploadId) {
         UploadSessionPO po = uploadSessionMapper.selectOne(Wrappers.<UploadSessionPO>lambdaQuery()
                 .eq(UploadSessionPO::getId, uploadId));
         return Optional.ofNullable(po).map(this::toDomain);
     }
 
     @Override
-    public void markStatus(long tenantId, long uploadId, UploadStatus status, Long fileId) {
+    public void markStatus(long uploadId, UploadStatus status, Long fileId) {
         uploadSessionMapper.update(null, Wrappers.<UploadSessionPO>lambdaUpdate()
                 .eq(UploadSessionPO::getId, uploadId)
                 .set(UploadSessionPO::getStatus, status.code())
@@ -55,7 +54,7 @@ public class MyBatisUploadRepository implements UploadRepository {
     }
 
     private UploadSession toDomain(UploadSessionPO po) {
-        return new UploadSession(po.id, TenantIds.DEFAULT_TENANT_ID, po.uploaderId, po.filename,
+        return new UploadSession(po.id, po.uploaderId, po.filename,
                 po.contentType, po.sizeBytes, po.chunkSize, po.totalChunks, po.conversationId,
                 UploadStatus.fromCode(po.status), SqlTime.toInstant(po.createdAt), po.fileId);
     }

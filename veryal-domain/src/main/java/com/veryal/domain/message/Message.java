@@ -9,16 +9,13 @@ import java.util.Objects;
  *
  * <p>客户端消息 ID 用于幂等；会话序号由服务端分配，是消息排序的唯一依据。</p>
  */
-public record Message(long id, long tenantId, String conversationId, long senderId, String clientMsgId,
+public record Message(long id, String conversationId, long senderId, String clientMsgId,
                       long seq, MessageType type, byte[] content, Instant createdAt,
                       Instant recalledAt, Long recalledBy) {
 
     public Message {
         if (id <= 0) {
             throw new IllegalArgumentException("message id must be positive");
-        }
-        if (tenantId <= 0) {
-            throw new IllegalArgumentException("tenant id must be positive");
         }
         if (conversationId == null || conversationId.isBlank()) {
             throw new IllegalArgumentException("conversation id must not be blank");
@@ -46,9 +43,9 @@ public record Message(long id, long tenantId, String conversationId, long sender
         }
     }
 
-    public static Message create(long id, long tenantId, String conversationId, long senderId,
+    public static Message create(long id, String conversationId, long senderId,
                                  String clientMsgId, long seq, MessageType type, byte[] content, Instant now) {
-        return new Message(id, tenantId, conversationId, senderId, clientMsgId, seq, type, content, now,
+        return new Message(id, conversationId, senderId, clientMsgId, seq, type, content, now,
                 null, null);
     }
 
@@ -56,7 +53,7 @@ public record Message(long id, long tenantId, String conversationId, long sender
         if (recalledAt != null) {
             return this;
         }
-        return new Message(id, tenantId, conversationId, senderId, clientMsgId, seq, type, content,
+        return new Message(id, conversationId, senderId, clientMsgId, seq, type, content,
                 createdAt, now, operatorId);
     }
 
@@ -76,7 +73,7 @@ public record Message(long id, long tenantId, String conversationId, long sender
         if (!(other instanceof Message message)) {
             return false;
         }
-        return id == message.id && tenantId == message.tenantId && conversationId.equals(message.conversationId)
+        return id == message.id
                 && senderId == message.senderId && clientMsgId.equals(message.clientMsgId)
                 && seq == message.seq && type == message.type && Arrays.equals(content, message.content)
                 && createdAt.equals(message.createdAt)

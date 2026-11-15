@@ -5,14 +5,11 @@ import java.time.Instant;
 /**
  * 分片上传会话。分片数据暂存于本机，完成后合成为文件对象。
  */
-public record UploadSession(long id, long tenantId, long uploaderId, String filename, String contentType,
+public record UploadSession(long id, long uploaderId, String filename, String contentType,
                             long sizeBytes, int chunkSize, int totalChunks, String conversationId,
                             UploadStatus status, Instant createdAt, Long fileId) {
 
     public UploadSession {
-        if (id <= 0 || tenantId <= 0 || uploaderId <= 0) {
-            throw new IllegalArgumentException("upload ids must be positive");
-        }
         if (filename == null || filename.isBlank()) {
             throw new IllegalArgumentException("filename must not be blank");
         }

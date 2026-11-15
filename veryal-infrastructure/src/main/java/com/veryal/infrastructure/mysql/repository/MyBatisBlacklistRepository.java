@@ -24,7 +24,7 @@ public class MyBatisBlacklistRepository implements BlacklistRepository {
     private final TimeProvider timeProvider;
 
     @Override
-    public void save(long tenantId, long userId, long blockedUserId) {
+    public void save(long userId, long blockedUserId) {
         BlacklistPO po = new BlacklistPO();
         po.id = idGenerator.nextId();
         po.userId = userId;
@@ -34,14 +34,14 @@ public class MyBatisBlacklistRepository implements BlacklistRepository {
     }
 
     @Override
-    public void delete(long tenantId, long userId, long blockedUserId) {
+    public void delete(long userId, long blockedUserId) {
         blacklistMapper.delete(Wrappers.<BlacklistPO>lambdaQuery()
                 .eq(BlacklistPO::getUserId, userId)
                 .eq(BlacklistPO::getBlockedUserId, blockedUserId));
     }
 
     @Override
-    public boolean exists(long tenantId, long userId, long blockedUserId) {
+    public boolean exists(long userId, long blockedUserId) {
         Long count = blacklistMapper.selectCount(Wrappers.<BlacklistPO>lambdaQuery()
                 .eq(BlacklistPO::getUserId, userId)
                 .eq(BlacklistPO::getBlockedUserId, blockedUserId));
@@ -49,7 +49,7 @@ public class MyBatisBlacklistRepository implements BlacklistRepository {
     }
 
     @Override
-    public List<Long> list(long tenantId, long userId, int limit) {
+    public List<Long> list(long userId, int limit) {
         return blacklistMapper.selectList(Wrappers.<BlacklistPO>lambdaQuery()
                         .eq(BlacklistPO::getUserId, userId)
                         .orderByDesc(BlacklistPO::getCreatedAt)

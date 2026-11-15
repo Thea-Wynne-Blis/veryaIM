@@ -16,8 +16,8 @@ public class AuditApplicationService {
 
     private final AuditRepository auditRepository;
 
-    public List<AuditLog> listMine(long tenantId, long userId, int limit) {
+    public List<AuditLog> listMine(long userId, int limit) {
         int pageSize = limit <= 0 ? 50 : Math.min(limit, 200);
-        return auditRepository.findByOperator(tenantId, userId, pageSize);
+        return auditRepository.findByOperator(userId, pageSize);
     }
 }

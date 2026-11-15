@@ -37,9 +37,8 @@ public class DeliveryAckHandler implements CommandHandler {
         } catch (NumberFormatException e) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "invalid message id: " + ack.getMessageId());
         }
-        String conversationId = messageApplicationService.acknowledgeDelivery(connection.tenantId(),
-                connection.userId(), messageId, ack.getDeviceId(), ack.getDeliveredSequence());
-        conversationApplicationService.advanceSyncCursor(connection.tenantId(), connection.userId(),
+        String conversationId = messageApplicationService.acknowledgeDelivery(connection.userId(), messageId, ack.getDeviceId(), ack.getDeliveredSequence());
+        conversationApplicationService.advanceSyncCursor(connection.userId(),
                 conversationId, ack.getDeliveredSequence());
     }
 }

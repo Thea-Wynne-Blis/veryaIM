@@ -2,7 +2,6 @@ package com.veryal.application.ops;
 
 import com.veryal.application.identity.UserMuteService;
 import com.veryal.application.platform.PlatformAuditRecorder;
-import com.veryal.common.core.TenantIds;
 import com.veryal.common.core.TimeProvider;
 import com.veryal.common.exception.BusinessException;
 import com.veryal.common.exception.ErrorCode;
@@ -31,7 +30,7 @@ public class OpsUserService {
     @Transactional(readOnly = true)
     public List<OpsUserView> search(String keyword, int limit) {
         String value = keyword == null ? "" : keyword.trim();
-        return userRepository.searchAll(TenantIds.DEFAULT_TENANT_ID, value,
+        return userRepository.searchAll(value,
                         Math.max(1, Math.min(limit, 100))).stream()
                 .map(OpsUserView::from)
                 .toList();

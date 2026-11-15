@@ -38,7 +38,7 @@ public class FriendController {
     public ApiResponse<FriendRequestResponse> sendRequest(@CurrentUser AuthenticatedUser user,
                                                           @Valid @RequestBody CreateFriendRequest request) {
         return ApiResponse.ok(FriendRequestResponse.from(friendApplicationService.sendRequest(
-                user.tenantId(), user.userId(), request.toUserId(), request.message())));
+                user.userId(), request.toUserId(), request.message())));
     }
 
     @GetMapping("/requests")
@@ -47,8 +47,8 @@ public class FriendController {
                                                              String direction,
                                                              @RequestParam(defaultValue = "50") int limit) {
         List<FriendRequestView> views = "outgoing".equalsIgnoreCase(direction)
-                ? friendApplicationService.outgoing(user.tenantId(), user.userId(), limit)
-                : friendApplicationService.incoming(user.tenantId(), user.userId(), limit);
+                ? friendApplicationService.outgoing(user.userId(), limit)
+                : friendApplicationService.incoming(user.userId(), limit);
         return ApiResponse.ok(views.stream().map(FriendRequestResponse::from).toList());
     }
 
@@ -56,26 +56,26 @@ public class FriendController {
     public ApiResponse<FriendRequestResponse> accept(@CurrentUser AuthenticatedUser user,
                                                      @PathVariable long requestId) {
         return ApiResponse.ok(FriendRequestResponse.from(friendApplicationService.accept(
-                user.tenantId(), user.userId(), requestId)));
+                user.userId(), requestId)));
     }
 
     @PostMapping("/requests/{requestId}/reject")
     public ApiResponse<FriendRequestResponse> reject(@CurrentUser AuthenticatedUser user,
                                                      @PathVariable long requestId) {
         return ApiResponse.ok(FriendRequestResponse.from(friendApplicationService.reject(
-                user.tenantId(), user.userId(), requestId)));
+                user.userId(), requestId)));
     }
 
     @PostMapping("/requests/{requestId}/cancel")
     public ApiResponse<FriendRequestResponse> cancel(@CurrentUser AuthenticatedUser user,
                                                      @PathVariable long requestId) {
         return ApiResponse.ok(FriendRequestResponse.from(friendApplicationService.cancel(
-                user.tenantId(), user.userId(), requestId)));
+                user.userId(), requestId)));
     }
 
     @GetMapping
     public ApiResponse<List<FriendResponse>> friends(@CurrentUser AuthenticatedUser user) {
-        return ApiResponse.ok(friendApplicationService.listFriends(user.tenantId(), user.userId())
+        return ApiResponse.ok(friendApplicationService.listFriends(user.userId())
                 .stream().map(FriendResponse::from).toList());
     }
 
@@ -83,7 +83,7 @@ public class FriendController {
     public ApiResponse<Void> updateRemark(@CurrentUser AuthenticatedUser user,
                                           @PathVariable long friendId,
                                           @Valid @RequestBody UpdateFriendRemarkRequest request) {
-        friendApplicationService.updateRemark(user.tenantId(), user.userId(), friendId,
+        friendApplicationService.updateRemark(user.userId(), friendId,
                 request.remark());
         return ApiResponse.ok();
     }
@@ -91,7 +91,7 @@ public class FriendController {
     @DeleteMapping("/{friendId}")
     public ApiResponse<Void> delete(@CurrentUser AuthenticatedUser user,
                                     @PathVariable long friendId) {
-        friendApplicationService.deleteFriend(user.tenantId(), user.userId(), friendId);
+        friendApplicationService.deleteFriend(user.userId(), friendId);
         return ApiResponse.ok();
     }
 }

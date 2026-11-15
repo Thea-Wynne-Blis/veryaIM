@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 public class MessageRateLimiter {
 
     @RateLimit(policy = "message-send", key = "#p0 + ':' + #p1")
-    public void acquire(long tenantId, long senderId) {
+    public void acquire(long senderId) {
         // 令牌由切面消费
     }
 }

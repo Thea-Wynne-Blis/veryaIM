@@ -122,7 +122,7 @@ public class AuthenticationHandler extends SimpleChannelInboundHandler<ProtocolM
             }
 
             Instant now = timeProvider.now();
-            connection.markOnline(user.userId(), user.tenantId(), user.deviceId(), user.tokenId(), now);
+            connection.markOnline(user.userId(), user.deviceId(), user.tokenId(), now);
             connectionRegistry.register(connection);
             sessionService.online(user, properties.getId(), connection.connectionId());
             cancelLoginTimeout(ctx);
@@ -163,7 +163,7 @@ public class AuthenticationHandler extends SimpleChannelInboundHandler<ProtocolM
         if (connection != null) {
             if (connection.authenticated()) {
                 try {
-                    sessionService.offline(new AuthenticatedUser(connection.userId(), connection.tenantId(),
+                    sessionService.offline(new AuthenticatedUser(connection.userId(),
                             connection.deviceId(), connection.tokenId()), connection.connectionId());
                 } catch (RuntimeException e) {
                     log.warn("failed to mark offline: connectionId={}", connection.connectionId(), e);

@@ -1,7 +1,6 @@
 package com.veryal.infrastructure.mysql.repository;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.veryal.common.core.TenantIds;
 import com.veryal.domain.friend.FriendRequest;
 import com.veryal.domain.friend.FriendRequestRepository;
 import com.veryal.domain.friend.FriendRequestStatus;
@@ -38,14 +37,14 @@ public class MyBatisFriendRequestRepository implements FriendRequestRepository {
     }
 
     @Override
-    public Optional<FriendRequest> findById(long tenantId, long requestId) {
+    public Optional<FriendRequest> findById(long requestId) {
         return Optional.ofNullable(friendRequestMapper.selectOne(Wrappers.<FriendRequestPO>lambdaQuery()
                         .eq(FriendRequestPO::getId, requestId)))
                 .map(this::toDomain);
     }
 
     @Override
-    public Optional<FriendRequest> findBetween(long tenantId, long fromUserId, long toUserId) {
+    public Optional<FriendRequest> findBetween(long fromUserId, long toUserId) {
         return Optional.ofNullable(friendRequestMapper.selectOne(Wrappers.<FriendRequestPO>lambdaQuery()
                         .eq(FriendRequestPO::getFromUserId, fromUserId)
                         .eq(FriendRequestPO::getToUserId, toUserId)))
@@ -53,24 +52,24 @@ public class MyBatisFriendRequestRepository implements FriendRequestRepository {
     }
 
     @Override
-    public List<FriendRequest> listIncoming(long tenantId, long userId, int limit) {
-        return list(tenantId, "to_user_id", userId, limit);
+    public List<FriendRequest> listIncoming(long userId, int limit) {
+        return list("to_user_id", userId, limit);
     }
 
     @Override
-    public List<FriendRequest> listOutgoing(long tenantId, long userId, int limit) {
-        return list(tenantId, "from_user_id", userId, limit);
+    public List<FriendRequest> listOutgoing(long userId, int limit) {
+        return list("from_user_id", userId, limit);
     }
 
     @Override
-    public long countPendingIncoming(long tenantId, long userId) {
+    public long countPendingIncoming(long userId) {
         Long count = friendRequestMapper.selectCount(Wrappers.<FriendRequestPO>lambdaQuery()
                 .eq(FriendRequestPO::getToUserId, userId)
                 .eq(FriendRequestPO::getStatus, FriendRequestStatus.PENDING.code()));
         return count == null ? 0 : count;
     }
 
-    private List<FriendRequest> list(long tenantId, String column, long userId, int limit) {
+    private List<FriendRequest> list(String column, long userId, int limit) {
         var query = Wrappers.<FriendRequestPO>lambdaQuery()
                 .eq(FriendRequestPO::getStatus, FriendRequestStatus.PENDING.code())
                 .orderByDesc(FriendRequestPO::getUpdatedAt)
@@ -84,7 +83,7 @@ public class MyBatisFriendRequestRepository implements FriendRequestRepository {
     }
 
     private FriendRequest toDomain(FriendRequestPO po) {
-        return new FriendRequest(po.id, TenantIds.DEFAULT_TENANT_ID, po.fromUserId, po.toUserId,
+        return new FriendRequest(po.id, po.fromUserId, po.toUserId,
                 po.message, FriendRequestStatus.fromCode(po.status),
                 SqlTime.toInstant(po.createdAt), SqlTime.toInstant(po.updatedAt));
     }

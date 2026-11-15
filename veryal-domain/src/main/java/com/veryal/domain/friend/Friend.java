@@ -5,11 +5,11 @@ import java.time.Instant;
 /**
  * 好友关系（双向各一行）。
  */
-public record Friend(long id, long tenantId, long userId, long friendId, String remark,
+public record Friend(long id, long userId, long friendId, String remark,
                      Instant createdAt) {
 
     public Friend {
-        if (id <= 0 || tenantId <= 0 || userId <= 0 || friendId <= 0) {
+        if (id <= 0 || userId <= 0 || friendId <= 0) {
             throw new IllegalArgumentException("friend ids must be positive");
         }
         if (userId == friendId) {

@@ -5,11 +5,11 @@ import java.time.Instant;
 /**
  * 审计记录。
  */
-public record AuditLog(long id, long tenantId, long operatorId, String action, String targetType,
+public record AuditLog(long id, long operatorId, String action, String targetType,
                        String targetId, String detail, Instant createdAt) {
 
     public AuditLog {
-        if (id <= 0 || tenantId <= 0 || operatorId <= 0) {
+        if (id <= 0 || operatorId <= 0) {
             throw new IllegalArgumentException("audit ids must be positive");
         }
         if (action == null || action.isBlank()) {

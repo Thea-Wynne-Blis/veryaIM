@@ -5,11 +5,11 @@ package com.veryal.domain.friend;
  */
 public interface BlacklistRepository {
 
-    void save(long tenantId, long userId, long blockedUserId);
+    void save(long userId, long blockedUserId);
 
-    void delete(long tenantId, long userId, long blockedUserId);
+    void delete(long userId, long blockedUserId);
 
-    boolean exists(long tenantId, long userId, long blockedUserId);
+    boolean exists(long userId, long blockedUserId);
 
-    java.util.List<Long> list(long tenantId, long userId, int limit);
+    java.util.List<Long> list(long userId, int limit);
 }

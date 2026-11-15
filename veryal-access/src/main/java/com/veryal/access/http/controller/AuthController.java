@@ -12,7 +12,6 @@ import com.veryal.application.identity.LoginCommand;
 import com.veryal.application.identity.RegisterCommand;
 import com.veryal.application.identity.UserApplicationService;
 import com.veryal.common.core.ApiResponse;
-import com.veryal.common.core.TenantIds;
 import com.veryal.common.ratelimit.RateLimit;
 import com.veryal.common.ratelimit.RateLimitDimension;
 import jakarta.validation.Valid;
@@ -38,7 +37,6 @@ public class AuthController {
     @RateLimit(policy = "http-login", dimension = RateLimitDimension.IP)
     public ApiResponse<UserResponse> register(@Valid @RequestBody RegisterRequest request) {
         UserResponse user = UserResponse.from(authApplicationService.register(
-                TenantIds.DEFAULT_TENANT_ID,
                 new RegisterCommand(request.username(), request.password(), request.nickname())));
         return ApiResponse.ok(user);
     }
@@ -46,8 +44,7 @@ public class AuthController {
     @PostMapping("/login")
     @RateLimit(policy = "http-login", dimension = RateLimitDimension.IP)
     public ApiResponse<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
-        AuthResult result = authApplicationService.login(TenantIds.DEFAULT_TENANT_ID,
-                new LoginCommand(request.username(), request.password(), request.deviceId(),
+        AuthResult result = authApplicationService.login(new LoginCommand(request.username(), request.password(), request.deviceId(),
                         request.platform(), request.deviceName()));
         return ApiResponse.ok(AuthResponse.from(result));
     }

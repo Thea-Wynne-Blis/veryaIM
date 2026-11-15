@@ -23,6 +23,6 @@ public class ContactController {
     @GetMapping
     public ApiResponse<ContactResponse> contacts(@CurrentUser AuthenticatedUser user) {
         return ApiResponse.ok(ContactResponse.from(contactApplicationService.contacts(
-                user.tenantId(), user.userId())));
+                user.userId())));
     }
 }

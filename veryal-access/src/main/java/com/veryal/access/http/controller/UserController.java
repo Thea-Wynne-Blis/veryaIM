@@ -53,7 +53,7 @@ public class UserController {
     @GetMapping("/me/audit-logs")
     public ApiResponse<List<AuditLogResponse>> auditLogs(@CurrentUser AuthenticatedUser user,
                                                          @RequestParam(defaultValue = "50") int limit) {
-        return ApiResponse.ok(auditApplicationService.listMine(user.tenantId(), user.userId(), limit)
+        return ApiResponse.ok(auditApplicationService.listMine(user.userId(), limit)
                 .stream()
                 .map(AuditLogResponse::from)
                 .toList());

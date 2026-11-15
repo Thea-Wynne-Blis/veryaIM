@@ -27,19 +27,19 @@ public class BlockController {
 
     @GetMapping
     public ApiResponse<List<BlockedUserResponse>> list(@CurrentUser AuthenticatedUser user) {
-        return ApiResponse.ok(friendApplicationService.listBlocked(user.tenantId(), user.userId())
+        return ApiResponse.ok(friendApplicationService.listBlocked(user.userId())
                 .stream().map(BlockedUserResponse::from).toList());
     }
 
     @PostMapping("/{userId}")
     public ApiResponse<Void> block(@CurrentUser AuthenticatedUser user, @PathVariable long userId) {
-        friendApplicationService.block(user.tenantId(), user.userId(), userId);
+        friendApplicationService.block(user.userId(), userId);
         return ApiResponse.ok();
     }
 
     @DeleteMapping("/{userId}")
     public ApiResponse<Void> unblock(@CurrentUser AuthenticatedUser user, @PathVariable long userId) {
-        friendApplicationService.unblock(user.tenantId(), user.userId(), userId);
+        friendApplicationService.unblock(user.userId(), userId);
         return ApiResponse.ok();
     }
 }

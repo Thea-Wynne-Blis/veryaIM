@@ -7,7 +7,7 @@ VERYAL 是面向个人用户的消费级社交即时通讯产品（类微信 / Q
 > - VERYAL 定位为消费级社交 IM：账号、好友、单聊、群聊、富媒体、多端同步、离线推送、隐私与举报、运营后台。
 > - **不做多租户 / 企业组织 / 飞书式协作 / 开放平台 / 私有化交付。**
 > - 租户表、租户码登录、平台租户管理、租户管理员、租户用量/导出/删除接口已移除（V17）。
-> - 数据库和部分领域对象仍保留固定 `tenant_id=1` 兼容列，产品层不可见，后续迁移删除。
+> - 数据库 `tenant_id` 列与 Java `tenantId` 字段/参数已全部移除（V21 + 代码清理），单平台单空间。
 > - 前端设计见 [`docs/FRONTEND-ARCHITECTURE.md`](docs/FRONTEND-ARCHITECTURE.md)（IM 客户端 + 运营后台）。
 
 当前版本完成了 **V0.1 通信核心**、**V0.2 基础 IM 业务** 与 **V0.3 消息可靠性核心** 的可运行纵向切片：
@@ -32,7 +32,7 @@ VERYAL 是面向个人用户的消费级社交即时通讯产品（类微信 / Q
 - **连接数治理**：单节点总连接数与单 IP 连接数可配置，准入处理器在 TLS/协议握手前拒绝超限连接，并输出拒绝指标。
 - **文件存储策略**：`local` / `minio` / `oss` 三种实现，`veryal.storage.type` 选择；文件本体不入 MySQL，元数据与 SHA-256 落库，支持上传、下载、删除、临时 URL。
 - **分片上传/断点续传**：初始化会话 → 逐片上传 → 查询已上传分片 → 完成后合并；图片上传自动缩放/压缩。
-- **多租户已移除（V17/V21）**：租户表、租户码、租户管理接口、租户管理员、用量/导出/删除已删除；V21 已从数据库删除全部 `tenant_id` 列，Java 领域对象仍有兼容字段，待后续清理。
+- **多租户已彻底移除（V17/V21 + Java 清理）**：租户表、租户码、租户管理接口、租户管理员、用量/导出/删除已删除；V21 删除全部 `tenant_id` 列，Java 领域对象、仓储、服务、控制器、连接、事件与测试不再包含 `tenantId` 字段或参数。
 - **好友/黑名单/通讯录**：好友申请（发送/接受/拒绝/取消）、好友备注/删除、黑名单拦截私聊、通讯录聚合好友/群/待处理申请。
 - **多消息类型**：TEXT / EMOJI / IMAGE / AUDIO / VIDEO / FILE / SYSTEM，采用策略 + 工厂校验内容格式与文件归属。
 - Lombok 消除样板代码，Hutool 提供 ID / 字符串等基础工具。
@@ -74,7 +74,7 @@ access ──> protocol ──> common
 ```text
 com.veryal
 ├── common
-│   ├── core            ApiResponse / CursorPage / TimeProvider / Preconditions / TenantIds / RandomIds
+│   ├── core            ApiResponse / CursorPage / TimeProvider / Preconditions / RandomIds
 │   ├── exception       ErrorCode / VeryalException / Business / System / Protocol / Auth / Persistence
 │   ├── id              IdGenerator / SnowflakeIdGenerator
 │   ├── json            JsonUtils
@@ -175,7 +175,7 @@ public ApiResponse<AuthResponse> login(...) { ... }
 
 // 消息发送：按发送者
 @RateLimit(policy = "message-send", key = "#p0 + ':' + #p1")
-public void acquire(long tenantId, long senderId) { ... }
+public void acquire(long senderId) { ... }
 ```
 
 - `policy` 对应 `veryal.rate-limit.policies` 中的策略；
@@ -337,7 +337,7 @@ curl -s -X POST http://127.0.0.1:8080/api/v1/conversations/p_1_1001_1002/message
 
 ### 幂等
 
-`clientMessageId` 在 `(tenant_id, sender_id)` 维度唯一。重复提交返回同一条消息与相同序号，`duplicate=true`。
+`clientMessageId` 在 `sender_id` 维度唯一。重复提交返回同一条消息与相同序号，`duplicate=true`。
 
 ## TCP / WebSocket 协议
 
@@ -435,7 +435,7 @@ veryal:
 ```
 
 - 文件大小上限 20MB（Spring multipart 与应用双重校验）。
-- 对象键：`tenant/{tenantId}/{yyyy/MM/dd}/{fileId}.{ext}`；文件名做路径穿越与控制字符清理。
+- 对象键：`files/{yyyy/MM/dd}/{fileId}.{ext}`；文件名做路径穿越与控制字符清理。
 - 上传先写对象存储，再写 `im_file`；元数据失败会补偿删除对象。
 - 当前文件若绑定 `conversationId`，会话成员可下载；否则仅上传者可下载/删除。文件消息的成员引用权限与此一致。
 
@@ -482,7 +482,7 @@ veryal:
   {"scope":"PLATFORM","role":"PLATFORM_ADMIN","token":"...","adminId":1001,"username":"admin"}
   ```
 - 普通用户登录返回 `scope=USER`、`role=USER`；
-- 普通用户 JWT 不再携带 `tid` / 租户声明；内部固定默认空间仅用于兼容历史数据。
+- 普通用户 JWT 不携带租户声明；服务端为单平台单空间，无租户上下文。
 - 前端根据 `scope` 路由：`PLATFORM` 进入运营后台，`USER` 进入 IM 客户端；
 - 两套 Token 完全分离，跨 scope 不能互用。
 - 支持 TOTP MFA、Refresh Token 轮换、登录失败锁定。

@@ -107,7 +107,7 @@ class GroupModerationIntegrationTest {
 
     private SendMessageCommand sendCommand(String groupId, long senderId, String clientId,
                                            String content) {
-        return new SendMessageCommand(1L, senderId, "gm-device", groupId, clientId,
+        return new SendMessageCommand(senderId, "gm-device", groupId, clientId,
                 MessageType.TEXT, content.getBytes(StandardCharsets.UTF_8));
     }
 

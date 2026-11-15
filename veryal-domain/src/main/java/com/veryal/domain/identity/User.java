@@ -10,15 +10,12 @@ import java.time.Instant;
  *
  * <p>领域对象不依赖 Spring / Netty / MyBatis；密码只保存哈希。</p>
  */
-public record User(long id, long tenantId, String username, String nickname, String avatar,
+public record User(long id, String username, String nickname, String avatar,
                    UserStatus status, String passwordHash, Instant createdAt, Instant updatedAt) {
 
     public User {
         if (id <= 0) {
             throw new IllegalArgumentException("user id must be positive");
-        }
-        if (tenantId <= 0) {
-            throw new IllegalArgumentException("tenant id must be positive");
         }
         if (username == null || username.isBlank()) {
             throw new IllegalArgumentException("username must not be blank");
@@ -37,9 +34,9 @@ public record User(long id, long tenantId, String username, String nickname, Str
         }
     }
 
-    public static User register(long id, long tenantId, String username, String nickname,
+    public static User register(long id, String username, String nickname,
                                 String passwordHash, Instant now) {
-        return new User(id, tenantId, username, nickname, null, UserStatus.ACTIVE, passwordHash, now, now);
+        return new User(id, username, nickname, null, UserStatus.ACTIVE, passwordHash, now, now);
     }
 
     public boolean active() {
@@ -55,11 +52,11 @@ public record User(long id, long tenantId, String username, String nickname, Str
     public User updateProfile(String nickname, String avatar, Instant now) {
         String newNickname = (nickname == null || nickname.isBlank()) ? this.nickname : nickname;
         String newAvatar = avatar == null ? this.avatar : avatar;
-        return new User(id, tenantId, username, newNickname, newAvatar, status, passwordHash, createdAt, now);
+        return new User(id, username, newNickname, newAvatar, status, passwordHash, createdAt, now);
     }
 
     public User withStatus(UserStatus newStatus, Instant now) {
-        return new User(id, tenantId, username, nickname, avatar, newStatus, passwordHash,
+        return new User(id, username, nickname, avatar, newStatus, passwordHash,
                 createdAt, now);
     }
 }

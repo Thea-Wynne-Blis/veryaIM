@@ -9,7 +9,7 @@ import java.lang.annotation.Target;
  * 方法级限流：由 RateLimitAspect 在调用前消费令牌。
  *
  * <pre>
- * &#64;RateLimit(policy = "message-send", key = "#p0.tenantId() + ':' + #p0.senderId()")
+ * &#64;RateLimit(policy = "message-send", key = "#p0.senderId()")
  * </pre>
  */
 @Target(ElementType.METHOD)

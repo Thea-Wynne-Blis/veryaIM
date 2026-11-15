@@ -32,7 +32,7 @@ public class GroupModerationController {
     public ApiResponse<GroupModerationResponse> get(@CurrentUser AuthenticatedUser user,
                                                     @PathVariable String groupId) {
         return ApiResponse.ok(GroupModerationResponse.from(
-                groupModerationService.get(user.tenantId(), user.userId(), groupId)));
+                groupModerationService.get(user.userId(), groupId)));
     }
 
     @PutMapping("/announcement")
@@ -40,7 +40,7 @@ public class GroupModerationController {
             @CurrentUser AuthenticatedUser user, @PathVariable String groupId,
             @Valid @RequestBody GroupAnnouncementRequest request) {
         return ApiResponse.ok(GroupModerationResponse.from(
-                groupModerationService.updateAnnouncement(user.tenantId(), user.userId(), groupId,
+                groupModerationService.updateAnnouncement(user.userId(), groupId,
                         request.announcement())));
     }
 
@@ -49,7 +49,7 @@ public class GroupModerationController {
             @CurrentUser AuthenticatedUser user, @PathVariable String groupId,
             @RequestBody GroupMuteAllRequest request) {
         return ApiResponse.ok(GroupModerationResponse.from(
-                groupModerationService.setMuteAll(user.tenantId(), user.userId(), groupId,
+                groupModerationService.setMuteAll(user.userId(), groupId,
                         request.muteAll())));
     }
 
@@ -58,7 +58,7 @@ public class GroupModerationController {
             @CurrentUser AuthenticatedUser user, @PathVariable String groupId,
             @PathVariable long userId, @Valid @RequestBody GroupMemberMuteRequest request) {
         return ApiResponse.ok(GroupModerationResponse.from(
-                groupModerationService.muteMember(user.tenantId(), user.userId(), groupId, userId,
+                groupModerationService.muteMember(user.userId(), groupId, userId,
                         request.minutes())));
     }
 }

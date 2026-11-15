@@ -42,21 +42,21 @@ public class GroupApplicationService {
     private final AuditRecorder auditRecorder;
 
     @Transactional
-    public GroupView create(long tenantId, long ownerId, String name, List<Long> memberIds) {
+    public GroupView create(long ownerId, String name, List<Long> memberIds) {
         String validName = validateName(name);
         List<Long> invitees = normalizeInvitees(memberIds, ownerId);
         if (1 + invitees.size() > Group.MAX_MEMBERS) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT,
                     "group member limit is " + Group.MAX_MEMBERS);
         }
-        ensureUsersExist(tenantId, invitees);
+        ensureUsersExist(invitees);
         Instant now = timeProvider.now();
-        Conversation conversation = Conversation.createGroup(tenantId, idGenerator.nextId(), now);
+        Conversation conversation = Conversation.createGroup(idGenerator.nextId(), now);
         if (!conversationRepository.saveIfAbsent(conversation)) {
             throw new BusinessException(ErrorCode.CONFLICT, "group conversation already exists");
         }
         addConversationMember(conversation.id(), ownerId, now);
-        Group group = Group.create(conversation.id(), tenantId, validName, ownerId, now);
+        Group group = Group.create(conversation.id(), validName, ownerId, now);
         if (!groupRepository.saveIfAbsent(group)) {
             throw new BusinessException(ErrorCode.CONFLICT, "group already exists");
         }
@@ -67,14 +67,14 @@ public class GroupApplicationService {
             groupRepository.addMember(GroupMember.join(idGenerator.nextId(), group.id(), invitee,
                     GroupRole.MEMBER, now));
         }
-        auditRecorder.record(tenantId, ownerId, AuditAction.GROUP_CREATE, "group", group.id(),
+        auditRecorder.record(ownerId, AuditAction.GROUP_CREATE, "group", group.id(),
                 "members=" + (1 + invitees.size()) + ",name=" + validName);
         return view(group);
     }
 
     @Transactional
-    public GroupView addMembers(long tenantId, long operatorId, String groupId, List<Long> userIds) {
-        Group group = requireGroup(tenantId, groupId);
+    public GroupView addMembers(long operatorId, String groupId, List<Long> userIds) {
+        Group group = requireGroup(groupId);
         GroupMember operator = groupRepository.findMember(groupId, operatorId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CONVERSATION_MEMBER,
                         "not a group member"));
@@ -87,7 +87,7 @@ public class GroupApplicationService {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT,
                     "group member limit is " + Group.MAX_MEMBERS);
         }
-        ensureUsersExist(tenantId, invitees);
+        ensureUsersExist(invitees);
         Instant now = timeProvider.now();
         for (Long invitee : invitees) {
             addConversationMember(groupId, invitee, now);
@@ -95,14 +95,14 @@ public class GroupApplicationService {
                     GroupRole.MEMBER, now));
         }
         groupRepository.touch(groupId, now);
-        auditRecorder.record(tenantId, operatorId, AuditAction.GROUP_MEMBER_ADD, "group", groupId,
+        auditRecorder.record(operatorId, AuditAction.GROUP_MEMBER_ADD, "group", groupId,
                 "members=" + invitees.size());
         return view(groupRepository.findById(groupId).orElseThrow());
     }
 
     @Transactional(readOnly = true)
-    public GroupView get(long tenantId, long userId, String groupId) {
-        Group group = requireGroup(tenantId, groupId);
+    public GroupView get(long userId, String groupId) {
+        Group group = requireGroup(groupId);
         if (groupRepository.findMember(groupId, userId).isEmpty()) {
             throw new BusinessException(ErrorCode.NOT_CONVERSATION_MEMBER, "not a group member");
         }
@@ -110,23 +110,23 @@ public class GroupApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public List<GroupSummary> list(long tenantId, long userId) {
-        return groupRepository.findByUser(tenantId, userId).stream()
+    public List<GroupSummary> list(long userId) {
+        return groupRepository.findByUser(userId).stream()
                 .map(group -> new GroupSummary(group.id(), group.name(), group.ownerId(),
                         groupRepository.countMembers(group.id()), group.updatedAt()))
                 .toList();
     }
 
     @Transactional
-    public GroupView rename(long tenantId, long operatorId, String groupId, String name) {
-        Group group = requireGroup(tenantId, groupId);
+    public GroupView rename(long operatorId, String groupId, String name) {
+        Group group = requireGroup(groupId);
         GroupMember operator = requireMember(groupId, operatorId);
         if (!operator.role().manager()) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "only owner or admin can rename group");
         }
         Group renamed = group.rename(validateName(name), timeProvider.now());
         groupRepository.update(renamed);
-        auditRecorder.record(tenantId, operatorId, AuditAction.GROUP_RENAME, "group", groupId,
+        auditRecorder.record(operatorId, AuditAction.GROUP_RENAME, "group", groupId,
                 "name=" + renamed.name());
         return view(renamed);
     }
@@ -135,8 +135,8 @@ public class GroupApplicationService {
      * 退群。群主必须先转让群主或解散群，不能直接退出。
      */
     @Transactional
-    public void leave(long tenantId, long userId, String groupId) {
-        Group group = requireGroup(tenantId, groupId);
+    public void leave(long userId, String groupId) {
+        Group group = requireGroup(groupId);
         requireMember(groupId, userId);
         if (group.ownerId() == userId) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT,
@@ -145,7 +145,7 @@ public class GroupApplicationService {
         groupRepository.removeMember(groupId, userId);
         conversationRepository.removeMember(groupId, userId);
         groupRepository.touch(groupId, timeProvider.now());
-        auditRecorder.record(tenantId, userId, AuditAction.GROUP_MEMBER_LEAVE, "group", groupId,
+        auditRecorder.record(userId, AuditAction.GROUP_MEMBER_LEAVE, "group", groupId,
                 "userId=" + userId);
     }
 
@@ -153,8 +153,8 @@ public class GroupApplicationService {
      * 踢人。管理员不能踢管理员或群主，只有群主可以处理管理员。
      */
     @Transactional
-    public GroupView kick(long tenantId, long operatorId, String groupId, long targetUserId) {
-        Group group = requireGroup(tenantId, groupId);
+    public GroupView kick(long operatorId, String groupId, long targetUserId) {
+        Group group = requireGroup(groupId);
         GroupMember operator = requireMember(groupId, operatorId);
         if (!operator.role().manager()) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "only owner or admin can remove members");
@@ -169,7 +169,7 @@ public class GroupApplicationService {
         groupRepository.removeMember(groupId, targetUserId);
         conversationRepository.removeMember(groupId, targetUserId);
         groupRepository.touch(groupId, timeProvider.now());
-        auditRecorder.record(tenantId, operatorId, AuditAction.GROUP_MEMBER_REMOVE, "group", groupId,
+        auditRecorder.record(operatorId, AuditAction.GROUP_MEMBER_REMOVE, "group", groupId,
                 "userId=" + targetUserId);
         return view(groupRepository.findById(groupId).orElseThrow());
     }
@@ -178,9 +178,9 @@ public class GroupApplicationService {
      * 设置成员角色。只有群主可以设置管理员，且不能转移群主。
      */
     @Transactional
-    public GroupView changeRole(long tenantId, long operatorId, String groupId, long targetUserId,
+    public GroupView changeRole(long operatorId, String groupId, long targetUserId,
                                 GroupRole role) {
-        Group group = requireGroup(tenantId, groupId);
+        Group group = requireGroup(groupId);
         GroupMember operator = requireMember(groupId, operatorId);
         if (operator.role() != GroupRole.OWNER) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "only owner can change member role");
@@ -191,7 +191,7 @@ public class GroupApplicationService {
         requireMember(groupId, targetUserId);
         groupRepository.updateMemberRole(groupId, targetUserId, role);
         groupRepository.touch(groupId, timeProvider.now());
-        auditRecorder.record(tenantId, operatorId, AuditAction.GROUP_ROLE_CHANGE, "group_member",
+        auditRecorder.record(operatorId, AuditAction.GROUP_ROLE_CHANGE, "group_member",
                 groupId + ":" + targetUserId, "role=" + role.name());
         return view(groupRepository.findById(groupId).orElseThrow());
     }
@@ -200,8 +200,8 @@ public class GroupApplicationService {
      * 转让群主：原群主降为管理员，新群主必须是群成员。
      */
     @Transactional
-    public GroupView transferOwner(long tenantId, long currentOwnerId, String groupId, long newOwnerId) {
-        Group group = requireGroup(tenantId, groupId);
+    public GroupView transferOwner(long currentOwnerId, String groupId, long newOwnerId) {
+        Group group = requireGroup(groupId);
         GroupMember operator = requireMember(groupId, currentOwnerId);
         if (operator.role() != GroupRole.OWNER) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "only owner can transfer ownership");
@@ -216,7 +216,7 @@ public class GroupApplicationService {
         groupRepository.updateMemberRole(groupId, newOwnerId, GroupRole.OWNER);
         groupRepository.updateMemberRole(groupId, currentOwnerId, GroupRole.ADMIN);
         groupRepository.touch(groupId, now);
-        auditRecorder.record(tenantId, currentOwnerId, AuditAction.GROUP_OWNER_TRANSFER, "group", groupId,
+        auditRecorder.record(currentOwnerId, AuditAction.GROUP_OWNER_TRANSFER, "group", groupId,
                 "newOwner=" + newOwnerId);
         return view(transferred);
     }
@@ -225,20 +225,19 @@ public class GroupApplicationService {
      * 解散群：仅群主可操作，删除群、群成员、会话与会话成员；历史消息保留。
      */
     @Transactional
-    public void disband(long tenantId, long ownerId, String groupId) {
-        requireGroup(tenantId, groupId);
+    public void disband(long ownerId, String groupId) {
+        requireGroup(groupId);
         GroupMember operator = requireMember(groupId, ownerId);
         if (operator.role() != GroupRole.OWNER) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "only owner can disband group");
         }
-        auditRecorder.record(tenantId, ownerId, AuditAction.GROUP_DISBAND, "group", groupId, null);
+        auditRecorder.record(ownerId, AuditAction.GROUP_DISBAND, "group", groupId, null);
         conversationRepository.delete(groupId);
         groupRepository.delete(groupId);
     }
 
-    private Group requireGroup(long tenantId, String groupId) {
+    private Group requireGroup(String groupId) {
         return groupRepository.findById(groupId)
-                .filter(group -> group.tenantId() == tenantId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "group not found"));
     }
 
@@ -284,10 +283,9 @@ public class GroupApplicationService {
         return new ArrayList<>(distinct);
     }
 
-    private void ensureUsersExist(long tenantId, List<Long> userIds) {
+    private void ensureUsersExist(List<Long> userIds) {
         for (Long userId : userIds) {
             User user = userRepository.findById(userId)
-                    .filter(item -> item.tenantId() == tenantId)
                     .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND,
                             "user not found: " + userId));
             user.ensureActive();

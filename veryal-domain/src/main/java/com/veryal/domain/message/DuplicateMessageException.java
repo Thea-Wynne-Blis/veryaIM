@@ -8,8 +8,8 @@ import com.veryal.common.exception.ErrorCode;
  */
 public class DuplicateMessageException extends BusinessException {
 
-    public DuplicateMessageException(long tenantId, long senderId, String clientMsgId) {
+    public DuplicateMessageException(long senderId, String clientMsgId) {
         super(ErrorCode.DUPLICATE_MESSAGE,
-                "duplicate message: tenant=" + tenantId + ", sender=" + senderId + ", clientMsgId=" + clientMsgId);
+                "duplicate message: sender=" + senderId + ", clientMsgId=" + clientMsgId);
     }
 }

@@ -41,7 +41,7 @@ public abstract class AbstractFileMessageStrategy implements MessageTypeStrategy
         if (fileId <= 0) {
             throw new BusinessException(ErrorCode.MESSAGE_CONTENT_INVALID, "fileId is required");
         }
-        StoredFile file = fileRepository.findById(context.tenantId(), fileId)
+        StoredFile file = fileRepository.findById(fileId)
                 .filter(item -> item.status() == FileStatus.ACTIVE)
                 .orElseThrow(() -> new BusinessException(ErrorCode.FILE_NOT_FOUND,
                         "file not found: " + fileId));

@@ -29,13 +29,14 @@ public interface GroupRepository {
 
     long countMembers(String groupId);
 
-    List<Group> findByUser(long tenantId, long userId);
+    List<Group> findByUser(long userId);
 
-    List<Group> findByTenant(long tenantId, int limit);
+    long count();
 
-    List<Group> search(long tenantId, String keyword, int limit);
+    List<Group> findAll(int limit);
 
-    long countByTenant(long tenantId);
+    List<Group> search(String keyword, int limit);
+
 
     /**
      * 解散群：删除群与全部群成员。

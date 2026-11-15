@@ -13,13 +13,13 @@ public interface FriendRequestRepository {
 
     void update(FriendRequest request);
 
-    Optional<FriendRequest> findById(long tenantId, long requestId);
+    Optional<FriendRequest> findById(long requestId);
 
-    Optional<FriendRequest> findBetween(long tenantId, long fromUserId, long toUserId);
+    Optional<FriendRequest> findBetween(long fromUserId, long toUserId);
 
-    List<FriendRequest> listIncoming(long tenantId, long userId, int limit);
+    List<FriendRequest> listIncoming(long userId, int limit);
 
-    List<FriendRequest> listOutgoing(long tenantId, long userId, int limit);
+    List<FriendRequest> listOutgoing(long userId, int limit);
 
-    long countPendingIncoming(long tenantId, long userId);
+    long countPendingIncoming(long userId);
 }

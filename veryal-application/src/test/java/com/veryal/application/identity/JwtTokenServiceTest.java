@@ -24,7 +24,6 @@ class JwtTokenServiceTest {
         AuthenticatedUser user = service.parse(issued.token());
 
         assertThat(user.userId()).isEqualTo(1001L);
-        assertThat(user.tenantId()).isEqualTo(1L);
         assertThat(user.deviceId()).isEqualTo("device-1");
         assertThat(user.tokenId()).isNotBlank();
     }

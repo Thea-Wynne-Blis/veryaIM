@@ -47,12 +47,12 @@ public class FileApplicationService {
     private final IdGenerator idGenerator;
     private final TimeProvider timeProvider;
 
-    public FileView upload(long tenantId, long uploaderId, String filename, String contentType,
+    public FileView upload(long uploaderId, String filename, String contentType,
                            byte[] content) {
-        return upload(tenantId, uploaderId, null, filename, contentType, content);
+        return upload(uploaderId, null, filename, contentType, content);
     }
 
-    public FileView upload(long tenantId, long uploaderId, String conversationId, String filename,
+    public FileView upload(long uploaderId, String conversationId, String filename,
                            String contentType, byte[] content) {
         if (content == null || content.length == 0) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "file must not be empty");
@@ -61,13 +61,13 @@ public class FileApplicationService {
             throw new BusinessException(ErrorCode.FILE_TOO_LARGE,
                     "file exceeds max size " + MAX_FILE_SIZE + " bytes");
         }
-        return store(tenantId, uploaderId, conversationId, filename, contentType, content);
+        return store(uploaderId, conversationId, filename, contentType, content);
     }
 
     /**
      * 写入文件对象与元数据；供普通上传和分片上传完成时复用。
      */
-    public FileView store(long tenantId, long uploaderId, String conversationId, String filename,
+    public FileView store(long uploaderId, String conversationId, String filename,
                           String contentType, byte[] content) {
         if (content == null || content.length == 0) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "file must not be empty");
@@ -75,15 +75,14 @@ public class FileApplicationService {
         String safeName = sanitizeName(filename);
         String normalizedType = normalizeContentType(contentType);
         String extension = extension(safeName);
-        String scopedConversationId = scopeConversation(tenantId, uploaderId, conversationId);
+        String scopedConversationId = scopeConversation(uploaderId, conversationId);
         byte[] storedContent = imageCompressor.compress(content, normalizedType);
         Instant now = timeProvider.now();
         long fileId = idGenerator.nextId();
-        String objectKey = "tenant/" + tenantId + "/" + DATE_PATH.format(now) + "/"
-                + fileId + extension;
+        String objectKey = "files/" + DATE_PATH.format(now) + "/" + fileId + extension;
         String sha256 = sha256(storedContent);
         FileStorage storage = storageProvider.current();
-        StoredFile file = new StoredFile(fileId, tenantId, uploaderId, objectKey, safeName,
+        StoredFile file = new StoredFile(fileId, uploaderId, objectKey, safeName,
                 normalizedType, storedContent.length, sha256, storage.type(), FileStatus.ACTIVE, now, null,
                 scopedConversationId);
 
@@ -97,47 +96,46 @@ public class FileApplicationService {
         return FileView.from(file);
     }
 
-    public FileContent download(long tenantId, long userId, long fileId) {
-        StoredFile file = requireAccessible(tenantId, userId, fileId);
+    public FileContent download(long userId, long fileId) {
+        StoredFile file = requireAccessible(userId, fileId);
         byte[] content = storageProvider.get(file.storageType()).get(file.objectKey());
         return new FileContent(file, content);
     }
 
-    public FileView get(long tenantId, long userId, long fileId) {
-        return FileView.from(requireAccessible(tenantId, userId, fileId));
+    public FileView get(long userId, long fileId) {
+        return FileView.from(requireAccessible(userId, fileId));
     }
 
-    public void delete(long tenantId, long userId, long fileId) {
-        StoredFile file = requireOwned(tenantId, userId, fileId);
+    public void delete(long userId, long fileId) {
+        StoredFile file = requireOwned(userId, fileId);
         if (file.status() == FileStatus.DELETED) {
             return;
         }
         storageProvider.get(file.storageType()).delete(file.objectKey());
-        fileRepository.markDeleted(tenantId, fileId, timeProvider.now());
+        fileRepository.markDeleted(fileId, timeProvider.now());
     }
 
     /**
      * 返回临时 URL；本地存储没有签名 URL，返回 null 由接入层回退到下载接口。
      */
-    public String presignedUrl(long tenantId, long userId, long fileId, Duration ttl) {
-        StoredFile file = requireAccessible(tenantId, userId, fileId);
+    public String presignedUrl(long userId, long fileId, Duration ttl) {
+        StoredFile file = requireAccessible(userId, fileId);
         return storageProvider.get(file.storageType()).presignedUrl(file.objectKey(), ttl);
     }
 
-    private String scopeConversation(long tenantId, long uploaderId, String conversationId) {
+    private String scopeConversation(long uploaderId, String conversationId) {
         if (conversationId == null || conversationId.isBlank()) {
             return null;
         }
         conversationRepository.findById(conversationId)
-                .filter(item -> item.tenantId() == tenantId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND));
         conversationRepository.findMember(conversationId, uploaderId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CONVERSATION_MEMBER));
         return conversationId;
     }
 
-    private StoredFile requireAccessible(long tenantId, long userId, long fileId) {
-        StoredFile file = fileRepository.findById(tenantId, fileId)
+    private StoredFile requireAccessible(long userId, long fileId) {
+        StoredFile file = fileRepository.findById(fileId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.FILE_NOT_FOUND, "file not found"));
         if (file.status() == FileStatus.DELETED) {
             throw new BusinessException(ErrorCode.FILE_NOT_FOUND, "file not found");
@@ -152,8 +150,8 @@ public class FileApplicationService {
         throw new BusinessException(ErrorCode.FORBIDDEN, "file is not accessible");
     }
 
-    private StoredFile requireOwned(long tenantId, long userId, long fileId) {
-        StoredFile file = fileRepository.findById(tenantId, fileId)
+    private StoredFile requireOwned(long userId, long fileId) {
+        StoredFile file = fileRepository.findById(fileId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.FILE_NOT_FOUND, "file not found"));
         if (file.status() == FileStatus.DELETED) {
             throw new BusinessException(ErrorCode.FILE_NOT_FOUND, "file not found");

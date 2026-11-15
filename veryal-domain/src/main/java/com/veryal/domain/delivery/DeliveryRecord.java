@@ -5,11 +5,11 @@ import java.time.Instant;
 /**
  * 消息投递记录：某设备确认收到某条消息。
  */
-public record DeliveryRecord(long id, long tenantId, long messageId, String conversationId,
+public record DeliveryRecord(long id, long messageId, String conversationId,
                              long userId, String deviceId, long deliveredSequence, Instant deliveredAt) {
 
     public DeliveryRecord {
-        if (id <= 0 || tenantId <= 0 || messageId <= 0 || userId <= 0) {
+        if (id <= 0 || messageId <= 0 || userId <= 0) {
             throw new IllegalArgumentException("delivery ids must be positive");
         }
         if (conversationId == null || conversationId.isBlank()) {

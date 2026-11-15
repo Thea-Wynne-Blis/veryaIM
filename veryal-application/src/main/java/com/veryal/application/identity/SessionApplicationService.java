@@ -24,7 +24,7 @@ public class SessionApplicationService {
         if (gatewayId == null || gatewayId.isBlank()) {
             throw new VeryalException(ErrorCode.CONFIGURATION_ERROR, "gatewayId must not be blank");
         }
-        presenceRepository.markOnline(PresenceRecord.online(user.userId(), user.tenantId(), user.deviceId(),
+        presenceRepository.markOnline(PresenceRecord.online(user.userId(), user.deviceId(),
                 gatewayId, connectionId, timeProvider.now()));
     }
 
