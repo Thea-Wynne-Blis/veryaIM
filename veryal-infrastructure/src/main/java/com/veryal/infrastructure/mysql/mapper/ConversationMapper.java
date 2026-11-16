@@ -1,6 +1,7 @@
 package com.veryal.infrastructure.mysql.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.veryal.infrastructure.mysql.po.ConversationCardRowPO;
 import com.veryal.infrastructure.mysql.po.ConversationPO;
 import com.veryal.infrastructure.mysql.po.ConversationSendContextPO;
 import org.apache.ibatis.annotations.Insert;
@@ -61,6 +62,54 @@ public interface ConversationMapper extends BaseMapper<ConversationPO> {
             """)
     ConversationSendContextPO selectSendContext(@Param("conversationId") String conversationId,
                                                 @Param("userId") long userId);
+
+    @Select("""
+            SELECT c.id                              AS conversationId,
+                   c.conversation_type               AS conversationType,
+                   c.updated_at                      AS updatedAt,
+                   me.last_read_seq                  AS lastReadSeq,
+                   COALESCE(sq.last_seq,
+                            (SELECT MAX(m3.seq)
+                               FROM im_message m3
+                              WHERE m3.conversation_id = c.id), 0) AS lastSeq,
+                   (SELECT COUNT(*)
+                      FROM im_conversation_member cnt
+                     WHERE cnt.conversation_id = c.id)            AS memberCount,
+                   lm.msg_type                       AS lastMessageType,
+                   lm.content                        AS lastMessageContent,
+                   lm.recalled_at                    AS lastMessageRecalledAt,
+                   lm.created_at                     AS lastMessageCreatedAt,
+                   g.name                            AS groupName,
+                   CASE WHEN c.conversation_type = 1 THEN
+                        (SELECT p.user_id
+                           FROM im_conversation_member p
+                          WHERE p.conversation_id = c.id
+                            AND p.user_id <> #{userId}
+                          LIMIT 1)
+                   END                               AS peerUserId,
+                   CASE WHEN c.conversation_type = 1 THEN
+                        (SELECT u.nickname
+                           FROM im_user u
+                          WHERE u.id = (SELECT p2.user_id
+                                          FROM im_conversation_member p2
+                                         WHERE p2.conversation_id = c.id
+                                           AND p2.user_id <> #{userId}
+                                         LIMIT 1))
+                   END                               AS peerNickname
+            FROM im_conversation c
+                     INNER JOIN im_conversation_member me
+                                ON me.conversation_id = c.id AND me.user_id = #{userId}
+                     LEFT JOIN im_conversation_sequence sq ON sq.conversation_id = c.id
+                     LEFT JOIN im_message lm
+                               ON lm.conversation_id = c.id
+                                   AND lm.seq = (SELECT MAX(m2.seq)
+                                                   FROM im_message m2
+                                                  WHERE m2.conversation_id = c.id)
+                     LEFT JOIN im_group g ON g.id = c.id
+            ORDER BY COALESCE(lm.created_at, c.updated_at) DESC
+            LIMIT 200
+            """)
+    List<ConversationCardRowPO> selectCardRows(@Param("userId") long userId);
 
     @Select("""
             SELECT user_id

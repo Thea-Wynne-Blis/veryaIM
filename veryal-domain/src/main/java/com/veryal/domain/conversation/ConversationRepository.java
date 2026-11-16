@@ -43,6 +43,12 @@ public interface ConversationRepository {
     List<Conversation> findByUser(long userId);
 
     /**
+     * 批量取回用户所有会话的卡片数据（标题来源、未读游标、最后一条消息），一次查询完成。
+     * 用于替代「每个会话各查 5 次」的 N+1 实现。
+     */
+    List<ConversationCardSnapshot> findCardSnapshots(long userId);
+
+    /**
      * 删除会话及其全部成员（解散群使用）。
      */
     void delete(String conversationId);

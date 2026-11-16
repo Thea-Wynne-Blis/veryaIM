@@ -2,6 +2,7 @@ package com.veryal.infrastructure.mysql.repository;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.veryal.domain.conversation.Conversation;
+import com.veryal.domain.conversation.ConversationCardSnapshot;
 import com.veryal.domain.conversation.ConversationMember;
 import com.veryal.domain.conversation.ConversationRepository;
 import com.veryal.domain.conversation.ConversationType;
@@ -102,6 +103,27 @@ public class MyBatisConversationRepository implements ConversationRepository {
     @Override
     public List<Conversation> findByUser(long userId) {
         return conversationMapper.selectByUser(userId).stream().map(this::toDomain).toList();
+    }
+
+    @Override
+    public List<ConversationCardSnapshot> findCardSnapshots(long userId) {
+        return conversationMapper.selectCardRows(userId).stream()
+                .map(row -> new ConversationCardSnapshot(
+                        row.conversationId,
+                        ConversationType.fromCode(row.conversationType),
+                        SqlTime.toInstant(row.updatedAt),
+                        row.lastReadSeq,
+                        row.lastSeq,
+                        row.memberCount,
+                        row.lastMessageType,
+                        row.lastMessageContent,
+                        row.lastMessageRecalledAt != null,
+                        row.lastMessageCreatedAt == null ? null
+                                : SqlTime.toInstant(row.lastMessageCreatedAt),
+                        row.peerUserId,
+                        row.peerNickname,
+                        row.groupName))
+                .toList();
     }
 
     @Override
