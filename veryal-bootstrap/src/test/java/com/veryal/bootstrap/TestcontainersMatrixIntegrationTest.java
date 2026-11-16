@@ -74,6 +74,7 @@ class TestcontainersMatrixIntegrationTest {
     @DynamicPropertySource
     static void containerProperties(DynamicPropertyRegistry registry) {
         awaitTcp(RABBIT.getHost(), RABBIT.getMappedPort(5672), Duration.ofSeconds(90));
+        awaitTcp("127.0.0.1", REDIS.getMappedPort(6379), Duration.ofSeconds(60));
 
         registry.add("spring.datasource.url", MYSQL::getJdbcUrl);
         registry.add("spring.datasource.username", MYSQL::getUsername);
@@ -83,11 +84,12 @@ class TestcontainersMatrixIntegrationTest {
         registry.add("spring.flyway.enabled", () -> true);
 
         registry.add("veryal.redis.enabled", () -> true);
-        registry.add("spring.data.redis.host", REDIS::getHost);
+        registry.add("spring.data.redis.host", () -> "127.0.0.1");
         registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
+        registry.add("spring.data.redis.timeout", () -> "5s");
 
         registry.add("veryal.mq.enabled", () -> true);
-        registry.add("spring.rabbitmq.host", RABBIT::getHost);
+        registry.add("spring.rabbitmq.host", () -> "127.0.0.1");
         registry.add("spring.rabbitmq.port", () -> RABBIT.getMappedPort(5672));
         registry.add("spring.rabbitmq.username", () -> "veryal");
         registry.add("spring.rabbitmq.password", () -> "veryal123");
@@ -102,8 +104,13 @@ class TestcontainersMatrixIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
+
     @Test
     void fullStackStartsAndPublishesMessageThroughRabbit() {
+        assertRedisReachable();
+
         String suffix = Long.toString(System.nanoTime());
         register("tc_alice_" + suffix);
         UserResponse bob = register("tc_bob_" + suffix);
@@ -134,6 +141,26 @@ class TestcontainersMatrixIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(1) FROM im_message_delivery WHERE message_id = ?", Long.class,
                 messageId)).isNotNull();
+    }
+
+    private void assertRedisReachable() {
+        Instant deadline = Instant.now().plus(Duration.ofSeconds(30));
+        RuntimeException last = null;
+        while (Instant.now().isBefore(deadline)) {
+            try {
+                String key = "tc:ping:" + System.nanoTime();
+                redisTemplate.opsForValue().set(key, "1", Duration.ofSeconds(10));
+                String value = redisTemplate.opsForValue().get(key);
+                redisTemplate.delete(key);
+                if ("1".equals(value)) {
+                    return;
+                }
+            } catch (RuntimeException e) {
+                last = e;
+                sleep(500);
+            }
+        }
+        throw new IllegalStateException("redis is not reachable from application context", last);
     }
 
     private int awaitOutboxPublished(String conversationId, Duration timeout) {
