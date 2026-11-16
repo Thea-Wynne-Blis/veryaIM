@@ -21,10 +21,13 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * 认证接口。
  */
+@Tag(name = "认证")
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
@@ -33,6 +36,7 @@ public class AuthController {
     private final AuthApplicationService authApplicationService;
     private final UserApplicationService userApplicationService;
 
+    @Operation(summary = "注册用户", description = "创建账号并返回用户信息。用户名唯一，密码要求至少 6 位。注册后需调用登录接口获取 Token。")
     @PostMapping("/register")
     @RateLimit(policy = "http-login", dimension = RateLimitDimension.IP)
     public ApiResponse<UserResponse> register(@Valid @RequestBody RegisterRequest request) {
@@ -41,6 +45,7 @@ public class AuthController {
         return ApiResponse.ok(user);
     }
 
+    @Operation(summary = "登录并获取 Token", description = "返回 JWT 访问令牌与用户信息。`deviceId` + `platform` 用于多端会话管理，同一 deviceId 重复登录以最后一次为准。")
     @PostMapping("/login")
     @RateLimit(policy = "http-login", dimension = RateLimitDimension.IP)
     public ApiResponse<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
@@ -49,6 +54,7 @@ public class AuthController {
         return ApiResponse.ok(AuthResponse.from(result));
     }
 
+    @Operation(summary = "查询当前登录用户", description = "根据请求头 `Authorization: Bearer <token>` 解析出当前用户，用于前端刷新页面后恢复登录态。")
     @GetMapping("/me")
     public ApiResponse<UserResponse> me(@CurrentUser AuthenticatedUser user) {
         return ApiResponse.ok(UserResponse.from(userApplicationService.getProfile(user.userId())));

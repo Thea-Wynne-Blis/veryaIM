@@ -17,10 +17,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * 运营后台举报处理。
  */
+@Tag(name = "运营-举报")
 @RestController
 @RequestMapping("/api/v1/platform/ops/reports")
 @RequiredArgsConstructor
@@ -29,6 +32,7 @@ public class OpsReportController {
     private final OpsReportService opsReportService;
     private final OpsPermission opsPermission;
 
+    @Operation(summary = "举报工单列表", description = "按状态过滤，支持分页。")
     @GetMapping
     public ApiResponse<List<OpsReportService.OpsReportView>> list(
             @RequestAttribute(PlatformAdminFilter.ATTRIBUTE) PlatformPrincipal principal,
@@ -38,6 +42,7 @@ public class OpsReportController {
         return ApiResponse.ok(opsReportService.list(status, limit));
     }
 
+    @Operation(summary = "举报工单详情", description = "返回举报内容、被举报对象与历史处理记录。")
     @GetMapping("/{reportId}")
     public ApiResponse<OpsReportService.OpsReportView> get(
             @RequestAttribute(PlatformAdminFilter.ATTRIBUTE) PlatformPrincipal principal,
@@ -46,6 +51,7 @@ public class OpsReportController {
         return ApiResponse.ok(opsReportService.get(reportId));
     }
 
+    @Operation(summary = "处理举报工单", description = "填写处理结论与动作，工单状态随之流转。")
     @PostMapping("/{reportId}/handle")
     public ApiResponse<OpsReportService.OpsReportView> handle(
             @RequestAttribute(PlatformAdminFilter.ATTRIBUTE) PlatformPrincipal principal,

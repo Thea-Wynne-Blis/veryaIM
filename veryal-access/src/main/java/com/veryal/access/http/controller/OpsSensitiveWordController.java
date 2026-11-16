@@ -20,10 +20,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * 运营后台敏感词管理。
  */
+@Tag(name = "运营-敏感词")
 @RestController
 @RequestMapping("/api/v1/platform/ops/sensitive-words")
 @RequiredArgsConstructor
@@ -32,6 +35,7 @@ public class OpsSensitiveWordController {
     private final SensitiveWordService sensitiveWordService;
     private final OpsPermission opsPermission;
 
+    @Operation(summary = "敏感词列表", description = "返回词库内容与启用状态。")
     @GetMapping
     public ApiResponse<List<SensitiveWordResponse>> list(
             @RequestAttribute(PlatformAdminFilter.ATTRIBUTE) PlatformPrincipal principal,
@@ -42,6 +46,7 @@ public class OpsSensitiveWordController {
                 .toList());
     }
 
+    @Operation(summary = "新增敏感词", description = "写入后会实时重建 DFA 前缀树，立即生效。")
     @PostMapping
     public ApiResponse<SensitiveWordResponse> add(
             @RequestAttribute(PlatformAdminFilter.ATTRIBUTE) PlatformPrincipal principal,
@@ -51,6 +56,7 @@ public class OpsSensitiveWordController {
                 sensitiveWordService.add(principal.adminId(), request.word())));
     }
 
+    @Operation(summary = "删除敏感词", description = "从词库移除并重建索引。")
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(
             @RequestAttribute(PlatformAdminFilter.ATTRIBUTE) PlatformPrincipal principal,

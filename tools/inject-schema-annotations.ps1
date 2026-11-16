@@ -1,0 +1,90 @@
+﻿# 给 DTO record 组件补 @Schema(description)，用字段名 -> 中文说明的字典
+$ErrorActionPreference = 'Stop'
+$root = 'G:\web-ai-code\veryaI-im\veryaI-backend'
+$dtoDir = Join-Path $root 'veryal-access\src\main\java\com\veryal\access\http\dto'
+
+$dict = @{
+    'id' = '主键'; 'userId' = '用户 ID'; 'peerUserId' = '对方用户 ID'; 'senderId' = '发送者 ID'
+    'handlerId' = '处理人 ID'; 'ownerId' = '群主用户 ID'; 'adminId' = '管理员 ID'
+    'username' = '登录用户名'; 'nickname' = '昵称'; 'avatar' = '头像地址'
+    'password' = '密码（明文传输需 HTTPS）'; 'oldPassword' = '原密码'; 'newPassword' = '新密码'
+    'token' = '访问令牌（JWT）'; 'refreshToken' = '刷新令牌'; 'expiresInSeconds' = '令牌有效期（秒）'
+    'scope' = '令牌作用域：USER 用户端 / PLATFORM 运营端'; 'role' = '角色'
+    'deviceId' = '设备唯一标识'; 'platform' = '设备平台：IOS / ANDROID / WEB / LINUX / WINDOWS'
+    'deviceName' = '设备名称，用于设备列表展示'; 'userAgent' = '客户端 UA，便于排查'
+    'createdAt' = '创建时间（UTC）'; 'updatedAt' = '更新时间（UTC）'
+    'code' = '业务码，0 表示成功'; 'message' = '提示信息，可直接展示'; 'data' = '业务数据'
+    'traceId' = '链路追踪 ID，报错时可提供给后端定位'
+    'conversationId' = '会话 ID。单聊形如 p_{用户A}_{用户B}，群聊即群 ID'
+    'title' = '会话标题。单聊为对方昵称，群聊为群名'
+    'type' = '类型'; 'content' = '消息内容。文本为原文，其他类型为附件引用'
+    'seq' = '会话内单调递增的消息序号'
+    'cursor' = '游标：已确认的最大序号，返回其后的消息'; 'nextCursor' = '下一页游标'
+    'limit' = '每页条数'; 'hasMore' = '是否还有更多'; 'messages' = '消息列表'
+    'unreadCount' = '未读消息数 = lastSeq 减 lastReadSeq'
+    'lastReadSeq' = '当前用户已读到的序号'; 'lastSeq' = '会话当前最大序号'
+    'memberCount' = '成员数量'; 'memberIds' = '成员用户 ID 列表'
+    'lastMessageType' = '最后一条消息的类型'; 'lastMessagePreview' = '最后一条消息的预览文本'
+    'lastMessageAt' = '最后一条消息的时间'; 'messageId' = '消息 ID'; 'clientMsgId' = '客户端消息 ID，用于幂等'
+    'recalledAt' = '撤回时间，非空表示已撤回'; 'recalledBy' = '撤回人用户 ID'
+    'readSequence' = '已读到的消息序号'
+    'groupId' = '群 ID，等同于该群的会话 ID'; 'name' = '名称'
+    'announcement' = '群公告内容'; 'muted' = '是否处于禁言状态'; 'mutedUntil' = '禁言到期时间'
+    'minutes' = '时长（分钟）'; 'reason' = '原因说明'; 'status' = '状态'
+    'action' = '执行的动作'; 'targetType' = '举报对象类型：USER / GROUP / MESSAGE'
+    'targetId' = '举报对象 ID'; 'handledAt' = '处理时间'; 'result' = '处理结果'
+    'page' = '页码，从 1 开始'; 'size' = '每页条数'; 'total' = '总条数'; 'items' = '数据列表'
+    'enabled' = '是否启用'; 'endpoint' = '浏览器推送端点地址'; 'p256dh' = '订阅端公钥（base64url）'
+    'auth' = '订阅端认证密钥（base64url）'; 'publicKey' = 'VAPID 公钥，作为 applicationServerKey 传给浏览器'
+    'fileId' = '文件 ID'; 'fileName' = '文件名'; 'fileSize' = '文件大小（字节）'
+    'uploadId' = '分片上传会话 ID'; 'chunkSize' = '单个分片大小（字节）'
+    'chunkIndex' = '分片序号，从 0 开始'; 'uploadedChunks' = '已接收的分片序号列表'
+    'chunks' = '分片列表'; 'url' = '可访问地址'; 'keyword' = '搜索关键词'
+    'friendId' = '好友用户 ID'; 'remark' = '好友备注名'; 'requestId' = '好友申请 ID'
+    'fromUserId' = '申请人用户 ID'; 'toUserId' = '被申请人用户 ID'
+    'friendPolicy' = '加好友策略：REJECT 拒绝 / VERIFY 需验证 / DIRECT 直接通过'
+    'searchable' = '是否允许被搜索到'; 'showOnline' = '是否展示在线状态'
+    'readReceipt' = '是否发送已读回执'
+    'word' = '敏感词'; 'words' = '敏感词列表'; 'level' = '匹配级别'
+    'count' = '数量'; 'todayNewUsers' = '今日新增用户'; 'totalUsers' = '用户总数'
+    'totalConversations' = '会话总数'; 'totalMessages' = '消息总数'; 'pendingReports' = '待处理举报数'
+    'deliveries' = '投递记录'; 'deliveryId' = '投递记录 ID'; 'deliveredAt' = '投递时间'
+    'conversationType' = '会话类型：PRIVATE 单聊 / GROUP 群聊'
+    'roleInGroup' = '我在群内的角色：OWNER / ADMIN / MEMBER'
+    'owner' = '是否是群主'; 'admin' = '是否是管理员'
+    'from' = '起始时间'; 'to' = '结束时间'
+}
+
+$schemaPat = '^(\s+)([A-Za-z_][\w.]*(?:<[^<>]*>)?(?:\[\])?)\s+([a-z]\w*)\s*(,|\))?\s*$'
+$total = 0
+$files = 0
+
+foreach ($file in Get-ChildItem $dtoDir -Filter *.java) {
+    $text = Get-Content $file.FullName -Encoding UTF8
+    $out = New-Object System.Collections.Generic.List[string]
+    $n = 0
+    foreach ($line in $text) {
+        $m = [regex]::Match($line, $schemaPat)
+        if ($m.Success) {
+            $fieldName = $m.Groups[3].Value
+            if ($dict.ContainsKey($fieldName)) {
+                $indent = $m.Groups[1].Value
+                $out.Add("$indent@Schema(description = `"$($dict[$fieldName])`")")
+                $n++
+            }
+        }
+        $out.Add($line)
+    }
+    if ($n -eq 0) { continue }
+    $files++
+    $total += $n
+    $merged = $out -join "`n"
+    if ($merged -notmatch 'import io\.swagger\.v3\.oas\.annotations\.media\.Schema;') {
+        $lastImport = -1
+        for ($i = 0; $i -lt $out.Count; $i++) { if ($out[$i] -match '^import ') { $lastImport = $i } }
+        if ($lastImport -ge 0) { $out.Insert($lastImport + 1, 'import io.swagger.v3.oas.annotations.media.Schema;') }
+    }
+    [System.IO.File]::WriteAllLines($file.FullName, $out, (New-Object System.Text.UTF8Encoding($false)))
+    Write-Host "$($file.BaseName) -> $n 个 @Schema" -ForegroundColor Green
+}
+Write-Host "共 $files 个 DTO，注入 $total 个 @Schema"

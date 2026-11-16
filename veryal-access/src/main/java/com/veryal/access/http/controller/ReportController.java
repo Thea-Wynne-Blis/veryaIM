@@ -20,10 +20,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.Locale;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * 用户举报。
  */
+@Tag(name = "举报")
 @RestController
 @RequestMapping("/api/v1/reports")
 @RequiredArgsConstructor
@@ -31,6 +34,7 @@ public class ReportController {
 
     private final ReportApplicationService reportApplicationService;
 
+    @Operation(summary = "提交举报", description = "举报对象支持用户、群与单条消息，需给出原因分类与可选说明。")
     @PostMapping
     public ApiResponse<ReportResponse> submit(@CurrentUser AuthenticatedUser user,
                                               @Valid @RequestBody CreateReportRequest request) {
@@ -44,6 +48,7 @@ public class ReportController {
                 type, request.targetId(), request.reason(), request.detail())));
     }
 
+    @Operation(summary = "我的举报记录", description = "查看自己提交过的举报及其处理状态。")
     @GetMapping("/me")
     public ApiResponse<List<ReportResponse>> mine(@CurrentUser AuthenticatedUser user,
                                                   @RequestParam(defaultValue = "50") int limit) {

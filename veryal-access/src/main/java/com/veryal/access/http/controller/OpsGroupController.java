@@ -17,10 +17,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * 运营后台群管理。
  */
+@Tag(name = "运营-群组")
 @RestController
 @RequestMapping("/api/v1/platform/ops/groups")
 @RequiredArgsConstructor
@@ -29,6 +32,7 @@ public class OpsGroupController {
     private final OpsGroupService opsGroupService;
     private final OpsPermission opsPermission;
 
+    @Operation(summary = "分页查询群组", description = "支持按群名搜索。")
     @GetMapping
     public ApiResponse<List<OpsGroupService.OpsGroupView>> search(
             @RequestAttribute(PlatformAdminFilter.ATTRIBUTE) PlatformPrincipal principal,
@@ -38,6 +42,7 @@ public class OpsGroupController {
         return ApiResponse.ok(opsGroupService.search(keyword, limit));
     }
 
+    @Operation(summary = "群组详情", description = "返回群主、成员数与创建时间。")
     @GetMapping("/{groupId}")
     public ApiResponse<OpsGroupService.OpsGroupDetail> detail(
             @RequestAttribute(PlatformAdminFilter.ATTRIBUTE) PlatformPrincipal principal,
@@ -46,6 +51,7 @@ public class OpsGroupController {
         return ApiResponse.ok(opsGroupService.detail(groupId));
     }
 
+    @Operation(summary = "强制解散群", description = "运营侧强制解散，用于处置违规群。")
     @PostMapping("/{groupId}/disband")
     public ApiResponse<Void> disband(
             @RequestAttribute(PlatformAdminFilter.ATTRIBUTE) PlatformPrincipal principal,

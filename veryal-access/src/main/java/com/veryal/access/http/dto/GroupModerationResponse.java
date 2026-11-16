@@ -1,14 +1,23 @@
 package com.veryal.access.http.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import com.veryal.application.group.GroupModerationService;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 
 /**
  * 群公告/禁言状态。
  */
-public record GroupModerationResponse(String groupId, String announcement, boolean muteAll,
-                                      Instant mutedUntil) {
+public record GroupModerationResponse(
+                                 @Schema(description = "群 ID，等同于该群的会话 ID")
+                                 String groupId,
+                                 @Schema(description = "群公告内容")
+                                 String announcement,
+                                 boolean muteAll,
+                                 @Schema(description = "禁言到期时间")
+                                 Instant mutedUntil
+) {
 
     public static GroupModerationResponse from(GroupModerationService.ModerationView view) {
         return new GroupModerationResponse(view.groupId(), view.announcement(), view.muteAll(),

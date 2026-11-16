@@ -19,10 +19,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * 用户资料与设备接口。
  */
+@Tag(name = "用户")
 @RestController
 @RequestMapping("/api/v1/users")
 @RequiredArgsConstructor
@@ -31,11 +34,13 @@ public class UserController {
     private final UserApplicationService userApplicationService;
     private final AuditApplicationService auditApplicationService;
 
+    @Operation(summary = "我的资料", description = "返回当前用户的昵称、头像、创建时间等基础资料。")
     @GetMapping("/me")
     public ApiResponse<UserResponse> me(@CurrentUser AuthenticatedUser user) {
         return ApiResponse.ok(UserResponse.from(userApplicationService.getProfile(user.userId())));
     }
 
+    @Operation(summary = "修改我的资料", description = "可修改昵称与头像地址，其他字段不可改。")
     @PutMapping("/me")
     public ApiResponse<UserResponse> update(@CurrentUser AuthenticatedUser user,
                                             @Valid @RequestBody UpdateProfileRequest request) {
@@ -43,6 +48,7 @@ public class UserController {
                 userApplicationService.updateProfile(user.userId(), request.nickname(), request.avatar())));
     }
 
+    @Operation(summary = "我的登录设备", description = "列出该账号登录过的设备，含设备类型与最近活跃时间。")
     @GetMapping("/me/devices")
     public ApiResponse<List<DeviceResponse>> devices(@CurrentUser AuthenticatedUser user) {
         return ApiResponse.ok(userApplicationService.listDevices(user.userId()).stream()
@@ -50,6 +56,7 @@ public class UserController {
                 .toList());
     }
 
+    @Operation(summary = "我的操作记录", description = "账号维度的安全与操作审计，按时间倒序。")
     @GetMapping("/me/audit-logs")
     public ApiResponse<List<AuditLogResponse>> auditLogs(@CurrentUser AuthenticatedUser user,
                                                          @RequestParam(defaultValue = "50") int limit) {

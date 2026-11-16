@@ -31,10 +31,13 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * 文件 API：上传、分片上传、元数据、下载、删除与临时 URL。
  */
+@Tag(name = "文件")
 @RestController
 @RequestMapping("/api/v1/files")
 @RequiredArgsConstructor
@@ -45,6 +48,7 @@ public class FileController {
     private final FileApplicationService fileApplicationService;
     private final ChunkedUploadService chunkedUploadService;
 
+    @Operation(summary = "直接上传文件", description = "小文件中转：一次性提交文件内容，返回 `fileId`。大文件请走分片接口。")
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<FileResponse> upload(@CurrentUser AuthenticatedUser user,
                                             @RequestParam("file") MultipartFile file,
@@ -59,6 +63,7 @@ public class FileController {
         return ApiResponse.ok(FileResponse.from(fileApplicationService.upload(user.userId(), conversationId, file.getOriginalFilename(), file.getContentType(), content)));
     }
 
+    @Operation(summary = "查询文件元信息", description = "返回文件名、大小、类型与创建时间。")
     @GetMapping("/{fileId}")
     public ApiResponse<FileResponse> get(@CurrentUser AuthenticatedUser user,
                                          @PathVariable long fileId) {
@@ -66,6 +71,7 @@ public class FileController {
                 fileApplicationService.get(user.userId(), fileId)));
     }
 
+    @Operation(summary = "创建分片上传", description = "声明文件名、大小与分片大小，返回 `uploadId` 与已上传分片列表，用于断点续传。")
     @PostMapping("/uploads")
     public ApiResponse<UploadSessionResponse> initUpload(@CurrentUser AuthenticatedUser user,
                                                          @Valid @RequestBody InitUploadRequest request) {
@@ -73,6 +79,7 @@ public class FileController {
                 request.conversationId())));
     }
 
+    @Operation(summary = "上传并替换", description = "按 fileId 覆盖已有文件内容。")
     @PutMapping(value = "/uploads/{uploadId}/chunks/{index}",
             consumes = MediaType.APPLICATION_OCTET_STREAM_VALUE)
     public ApiResponse<UploadSessionResponse> uploadChunk(@CurrentUser AuthenticatedUser user,
@@ -83,6 +90,7 @@ public class FileController {
                 user.userId(), uploadId, index, chunk)));
     }
 
+    @Operation(summary = "查询上传进度", description = "返回已接收的分片编号，客户端据此只补传缺失分片。")
     @GetMapping("/uploads/{uploadId}")
     public ApiResponse<UploadSessionResponse> uploadStatus(@CurrentUser AuthenticatedUser user,
                                                            @PathVariable long uploadId) {
@@ -90,6 +98,7 @@ public class FileController {
                 user.userId(), uploadId)));
     }
 
+    @Operation(summary = "合并分片", description = "全部分片到齐后合并为最终文件，返回 `fileId`。")
     @PostMapping("/uploads/{uploadId}/complete")
     public ApiResponse<FileResponse> completeUpload(@CurrentUser AuthenticatedUser user,
                                                     @PathVariable long uploadId) {
@@ -97,6 +106,7 @@ public class FileController {
                 user.userId(), uploadId)));
     }
 
+    @Operation(summary = "取消分片上传", description = "清理暂存分片。")
     @DeleteMapping("/uploads/{uploadId}")
     public ApiResponse<Void> cancelUpload(@CurrentUser AuthenticatedUser user,
                                           @PathVariable long uploadId) {
@@ -104,6 +114,7 @@ public class FileController {
         return ApiResponse.ok();
     }
 
+    @Operation(summary = "下载文件内容", description = "以二进制流返回，私聊文件需具备会话成员身份。")
     @GetMapping("/{fileId}/content")
     public ResponseEntity<byte[]> download(@CurrentUser AuthenticatedUser user,
                                            @PathVariable long fileId) {
@@ -124,6 +135,7 @@ public class FileController {
                 .body(content.content());
     }
 
+    @Operation(summary = "获取下载地址", description = "返回可直接访问的 URL（本地存储为相对路径，对象存储为签名地址）。")
     @GetMapping("/{fileId}/url")
     public ApiResponse<FileUrlResponse> url(@CurrentUser AuthenticatedUser user,
                                             @PathVariable long fileId,
@@ -137,6 +149,7 @@ public class FileController {
         return ApiResponse.ok(new FileUrlResponse(url, ttl));
     }
 
+    @Operation(summary = "删除文件", description = "仅上传者本人可删除。")
     @DeleteMapping("/{fileId}")
     public ApiResponse<Void> delete(@CurrentUser AuthenticatedUser user,
                                     @PathVariable long fileId) {
