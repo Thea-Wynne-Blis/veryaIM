@@ -10,8 +10,12 @@ import com.veryal.domain.conversation.Conversation;
 import com.veryal.domain.conversation.ConversationIds;
 import com.veryal.domain.conversation.ConversationMember;
 import com.veryal.domain.conversation.ConversationRepository;
+import com.veryal.domain.conversation.ConversationType;
+import com.veryal.domain.group.Group;
+import com.veryal.domain.group.GroupRepository;
 import com.veryal.domain.identity.User;
 import com.veryal.domain.identity.UserRepository;
+import com.veryal.domain.message.Message;
 import com.veryal.domain.message.MessageRepository;
 import com.veryal.domain.message.event.MessageEvents;
 import com.veryal.domain.message.event.ReadReceiptEvent;
@@ -37,6 +41,7 @@ public class ConversationApplicationService {
     private final ConversationRepository conversationRepository;
     private final MessageRepository messageRepository;
     private final UserRepository userRepository;
+    private final GroupRepository groupRepository;
     private final OutboxAppender outboxAppender;
     private final ReadReceiptNotifier readReceiptNotifier;
     private final IdGenerator idGenerator;
@@ -81,6 +86,78 @@ public class ConversationApplicationService {
                             messageRepository.maxSeq(conversation.id()), conversation.updatedAt());
                 })
                 .toList();
+    }
+
+    /**
+     * 会话卡片列表：一次返回标题、成员数、最后一条消息与未读数，供客户端直接渲染。
+     */
+    @Transactional(readOnly = true)
+    public List<ConversationCard> listCards(long userId) {
+        return conversationRepository.findByUser(userId).stream()
+                .map(conversation -> card(conversation, userId))
+                .sorted((a, b) -> {
+                    var at = a.lastMessageAt() == null ? a.updatedAt() : a.lastMessageAt();
+                    var bt = b.lastMessageAt() == null ? b.updatedAt() : b.lastMessageAt();
+                    return bt.compareTo(at);
+                })
+                .toList();
+    }
+
+    private ConversationCard card(Conversation conversation, long userId) {
+        String conversationId = conversation.id();
+        List<ConversationMember> members = conversationRepository.findMembers(conversationId);
+        ConversationMember me = conversationRepository.findMember(conversationId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CONVERSATION_MEMBER));
+
+        String title = "会话";
+        long peerUserId = 0L;
+        if (conversation.type() == ConversationType.GROUP) {
+            title = groupRepository.findById(conversationId).map(Group::name).orElse("群聊");
+        } else {
+            for (ConversationMember member : members) {
+                if (member.userId() != userId) {
+                    peerUserId = member.userId();
+                    title = userRepository.findById(peerUserId)
+                            .map(User::nickname)
+                            .orElse("用户 " + peerUserId);
+                    break;
+                }
+            }
+        }
+
+        long lastSeq = messageRepository.maxSeq(conversationId);
+        String lastType = null;
+        String lastPreview = "";
+        Instant lastAt = null;
+        var latest = messageRepository.findLatest(conversationId);
+        if (latest.isPresent()) {
+            var message = latest.get();
+            lastType = message.type().name();
+            lastPreview = preview(message);
+            lastAt = message.createdAt();
+        }
+
+        return new ConversationCard(conversationId, conversation.type(), title, peerUserId,
+                members.size(), me.lastReadSeq(), lastSeq,
+                Math.max(0, lastSeq - me.lastReadSeq()), lastType, lastPreview, lastAt,
+                conversation.updatedAt());
+    }
+
+    private String preview(Message message) {
+        if (message.recalledAt() != null) {
+            return "[消息已撤回]";
+        }
+        String text = switch (message.type()) {
+            case TEXT -> new String(message.content(), java.nio.charset.StandardCharsets.UTF_8);
+            case EMOJI -> "[表情]";
+            case IMAGE -> "[图片]";
+            case AUDIO -> "[语音]";
+            case VIDEO -> "[视频]";
+            case FILE -> "[文件]";
+            case SYSTEM -> "[系统消息]";
+        };
+        text = text.replaceAll("\\s+", " ").trim();
+        return text.length() > 60 ? text.substring(0, 60) + "…" : text;
     }
 
     /**

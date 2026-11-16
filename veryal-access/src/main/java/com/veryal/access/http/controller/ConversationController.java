@@ -1,5 +1,6 @@
 package com.veryal.access.http.controller;
 
+import com.veryal.access.http.dto.ConversationCardResponse;
 import com.veryal.access.http.dto.ConversationResponse;
 import com.veryal.access.http.dto.CreateConversationRequest;
 import com.veryal.access.http.dto.DeliveryResponse;
@@ -56,6 +57,14 @@ public class ConversationController {
     public ApiResponse<List<ConversationResponse>> list(@CurrentUser AuthenticatedUser user) {
         return ApiResponse.ok(conversationApplicationService.list(user.userId()).stream()
                 .map(ConversationResponse::from)
+                .toList());
+    }
+
+    @GetMapping("/cards")
+    public ApiResponse<List<ConversationCardResponse>> cards(
+            @CurrentUser AuthenticatedUser user) {
+        return ApiResponse.ok(conversationApplicationService.listCards(user.userId()).stream()
+                .map(ConversationCardResponse::from)
                 .toList());
     }
 
