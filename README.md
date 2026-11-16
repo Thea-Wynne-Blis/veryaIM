@@ -611,6 +611,23 @@ veryal:
 
 压测脚本见仓库外部工具或按下述方式自测：注册两个用户 → 建私聊 → 对同一会话并发 `POST /conversations/{id}/messages`，统计 QPS 与 p50/p95。
 
+### 读路径性能（实测）
+
+会话列表原来是最典型的 N+1：`/conversations/cards` 对每个会话分别查成员列表、本人游标、对端资料、最大序号、最后一条消息（5 条 SQL）；`/conversations` 则是 3 条。成本随会话数线性增长。
+
+改造后两个接口共用 `ConversationMapper.selectCardRows` 一条联表查询（`im_conversation` + 本人成员行 + `im_conversation_sequence` + 最后一条 `im_message` + `im_group`，单聊对端用 `CASE WHEN conversation_type = 1` 包住的子查询），数据库往返从 O(会话数) 降为 O(1)。**没有引入缓存**，因此不存在缓存失效与一致性问题。
+
+实测（同一用户、服务器本机、关闭限流，p50）：
+
+| 接口 | 会话数 | 优化前 | 优化后 |
+|---|---|---|---|
+| `GET /conversations/cards` | 1 | — | 8–19ms |
+| `GET /conversations/cards` | 30 | 168.1ms（5.60ms/会话） | **18.8ms（0.63ms/会话）** |
+| `GET /conversations` | 30 | 61.6ms | **14.6ms** |
+| `GET /conversations` | 1 | 15.4ms | 8.6ms |
+
+30 个会话时卡片列表约 **9 倍**提升，且不再随会话数线性增长。返回结构（`ConversationCardResponse` 12 个字段）与未读数语义（`max(0, lastSeq - lastReadSeq)`）保持不变。
+
 ### 运营管理员与审计
 
 **运营管理员独立于普通用户**：
