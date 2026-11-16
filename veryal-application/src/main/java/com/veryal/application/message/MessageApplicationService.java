@@ -38,7 +38,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 消息应用服务。
@@ -59,6 +61,10 @@ public class MessageApplicationService {
     private final BlacklistRepository blacklistRepository;
     private final OutboxAppender outboxAppender;
     private final DeliveryRepository deliveryRepository;
+    /** 同一会话 2 秒内只更新一次活跃时间，避免每条消息都去锁同一行。 */
+    private final Map<String, Long> recentTouches = new ConcurrentHashMap<>();
+    private static final long TOUCH_MIN_INTERVAL_MS = 2_000L;
+    private static final int TOUCH_CACHE_LIMIT = 20_000;
     private final MessageRateLimiter messageRateLimiter;
     private final MessageTypeStrategyFactory messageTypeStrategyFactory;
     private final AuditRecorder auditRecorder;
@@ -123,7 +129,7 @@ public class MessageApplicationService {
         MessageCreatedEvent event = createEvent(command, message, conversation, now);
         outboxAppender.append(new OutboxMessage(event.eventId(), conversation.id(),
                 event.eventType(), JsonUtils.toJsonBytes(event), now));
-        conversationRepository.touch(conversation.id(), now);
+        touchThrottled(conversation.id(), now);
         return new SendMessageResult(message, event, false);
     }
 
@@ -248,6 +254,20 @@ public class MessageApplicationService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND));
         conversationRepository.findMember(conversation.id(), userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CONVERSATION_MEMBER));
+    }
+
+    /** 同一会话 2 秒内只刷新一次活跃时间：避免每条消息都更新同一行导致发送被串行化。 */
+    private void touchThrottled(String conversationId, Instant now) {
+        long nowMillis = System.currentTimeMillis();
+        Long previous = recentTouches.get(conversationId);
+        if (previous != null && nowMillis - previous < TOUCH_MIN_INTERVAL_MS) {
+            return;
+        }
+        recentTouches.put(conversationId, nowMillis);
+        if (recentTouches.size() > TOUCH_CACHE_LIMIT) {
+            recentTouches.clear();
+        }
+        conversationRepository.touch(conversationId, now);
     }
 
     private MessageCreatedEvent createEvent(SendMessageCommand command, Message message,
