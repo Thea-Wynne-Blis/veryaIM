@@ -45,3 +45,10 @@ build/
 
 # local build archive
 veryal-src.zip
+
+# 临时调试产物
+dom-check.html
+nick.txt
+reg.json
+out.json
+*.log
