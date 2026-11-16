@@ -218,6 +218,9 @@ public void acquire(long senderId) { ... }
 | POST | `/api/v1/push/devices` | 注册推送设备 token |
 | GET | `/api/v1/push/devices` | 我的推送设备 |
 | DELETE | `/api/v1/push/devices/{deviceId}` | 注销推送设备 |
+| GET | `/api/v1/push/web/config` | Web Push 开关与 VAPID 公钥 |
+| POST | `/api/v1/push/web/subscriptions` | 注册浏览器推送订阅 |
+| DELETE | `/api/v1/push/web/subscriptions?endpoint=` | 退订浏览器推送 |
 | GET | `/api/v1/platform/ops/dashboard` | 运营概览 |
 | GET | `/api/v1/platform/ops/users?keyword=` | 运营用户搜索 |
 | GET | `/api/v1/platform/ops/users/{id}` | 运营用户详情 |
@@ -318,6 +321,32 @@ POST /api/v1/push/devices
 ```
 
 > 真实 APNs/FCM 投递需要项目/证书/Service Account 凭证；仓库不内置凭证。
+
+### 浏览器 Web Push（无需任何服务商账号）
+
+Web Push 走浏览器自带的推送服务（Chrome/Edge→FCM endpoint、Firefox→Mozilla），
+**只需要自己生成一对 VAPID 密钥**，不需要 Firebase 项目、不需要 Apple 账号。
+
+```yaml
+veryal:
+  push:
+    web-push:
+      enabled: ${VERYAL_PUSH_WEB_PUSH_ENABLED:false}      # 总开关，默认关闭
+      subject: ${VERYAL_PUSH_WEB_PUSH_SUBJECT:mailto:admin@example.com}
+      public-key: ${VERYAL_PUSH_WEB_PUSH_PUBLIC_KEY:}     # 留空则自动生成
+      private-key: ${VERYAL_PUSH_WEB_PUSH_PRIVATE_KEY:}
+      key-file: ${VERYAL_PUSH_WEB_PUSH_KEY_FILE:./data/vapid-keys.json}
+      ttl-seconds: ${VERYAL_PUSH_WEB_PUSH_TTL:86400}
+      max-subscriptions-per-user: ${VERYAL_PUSH_WEB_PUSH_MAX_SUBS:10}
+```
+
+- `enabled=false`（默认）时：`/push/web/config` 返回 `enabled=false`，订阅接口返回 404，不产生任何推送。
+- `enabled=true` 且未配置密钥时：首次启动自动生成 P-256 密钥并写入 `key-file`，重启后复用，已有订阅不会失效。
+- 加密遵循 RFC 8291（`aes128gcm`），VAPID 签名遵循 RFC 8292。
+- 订阅失效（HTTP 404/410）时自动删除数据库记录。
+- 要求 HTTPS（`localhost` 除外）。
+
+对应表 `im_web_push_subscription`（Flyway V23），`endpoint` 做 SHA-256 后建唯一索引，避免超长索引。
 
 ### 群公告与禁言
 
@@ -599,7 +628,7 @@ mvn test
 ```
 
 - 单元测试：雪花 ID、Envelope 编解码、Netty 帧拆包/粘包/非法帧、JWT、PBKDF2、Outbox 事件 JSON、限流算法（令牌桶/滑动窗口/固定窗口/注册表）、TLS 配置开关与快速失败、连接数限制、Caffeine 缓存配置、本地/云端存储策略。
-- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、运营管理员登录/MFA/Refresh Token/登录锁定/角色/审计、运营后台用户/群/举报/敏感词、用户搜索/隐私/举报/推送设备、好友申请/接受/拒绝/好友/黑名单/通讯录、好友实时通知、群建群/成员权限/群消息、群管理、群公告/禁言、1000 人群容量与 100 并发发送冒烟、限流、审计、TLS、连接限制、缓存、文件、分片、图片压缩、多消息类型、撤回、搜索、已读回执、TCP/WebSocket。
+- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、运营管理员登录/MFA/Refresh Token/登录锁定/角色/审计、运营后台用户/群/举报/敏感词、用户搜索/隐私/举报/推送设备、Web Push 订阅与 VAPID 配置、好友申请/接受/拒绝/好友/黑名单/通讯录、好友实时通知、群建群/成员权限/群消息、群管理、群公告/禁言、1000 人群容量与 100 并发发送冒烟、限流、审计、TLS、连接限制、缓存、文件、分片、图片压缩、多消息类型、撤回、搜索、已读回执、TCP/WebSocket。
 
 集成测试使用 `test` profile，Netty Gateway 端口配置为 0（系统分配），不占用本机端口。
 

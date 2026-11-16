@@ -168,6 +168,14 @@ veryal:
       private-key-path: ${VERYAL_PUSH_APNS_PRIVATE_KEY_PATH:}
       topic: ${VERYAL_PUSH_APNS_TOPIC:}
       production: ${VERYAL_PUSH_APNS_PRODUCTION:false}
+    web-push:
+      enabled: ${VERYAL_PUSH_WEB_PUSH_ENABLED:false}
+      subject: ${VERYAL_PUSH_WEB_PUSH_SUBJECT:mailto:admin@example.com}
+      public-key: ${VERYAL_PUSH_WEB_PUSH_PUBLIC_KEY:}
+      private-key: ${VERYAL_PUSH_WEB_PUSH_PRIVATE_KEY:}
+      key-file: ${VERYAL_PUSH_WEB_PUSH_KEY_FILE:./data/vapid-keys.json}
+      ttl-seconds: ${VERYAL_PUSH_WEB_PUSH_TTL:86400}
+      max-subscriptions-per-user: ${VERYAL_PUSH_WEB_PUSH_MAX_SUBS:10}
 
 logging:
   level:

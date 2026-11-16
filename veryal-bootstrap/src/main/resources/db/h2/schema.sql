@@ -329,6 +329,22 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_push_user_device ON im_push_device (user_id
 CREATE INDEX IF NOT EXISTS idx_push_user_enabled ON im_push_device (user_id, enabled);
 CREATE INDEX IF NOT EXISTS idx_push_platform ON im_push_device (platform, enabled);
 
+CREATE TABLE IF NOT EXISTS im_web_push_subscription
+(
+    id            BIGINT       NOT NULL PRIMARY KEY,
+    user_id       BIGINT       NOT NULL,
+    endpoint      TEXT         NOT NULL,
+    endpoint_hash CHAR(64)     NOT NULL,
+    p256dh        VARCHAR(128) NOT NULL,
+    auth          VARCHAR(64)  NOT NULL,
+    user_agent    VARCHAR(255) NULL,
+    enabled       TINYINT      NOT NULL DEFAULT 1,
+    created_at    TIMESTAMP(3) NOT NULL,
+    updated_at    TIMESTAMP(3) NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_web_push_endpoint_hash ON im_web_push_subscription (endpoint_hash);
+CREATE INDEX IF NOT EXISTS idx_web_push_user ON im_web_push_subscription (user_id, enabled);
+
 
 
 

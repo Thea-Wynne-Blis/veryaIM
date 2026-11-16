@@ -5,6 +5,7 @@ import com.veryal.domain.push.OfflinePushMessage;
 import com.veryal.domain.push.OfflinePushProvider;
 import com.veryal.domain.push.PushDevice;
 import com.veryal.domain.push.PushDeviceRepository;
+import com.veryal.domain.push.WebPushPayload;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -13,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 好友离线推送：按用户启用的设备 token 逐个投递。
+ * 离线推送：好友事件按用户启用的设备 token 与浏览器订阅分别投递。
  */
 @Slf4j
 @Service
@@ -22,12 +23,9 @@ public class OfflinePushService {
 
     private final OfflinePushProvider provider;
     private final PushDeviceRepository pushDeviceRepository;
+    private final WebPushService webPushService;
 
     public void push(long userId, FriendEvent event) {
-        List<PushDevice> devices = pushDeviceRepository.listEnabled(userId);
-        if (devices.isEmpty()) {
-            return;
-        }
         String title = switch (event.type()) {
             case REQUEST -> "新的好友申请";
             case ACCEPTED -> "好友申请已通过";
@@ -44,6 +42,13 @@ public class OfflinePushService {
                 "fromUserId", Long.toString(event.fromUserId()),
                 "toUserId", Long.toString(event.toUserId()),
                 "requestId", Long.toString(event.requestId()));
+
+        pushNative(userId, title, body, data);
+        webPushService.push(userId, new WebPushPayload(title, body, data));
+    }
+
+    private void pushNative(long userId, String title, String body, Map<String, String> data) {
+        List<PushDevice> devices = pushDeviceRepository.listEnabled(userId);
         for (PushDevice device : devices) {
             try {
                 provider.push(new OfflinePushMessage(userId, device.deviceId(), device.platform(),

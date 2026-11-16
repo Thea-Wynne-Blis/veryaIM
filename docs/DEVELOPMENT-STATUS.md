@@ -82,6 +82,7 @@
 - [x] ~~租户数据导出（用户/群/管理员/用量）与硬删除（确认码）~~ 已移除
 - [x] 好友离线推送抽象（none/webhook provider，无在线连接时触发）
 - [x] 真实离线推送：设备 token、FCM HTTP v1、APNs HTTP/2 + ES256 JWT
+- [x] 浏览器 Web Push（RFC 8291 aes128gcm + RFC 8292 VAPID，自动生成密钥，可开关）
 - [x] 1000 人群容量测试（建群 + 发消息 + 100 成员并发发送）
 - [x] 用户搜索 / 公开资料 / 隐私设置
 - [x] 举报用户 / 群 / 消息
@@ -218,11 +219,11 @@
 
 - 环境：Windows 11、JDK 21.0.11、Maven 3.9.4。
 - `mvn -B -ntp verify`：6 个代码模块 + bootstrap + 父工程全部构建成功。
-- 测试共 77 个（本机 76 通过 + 1 跳过；该 Testcontainers 用例已在云服务器 Docker 环境单独执行并通过）：
-  - `veryal-common`：雪花 ID、限流算法、TOTP、DFA 敏感词（15）。
+- 测试共 84 个（本机 83 通过 + 1 跳过；该 Testcontainers 用例已在云服务器 Docker 环境单独执行并通过）：
+  - `veryal-common`：雪花 ID、限流算法、TOTP、DFA 敏感词、Web Push 加密（RFC 5869 向量 + RFC 8188 布局）（20）。
   - `veryal-protocol`：Envelope 编解码、未知指令、版本校验、帧头格式、半包/粘包、非法魔数、超大帧、指令不一致（12）。
   - `veryal-application`：JWT、PBKDF2、Outbox 事件 JSON（9）。
-  - `veryal-bootstrap`：HTTP 全流程、用户搜索/隐私/举报/推送设备、运营后台、敏感词、好友、群聊、1000 人群、限流、审计、文件、撤回、搜索、已读、TCP/WebSocket（40 通过 + 1 Testcontainers 本机跳过/服务器通过）。
+  - `veryal-bootstrap`：HTTP 全流程、用户搜索/隐私/举报/推送设备、Web Push 订阅、运营后台、敏感词、好友、群聊、1000 人群、限流、审计、文件、撤回、搜索、已读、TCP/WebSocket（42 通过 + 1 Testcontainers 本机跳过/服务器通过）。
 - 可执行 jar 使用默认 `dev` profile 启动验证：H2 内存库 + 内存在线状态，`/actuator/health=UP`，注册接口返回成功。
 
 ### MySQL 8.0.30 + Redis 实际环境验证
@@ -230,7 +231,7 @@
 使用 MySQL 8.0.30 与 Redis 7.4 容器（`prod` profile，经 SSH 隧道连接）启动打包产物：
 
 - 数据访问层切换 MyBatis-Plus 后重新回归：注册、登录、创建会话、发送消息、幂等重发、历史查询链路在 MySQL 8.0.30 上全部通过。
-- Flyway 自动执行 `V1__init.sql` 到 `V22__push_device.sql`；V17 删除租户表，V18 隐私/举报，V19 禁言，V20 敏感词，V21 删除 `tenant_id`，V22 推送设备；V17–V22 已完成云服务器 MySQL 冒烟。
+- Flyway 自动执行 `V1__init.sql` 到 `V23__web_push_subscription.sql`；V17 删除租户表，V18 隐私/举报，V19 禁言，V20 敏感词，V21 删除 `tenant_id`，V22 推送设备，V23 Web Push 订阅；V17–V22 已完成云服务器 MySQL 冒烟。
 - `GET /actuator/health` 返回 `UP`（MySQL + Redis）。
 - HTTP 流程验证通过：注册 → 登录 → 创建单聊 → 发送消息（seq=1）→ 重复发送命中幂等（`duplicate=true`，同 messageId/seq）→ 历史消息 1 条 → 同步 1 条 → 已读上报。
 - 数据库核对：`im_user`、`im_conversation_sequence.last_seq=1`、`im_message` 记录存在。

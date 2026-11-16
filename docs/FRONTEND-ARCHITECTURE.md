@@ -607,6 +607,93 @@ DELETE /api/v1/files/uploads/{uploadId}
 
 APNs/FCM 真实投递由后端 provider 完成，前端只需注册设备 token。
 
+### Web Push（浏览器离线推送，已实现）
+
+不需要任何服务商账号：浏览器自带推送服务，后端用自生成 VAPID 密钥签名。
+
+| 接口 | 用途 |
+|---|---|
+| `GET /api/v1/push/web/config` | 查 `{enabled, publicKey}` |
+| `POST /api/v1/push/web/subscriptions` | 上报订阅 |
+| `DELETE /api/v1/push/web/subscriptions?endpoint=` | 退订 |
+
+**要求 HTTPS（`localhost` 除外）。**
+
+#### 1. Service Worker（`public/sw.js`）
+
+```js
+self.addEventListener('push', (event) => {
+  const payload = event.data ? event.data.json() : {};
+  event.waitUntil(self.registration.showNotification(payload.title || 'VERYAL', {
+    body: payload.body || '',
+    data: payload.data || {},
+    tag: payload.data?.conversationId || 'veryal',
+  }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const data = event.notification.data || {};
+  event.waitUntil(clients.openWindow(data.conversationId
+    ? `/app/chat/c/${data.conversationId}` : '/app/chat'));
+});
+```
+
+#### 2. 订阅流程
+
+```ts
+const toBase64Url = (buffer: ArrayBuffer) => {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  bytes.forEach((b) => { binary += String.fromCharCode(b); });
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+};
+
+const fromBase64Url = (value: string) => {
+  const padded = value.replace(/-/g, '+').replace(/_/g, '/')
+    .padEnd(value.length + (4 - (value.length % 4)) % 4, '=');
+  return Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
+};
+
+export async function enableWebPush(api: ApiClient) {
+  const { enabled, publicKey } = (await api.get('/api/v1/push/web/config')).data;
+  if (!enabled) return false;
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return false;
+
+  const registration = await navigator.serviceWorker.register('/sw.js');
+  await navigator.serviceWorker.ready;
+
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') return false;
+
+  const existing = await registration.pushManager.getSubscription();
+  const subscription = existing ?? await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: fromBase64Url(publicKey),
+  });
+
+  await api.post('/api/v1/push/web/subscriptions', {
+    endpoint: subscription.endpoint,
+    p256dh: toBase64Url(subscription.getKey('p256dh')!),
+    auth: toBase64Url(subscription.getKey('auth')!),
+    userAgent: navigator.userAgent,
+  });
+  return true;
+}
+```
+
+#### 3. 注意事项
+
+- **必须在用户手势（点击）里调用** `Notification.requestPermission()`，否则桌面 Chrome 会静默拒绝。
+- 订阅接口幂等：同一 `endpoint` 重复上报只更新，不会重复堆积。
+- 后端对 404/410 订阅自动清理，前端不需要额外处理失效。
+- 用户退订：`subscription.unsubscribe()` 后调 `DELETE /api/v1/push/web/subscriptions?endpoint=`。
+- 后端 `veryal.push.web-push.enabled=false` 时，`config` 返回 `enabled=false`，前端应直接跳过，不弹权限。
+
+#### 4. 当前触发范围
+
+离线推送目前只由**好友事件**触发（申请/接受/拒绝/取消/拉黑/解除）。聊天消息的离线推送尚未接入。
+
 ---
 
 ## 13. 实施顺序

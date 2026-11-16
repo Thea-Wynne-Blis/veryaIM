@@ -42,6 +42,12 @@ veryal:
     user-cents: 100
     group-cents: 0
     storage-gb-cents: 0
+  push:
+    web-push:
+      enabled: true
+      subject: mailto:test@veryal.local
+      key-file: target/vapid-test-keys.json
+      max-subscriptions-per-user: 5
   rate-limit:
     policies:
       - name: http-login
