@@ -12,21 +12,45 @@ import java.io.IOException;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 网页端实时事件中心（SSE）。
  *
- * <p>每个登录用户可订阅一个长连接；新消息落库后立即推送"有新消息"事件，
- * 前端据此增量拉取该会话，避免固定轮询带来的秒级延迟。</p>
+ * <p>每个登录用户可订阅一个长连接；新消息落库后立即推送事件，前端据此增量刷新，
+ * 避免固定轮询带来的秒级延迟。</p>
+ *
+ * <p>推送在独立线程池执行：某个慢连接/半死连接不会拖慢发送请求线程；
+ * 队列打满时丢弃最旧任务（客户端重连后按 seq 补齐），绝不让缓冲区无限增长。</p>
  */
 @Slf4j
 @Component
 public class RealtimeEventHub implements RealtimeStreamPort {
 
     private static final long HEARTBEAT_MS = 15_000L;
+    private static final int PUSH_THREADS = 2;
+    private static final int PUSH_QUEUE_CAPACITY = 10_000;
 
     private final Map<Long, Set<SseEmitter>> subscribers = new ConcurrentHashMap<>();
+    private final ExecutorService pushExecutor;
+
+    public RealtimeEventHub() {
+        AtomicInteger index = new AtomicInteger();
+        this.pushExecutor = new ThreadPoolExecutor(PUSH_THREADS, PUSH_THREADS,
+                60L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(PUSH_QUEUE_CAPACITY),
+                runnable -> {
+                    Thread thread = new Thread(runnable,
+                            "realtime-push-" + index.incrementAndGet());
+                    thread.setDaemon(true);
+                    return thread;
+                },
+                new ThreadPoolExecutor.DiscardOldestPolicy());
+    }
 
     public SseEmitter subscribe(long userId) {
         SseEmitter emitter = new SseEmitter(0L);
@@ -47,11 +71,24 @@ public class RealtimeEventHub implements RealtimeStreamPort {
     /** 新消息：推给全部会话成员（含发送者的其他设备）。 */
     @Override
     public void publish(MessageCreatedEvent event) {
-        RealtimeNotice notice = RealtimeNotice.message(event);
-        Set<Long> userIds = new LinkedHashSet<>(event.recipientUserIds());
+        Set<Long> userIds = new LinkedHashSet<>();
+        if (event.recipientUserIds() != null) {
+            userIds.addAll(event.recipientUserIds());
+        }
         userIds.add(event.senderId());
+        if (userIds.isEmpty()) {
+            return;
+        }
+        boolean fullPayload = event.recipientUserIds() == null
+                || event.recipientUserIds().size() <= RealtimeNotice.FULL_PAYLOAD_MAX_RECIPIENTS;
+        RealtimeNotice notice = fullPayload
+                ? RealtimeNotice.message(event)
+                : RealtimeNotice.cursor(event);
         for (Long userId : userIds) {
-            send(userId, "message", notice);
+            if (!subscribers.containsKey(userId)) {
+                continue;
+            }
+            pushExecutor.execute(() -> send(userId, "message", notice));
         }
     }
 
