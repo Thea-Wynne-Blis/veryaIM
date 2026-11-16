@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -61,6 +62,16 @@ public class MyBatisDeviceRepository implements DeviceRepository {
     public void delete(String deviceId) {
         deviceMapper.delete(Wrappers.<DevicePO>lambdaQuery()
                 .eq(DevicePO::getDeviceId, deviceId));
+    }
+
+    @Override
+    public void deleteByUserIdAndDeviceIds(long userId, Collection<String> deviceIds) {
+        if (deviceIds == null || deviceIds.isEmpty()) {
+            return;
+        }
+        deviceMapper.delete(Wrappers.<DevicePO>lambdaQuery()
+                .eq(DevicePO::getUserId, userId)
+                .in(DevicePO::getDeviceId, deviceIds));
     }
 
     private Device toDomain(DevicePO po) {

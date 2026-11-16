@@ -5,6 +5,7 @@ import com.veryal.access.core.Connection;
 import com.veryal.access.core.ConnectionRegistry;
 import com.veryal.domain.conversation.ConversationRepository;
 import com.veryal.domain.delivery.RealtimeDeliveryPort;
+import com.veryal.domain.delivery.RealtimeStreamPort;
 import com.veryal.domain.message.event.MessageCreatedEvent;
 import com.veryal.domain.message.event.MessageEvents;
 import com.veryal.protocol.api.Command;
@@ -34,6 +35,7 @@ public class RealtimeDelivery implements RealtimeDeliveryPort {
 
     private final ConnectionRegistry connectionRegistry;
     private final ConversationRepository conversationRepository;
+    private final RealtimeStreamPort realtimeStreamPort;
 
     @Override
     public void deliver(MessageCreatedEvent event) {
@@ -64,12 +66,14 @@ public class RealtimeDelivery implements RealtimeDeliveryPort {
                     break;
                 }
             }
+            realtimeStreamPort.publish(event);
             return;
         }
 
         Set<Long> users = new LinkedHashSet<>(event.recipientUserIds());
         users.add(event.senderId());
         pushUsers(users, event, payload, pushed);
+        realtimeStreamPort.publish(event);
     }
 
     private void pushUsers(Collection<Long> userIds, MessageCreatedEvent event, byte[] payload,

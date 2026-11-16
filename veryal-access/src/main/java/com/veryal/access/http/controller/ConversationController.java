@@ -11,6 +11,7 @@ import com.veryal.access.http.dto.ReadRequest;
 import com.veryal.access.http.dto.SendMessageRequest;
 import com.veryal.access.http.dto.SendMessageResponse;
 import com.veryal.access.http.security.CurrentUser;
+import com.veryal.access.core.push.SendMessageNotifier;
 import com.veryal.application.conversation.ConversationApplicationService;
 import com.veryal.application.identity.AuthenticatedUser;
 import com.veryal.application.message.MessageApplicationService;
@@ -48,6 +49,7 @@ public class ConversationController {
 
     private final ConversationApplicationService conversationApplicationService;
     private final MessageApplicationService messageApplicationService;
+    private final SendMessageNotifier sendMessageNotifier;
 
     @Operation(summary = "创建或获取单聊会话", description = "同一对用户只会存在一个单聊会话，重复调用返回已存在的那个。返回 `conversationId`。")
     @PostMapping
@@ -92,6 +94,7 @@ public class ConversationController {
         SendMessageResult result = messageApplicationService.send(new SendMessageCommand(
                 user.userId(), user.deviceId(), conversationId,
                 request.clientMessageId(), type, content));
+        sendMessageNotifier.notify(result);
         return ApiResponse.ok(SendMessageResponse.from(result));
     }
 

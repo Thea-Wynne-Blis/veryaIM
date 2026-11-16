@@ -11,7 +11,9 @@ import com.veryal.application.identity.UserApplicationService;
 import com.veryal.common.core.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -48,12 +50,20 @@ public class UserController {
                 userApplicationService.updateProfile(user.userId(), request.nickname(), request.avatar())));
     }
 
-    @Operation(summary = "我的登录设备", description = "列出该账号登录过的设备，含设备类型与最近活跃时间。")
+    @Operation(summary = "我的登录设备", description = "列出该账号登录过的设备，含设备类型与最近活跃时间。"
+            + "同平台同名的历史记录会合并为一条，当前登录设备排在最前。")
     @GetMapping("/me/devices")
     public ApiResponse<List<DeviceResponse>> devices(@CurrentUser AuthenticatedUser user) {
-        return ApiResponse.ok(userApplicationService.listDevices(user.userId()).stream()
+        return ApiResponse.ok(userApplicationService.listDevices(user.userId(), user.deviceId()).stream()
                 .map(DeviceResponse::from)
                 .toList());
+    }
+
+    @Operation(summary = "移除登录设备", description = "移除该设备，并清理同平台同名的历史记录；当前设备不可移除。返回清理的条数。")
+    @DeleteMapping("/me/devices/{deviceId}")
+    public ApiResponse<Integer> removeDevice(@CurrentUser AuthenticatedUser user,
+                                             @PathVariable String deviceId) {
+        return ApiResponse.ok(userApplicationService.removeDevice(user.userId(), user.deviceId(), deviceId));
     }
 
     @Operation(summary = "我的操作记录", description = "账号维度的安全与操作审计，按时间倒序。")

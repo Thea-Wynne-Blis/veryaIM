@@ -208,7 +208,8 @@ public void acquire(long senderId) { ... }
 | POST | `/api/v1/platform/admins/{id}/role` | 调整管理员角色 |
 | GET | `/api/v1/platform/audit-logs` | 运营审计日志 |
 | GET / PUT | `/api/v1/users/me` | 查询 / 修改资料 |
-| GET | `/api/v1/users/me/devices` | 设备列表 |
+| GET | `/api/v1/users/me/devices` | 设备列表（同平台同名记录已合并） |
+| DELETE | `/api/v1/users/me/devices/{deviceId}` | 移除登录设备（当前设备不可移除） |
 | GET | `/api/v1/users/me/audit-logs?limit=50` | 我的审计记录 |
 | GET | `/api/v1/users/search?keyword=...` | 搜索用户 |
 | GET | `/api/v1/users/{id}/profile` | 用户主页资料 |

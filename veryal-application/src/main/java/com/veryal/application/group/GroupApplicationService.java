@@ -106,7 +106,7 @@ public class GroupApplicationService {
         if (groupRepository.findMember(groupId, userId).isEmpty()) {
             throw new BusinessException(ErrorCode.NOT_CONVERSATION_MEMBER, "not a group member");
         }
-        return view(group);
+        return view(group, userId);
     }
 
     @Transactional(readOnly = true)
@@ -257,7 +257,19 @@ public class GroupApplicationService {
                 .map(GroupMember::userId)
                 .toList();
         return new GroupView(group.id(), group.name(), group.ownerId(), memberIds,
-                group.createdAt(), group.updatedAt());
+                group.createdAt(), group.updatedAt(), null);
+    }
+
+    /**
+     * 群详情：附带查看者在群内的角色，前端据此决定显示哪些管理操作。
+     */
+    private GroupView view(Group group, long viewerId) {
+        GroupView base = view(group);
+        String role = groupRepository.findMember(group.id(), viewerId)
+                .map(member -> member.role().name())
+                .orElse(null);
+        return new GroupView(base.groupId(), base.name(), base.ownerId(), base.memberIds(),
+                base.createdAt(), base.updatedAt(), role);
     }
 
     private String validateName(String name) {

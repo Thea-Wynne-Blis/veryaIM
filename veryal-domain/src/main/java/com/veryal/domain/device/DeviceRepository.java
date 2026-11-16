@@ -1,6 +1,7 @@
 package com.veryal.domain.device;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -20,4 +21,9 @@ public interface DeviceRepository {
     void touchLastLogin(String deviceId, Instant loginAt);
 
     void delete(String deviceId);
+
+    /**
+     * 批量删除某用户名下的指定设备记录。
+     */
+    void deleteByUserIdAndDeviceIds(long userId, Collection<String> deviceIds);
 }
