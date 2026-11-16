@@ -185,6 +185,18 @@ public void acquire(long senderId) { ... }
 - 登录由注解限流，`RateLimitFilter` 不再重复处理登录路径；
 - 超限统一抛 `BusinessException(RATE_LIMITED)`，由全局异常处理返回 429。
 
+限流额度可用环境变量覆盖（默认值与代码保持一致）：
+
+| 环境变量 | 默认 | 说明 |
+|---|---|---|
+| `VERYAL_RATE_LIMIT_ENABLED` | `true` | 全局开关；`false` 时过滤器与切面直接放行 |
+| `VERYAL_RATE_LIMIT_LOGIN_PERMITS` | `10` | 登录：每 60 秒每 IP 次数 |
+| `VERYAL_RATE_LIMIT_API_PERMITS` / `_REFILL` | `200` / `50` | 通用 API 令牌桶容量 / 每秒补充 |
+| `VERYAL_RATE_LIMIT_MESSAGE_PERMITS` / `_REFILL` | `30` / `15` | 发消息令牌桶容量 / 每秒补充 |
+
+> 做发送压测时必须先关掉发消息限流（默认 15 条/秒），否则 429 会污染吞吐数据：
+> `VERYAL_RATE_LIMIT_ENABLED=false`，压测结束再恢复。
+
 > **接口说明（V1.1）**
 >
 > 多租户相关接口已移除；`/api/v1/platform/*` 仅保留运营管理员登录、MFA、管理员管理与审计。
@@ -557,6 +569,47 @@ veryal:
 - **HTTP**：生产 profile 开启 `spring.threads.virtual.enabled=true`，Tomcat 请求使用虚拟线程。
 - **CPU 密集型操作**（JWT 签名、图片压缩、序列化）不会因虚拟线程变快；这类任务应继续受 CPU/有界执行器约束，并优先通过压测确认收益。
 - 虚拟线程不是银弹：数据库连接池、Redis、RabbitMQ 的吞吐仍是瓶颈，建议先做连接数与 P99 压测再调整并发。
+
+### 发送路径性能（实测）
+
+部署环境：单机 2 vCPU / 3.7GB，JVM + MySQL + Redis + RabbitMQ + MinIO + nginx 同机。压测为服务器本机直连 `127.0.0.1:8080`，单会话、关闭发送限流、每条消息独立 HTTP 请求。
+
+**先定位再优化**：JFR 采样显示 **50% 的样本阻塞在 `SocketInputStream.read`（等 MySQL 返回）**，GC 只触发 1 次。所以瓶颈是「每条消息的数据库往返次数」，不是磁盘、锁或 JVM。
+
+据此做了四处改动：
+
+| 改动 | 位置 | 效果 |
+|---|---|---|
+| 发送校验合并为一次查询 | `ConversationMapper.selectSendContext` | 会话类型 / 成员关系 / 禁言 / 私聊对端 / 对端拉黑，原来 5 条 SQL 合并为 1 条 |
+| 私聊接收者复用上下文 | `MessageApplicationService.createEvent` | 不再为事件再查一次成员表 |
+| Token 校验用户状态加 5 秒缓存 | `AuthApplicationService.authenticate` | 每个请求省一次用户表查询 + 一次只读事务的 BEGIN/COMMIT；**封禁/注销最长延迟 5 秒生效** |
+| 序号分配单条 upsert / 活跃时间 2 秒节流 | `ConversationSequenceMapper` / `touchThrottled` | 行锁只在单语句内持有；同会话不再每条消息更新同一行 |
+
+单条消息的数据库往返从约 12 次降到约 6 次（认证 0 + 上下文 1 + 幂等 1 + 序号 2 + 消息 1 + Outbox 1）。
+
+**实测（单会话，QPS / p50）**：
+
+| 并发 | 优化前 | 优化后 |
+|---|---|---|
+| 顺序 | 41 QPS / 22ms | 41 QPS / 22ms |
+| 8 | 55 QPS / 121ms | 70 QPS / 105ms |
+| 16 | 115 QPS / 131ms | 184 QPS / 80ms |
+| 32 | 130 QPS / 226ms | 207 QPS / 137ms |
+| 64 | 119 QPS / 249ms | 183 QPS / 174ms |
+
+**关于 MySQL 持久化配置**：同版本下对比 `innodb_flush_log_at_trx_commit=1, sync_binlog=1`（严格持久化）与 `=2, sync_binlog=1000`（放宽）：
+
+| 并发 | 严格 `1/1` | 放宽 `2/1000` |
+|---|---|---|
+| 顺序 | 41 QPS / 22ms | 71 QPS / 12ms |
+| 8 | 70 QPS / 105ms | 113 QPS / 60ms |
+| 16 | 184 QPS / 80ms | 194 QPS / 68ms |
+| 32 | 207 QPS / 137ms | 211 QPS / 126ms |
+| 64 | 183 QPS / 174ms | 201 QPS / 142ms |
+
+结论：**16 并发以上两者几乎无差别**（InnoDB binlog group commit 把 fsync 摊薄了），差异只出现在低并发与单条延迟上。由于本项目要求「消息不丢」，线上保持 `1/1` 严格持久化；只有在明确接受「断电/内核崩溃丢最近约 1 秒已提交事务」时才考虑放宽。
+
+压测脚本见仓库外部工具或按下述方式自测：注册两个用户 → 建私聊 → 对同一会话并发 `POST /conversations/{id}/messages`，统计 QPS 与 p50/p95。
 
 ### 运营管理员与审计
 
