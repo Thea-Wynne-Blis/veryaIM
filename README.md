@@ -584,8 +584,9 @@ veryal:
 | 私聊接收者复用上下文 | `MessageApplicationService.createEvent` | 不再为事件再查一次成员表 |
 | Token 校验用户状态加 5 秒缓存 | `AuthApplicationService.authenticate` | 每个请求省一次用户表查询 + 一次只读事务的 BEGIN/COMMIT；**封禁/注销最长延迟 5 秒生效** |
 | 序号分配单条 upsert / 活跃时间 2 秒节流 | `ConversationSequenceMapper` / `touchThrottled` | 行锁只在单语句内持有；同会话不再每条消息更新同一行 |
+| 发送即推进自己的读游标 | `ConversationRepository.advanceReadCursor` | 单条 `UPDATE ... SET last_read_seq = GREATEST(...)`，多 1 次往返；发完消息会话列表不再给自己显示未读 |
 
-单条消息的数据库往返从约 12 次降到约 6 次（认证 0 + 上下文 1 + 幂等 1 + 序号 2 + 消息 1 + Outbox 1）。
+单条消息的数据库往返从约 12 次降到约 6–7 次（认证 0 + 上下文 1 + 幂等 1 + 序号 2 + 消息 1 + Outbox 1 + 读游标 1）。
 
 **实测（单会话，QPS / p50）**：
 
@@ -611,6 +612,8 @@ veryal:
 
 压测脚本见仓库外部工具或按下述方式自测：注册两个用户 → 建私聊 → 对同一会话并发 `POST /conversations/{id}/messages`，统计 QPS 与 p50/p95。
 
+**发送即已读**：发送成功后会在**同一事务**内把发送者自己的 `last_read_seq` 推进到该消息的 `seq`（`GREATEST` 保证只前进），因此自己发的消息不会在会话列表里显示未读。这条语句每个会话只锁发送者自己的成员行，不涉及其他成员；不发已读回执事件，避免每条消息多写一条 Outbox。A/B 实测（旧 jar 与新 jar 交替 2 轮）吞吐差异在噪声范围内，没有可测回归。
+
 ### 读路径性能（实测）
 
 会话列表原来是最典型的 N+1：`/conversations/cards` 对每个会话分别查成员列表、本人游标、对端资料、最大序号、最后一条消息（5 条 SQL）；`/conversations` 则是 3 条。成本随会话数线性增长。
@@ -626,7 +629,7 @@ veryal:
 | `GET /conversations` | 30 | 61.6ms | **14.6ms** |
 | `GET /conversations` | 1 | 15.4ms | 8.6ms |
 
-30 个会话时卡片列表约 **9 倍**提升，且不再随会话数线性增长。返回结构（`ConversationCardResponse` 12 个字段）与未读数语义（`max(0, lastSeq - lastReadSeq)`）保持不变。
+30 个会话时卡片列表约 **9 倍**提升，且不再随会话数线性增长。返回结构（`ConversationCardResponse` 12 个字段）与未读数语义（`max(0, lastSeq - lastReadSeq)`）保持不变；其中发送者自己的游标已由发送流程推进（见「发送即已读」），所以自己刚发的消息不会算作未读。
 
 ### 运营管理员与审计
 
