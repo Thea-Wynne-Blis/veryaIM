@@ -41,6 +41,7 @@ public class AuthApplicationService {
     private final IdGenerator idGenerator;
     private final TimeProvider timeProvider;
     private final AuditRecorder auditRecorder;
+    private final TokenRevocationService tokenRevocationService;
 
     @Transactional
     public UserProfile register(RegisterCommand command) {
@@ -91,6 +92,9 @@ public class AuthApplicationService {
     @Transactional(readOnly = true)
     public AuthenticatedUser authenticate(String token) {
         AuthenticatedUser principal = tokenService.parse(token);
+        if (tokenRevocationService.isRevoked(principal.tokenId())) {
+            throw new AuthenticationException(ErrorCode.UNAUTHORIZED, "token has been revoked");
+        }
         User user = userRepository.findById(principal.userId())
                 .orElseThrow(() -> new AuthenticationException(ErrorCode.TOKEN_INVALID, "user not found"));
         user.ensureActive();
@@ -123,5 +127,11 @@ public class AuthApplicationService {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT,
                     "password length must be between " + MIN_PASSWORD_LENGTH + " and " + MAX_PASSWORD_LENGTH);
         }
+    }
+    /**
+     * 退出登录：吊销当前 Token，使其立即失效。
+     */
+    public void logout(AuthenticatedUser user) {
+        tokenRevocationService.revoke(user.tokenId());
     }
 }

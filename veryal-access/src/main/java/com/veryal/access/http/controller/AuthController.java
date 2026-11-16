@@ -54,6 +54,13 @@ public class AuthController {
         return ApiResponse.ok(AuthResponse.from(result));
     }
 
+    @Operation(summary = "退出登录", description = "吊销当前 Token，使其立即失效。客户端同时应清除本地存储的令牌。")
+    @PostMapping("/logout")
+    public ApiResponse<Void> logout(@CurrentUser AuthenticatedUser user) {
+        authApplicationService.logout(user);
+        return ApiResponse.ok();
+    }
+
     @Operation(summary = "查询当前登录用户", description = "根据请求头 `Authorization: Bearer <token>` 解析出当前用户，用于前端刷新页面后恢复登录态。")
     @GetMapping("/me")
     public ApiResponse<UserResponse> me(@CurrentUser AuthenticatedUser user) {

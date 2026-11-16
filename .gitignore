@@ -57,3 +57,6 @@ out.json
 logs/
 *.log
 
+
+# Playwright ╣Вйт╫ьм╪
+tools/e2e-fail.png
