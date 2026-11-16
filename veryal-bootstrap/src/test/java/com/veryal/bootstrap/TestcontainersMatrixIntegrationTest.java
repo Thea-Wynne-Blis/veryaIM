@@ -109,6 +109,7 @@ class TestcontainersMatrixIntegrationTest {
 
     @Test
     void fullStackStartsAndPublishesMessageThroughRabbit() {
+        assertFlywayAtLatest();
         assertRedisReachable();
 
         String suffix = Long.toString(System.nanoTime());
@@ -141,6 +142,16 @@ class TestcontainersMatrixIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(1) FROM im_message_delivery WHERE message_id = ?", Long.class,
                 messageId)).isNotNull();
+    }
+
+    private void assertFlywayAtLatest() {
+        String version = jdbcTemplate.queryForObject(
+                "SELECT version FROM flyway_schema_history WHERE success = 1 "
+                        + "ORDER BY installed_rank DESC LIMIT 1", String.class);
+        assertThat(version).isEqualTo("22");
+        Integer migrations = jdbcTemplate.queryForObject(
+                "SELECT COUNT(1) FROM flyway_schema_history WHERE success = 1", Integer.class);
+        assertThat(migrations).isEqualTo(22);
     }
 
     private void assertRedisReachable() {
