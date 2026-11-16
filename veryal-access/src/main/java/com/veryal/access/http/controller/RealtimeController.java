@@ -5,6 +5,7 @@ import com.veryal.access.http.security.CurrentUser;
 import com.veryal.application.identity.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,10 +24,13 @@ public class RealtimeController {
 
     private final RealtimeEventHub realtimeEventHub;
 
-    @Operation(summary = "实时事件流", description = "SSE 长连接：服务端推送 `message` 事件（新消息），"
-            + "每 15 秒发送心跳注释。客户端断线后自行重连，轮询接口仍可作为兜底。")
+    @Operation(summary = "实时事件流", description = "SSE 长连接：服务端推送 `message` 事件（携带消息体，"
+            + "大群只带游标），每 15 秒发送心跳注释。客户端断线后自行重连，轮询接口仍可作为兜底。")
     @GetMapping(value = "/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter events(@CurrentUser AuthenticatedUser user) {
+    public SseEmitter events(@CurrentUser AuthenticatedUser user, HttpServletResponse response) {
+        // 关掉代理与浏览器缓冲，保证事件写入即到达客户端
+        response.setHeader("Cache-Control", "no-cache, no-transform");
+        response.setHeader("X-Accel-Buffering", "no");
         return realtimeEventHub.subscribe(user.userId());
     }
 }
