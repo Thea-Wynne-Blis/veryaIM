@@ -19,6 +19,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 /**
@@ -42,6 +44,17 @@ public class AuthApplicationService {
     private final TimeProvider timeProvider;
     private final AuditRecorder auditRecorder;
     private final TokenRevocationService tokenRevocationService;
+
+    /**
+     * 用户「存在且可用」的短 TTL 缓存（userId → 过期时间戳）。
+     *
+     * <p>每个 HTTP 请求都会走认证，原来每次都要查一次用户表并开一个只读事务；
+     * 这里缓存 5 秒，把这条最热的查询从每次请求降为每人每 5 秒一次。
+     * 代价是封禁/注销最长 5 秒后生效，对 IM 场景可接受。</p>
+     */
+    private static final long ACTIVE_CACHE_TTL_MS = 5_000L;
+    private static final int ACTIVE_CACHE_LIMIT = 50_000;
+    private final Map<Long, Long> activeUsers = new ConcurrentHashMap<>();
 
     @Transactional
     public UserProfile register(RegisterCommand command) {
@@ -88,17 +101,39 @@ public class AuthApplicationService {
 
     /**
      * 校验 Token 并加载用户，供 TCP / WebSocket / HTTP 认证入口统一调用。
+     *
+     * <p>不需要外层事务：这里只有一次单行读取，加 {@code @Transactional(readOnly = true)}
+     * 反而多出 BEGIN/COMMIT 两次往返；用户状态走 5 秒短缓存。</p>
      */
-    @Transactional(readOnly = true)
     public AuthenticatedUser authenticate(String token) {
         AuthenticatedUser principal = tokenService.parse(token);
         if (tokenRevocationService.isRevoked(principal.tokenId())) {
             throw new AuthenticationException(ErrorCode.UNAUTHORIZED, "token has been revoked");
         }
-        User user = userRepository.findById(principal.userId())
-                .orElseThrow(() -> new AuthenticationException(ErrorCode.TOKEN_INVALID, "user not found"));
-        user.ensureActive();
+        if (!isActiveCached(principal.userId())) {
+            User user = userRepository.findById(principal.userId())
+                    .orElseThrow(() -> new AuthenticationException(ErrorCode.TOKEN_INVALID,
+                            "user not found"));
+            user.ensureActive();
+            rememberActive(principal.userId());
+        }
         return principal;
+    }
+
+    private boolean isActiveCached(long userId) {
+        Long expiresAt = activeUsers.get(userId);
+        return expiresAt != null && expiresAt > System.currentTimeMillis();
+    }
+
+    private void rememberActive(long userId) {
+        if (activeUsers.size() > ACTIVE_CACHE_LIMIT) {
+            long now = System.currentTimeMillis();
+            activeUsers.entrySet().removeIf(entry -> entry.getValue() <= now);
+            if (activeUsers.size() > ACTIVE_CACHE_LIMIT) {
+                activeUsers.clear();
+            }
+        }
+        activeUsers.put(userId, System.currentTimeMillis() + ACTIVE_CACHE_TTL_MS);
     }
 
     private Device bindDevice(long userId, LoginCommand command, Instant now) {
