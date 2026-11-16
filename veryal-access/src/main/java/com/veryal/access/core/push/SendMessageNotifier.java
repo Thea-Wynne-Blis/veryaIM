@@ -2,29 +2,26 @@ package com.veryal.access.core.push;
 
 import com.veryal.application.message.SendMessageResult;
 import com.veryal.domain.delivery.RealtimeDeliveryPort;
-import org.springframework.beans.factory.annotation.Value;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
- * 单机直投模式下的发送后通知入口。
+ * 发送后的实时通知入口。
  *
- * <p>HTTP 与 TCP/WebSocket 两条发送链路共用：MQ 关闭时立即推送本节点连接与 SSE 订阅，
- * MQ 开启时由 Outbox → RabbitMQ 消费者统一投递，避免重复推送。</p>
+ * <p>HTTP 与 TCP/WebSocket 两条发送链路共用。</p>
+ *
+ * <p>无论 MQ 是否开启，都先在本节点立即投递（保证发送方与同机在线用户零延迟）；
+ * MQ 开启时消费端还会再投递一次，由 {@link RealtimeDelivery} 按 eventId 去重，
+ * 因此多实例下跨节点推送仍然有效，而本机延迟不受 500ms Outbox 轮询影响。</p>
  */
 @Component
+@RequiredArgsConstructor
 public class SendMessageNotifier {
 
     private final RealtimeDeliveryPort realtimeDeliveryPort;
-    private final boolean mqEnabled;
-
-    public SendMessageNotifier(RealtimeDeliveryPort realtimeDeliveryPort,
-                               @Value("${veryal.mq.enabled:false}") boolean mqEnabled) {
-        this.realtimeDeliveryPort = realtimeDeliveryPort;
-        this.mqEnabled = mqEnabled;
-    }
 
     public void notify(SendMessageResult result) {
-        if (!mqEnabled && !result.duplicate() && result.event() != null) {
+        if (!result.duplicate() && result.event() != null) {
             realtimeDeliveryPort.deliver(result.event());
         }
     }
