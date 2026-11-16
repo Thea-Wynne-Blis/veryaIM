@@ -42,3 +42,6 @@ build/
 
 
 .idea/
+
+# local build archive
+veryal-src.zip
