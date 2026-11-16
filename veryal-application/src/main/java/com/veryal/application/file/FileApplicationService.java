@@ -214,6 +214,16 @@ public class FileApplicationService {
         }
     }
 
+    /**
+     * 我上传的文件列表，按时间倒序，供文件中心展示。
+     */
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public java.util.List<FileView> listMine(long userId, int limit) {
+        return fileRepository.findByUploader(userId, limit).stream()
+                .map(FileView::from)
+                .toList();
+    }
+
     public record FileContent(StoredFile file, byte[] content) {
     }
 }

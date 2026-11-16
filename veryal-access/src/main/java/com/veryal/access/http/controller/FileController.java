@@ -63,7 +63,15 @@ public class FileController {
         return ApiResponse.ok(FileResponse.from(fileApplicationService.upload(user.userId(), conversationId, file.getOriginalFilename(), file.getContentType(), content)));
     }
 
-    @Operation(summary = "查询文件元信息", description = "返回文件名、大小、类型与创建时间。")
+    @Operation(summary = "我的文件", description = "列出我上传过的文件，按时间倒序，供文件中心页面展示。")
+    @GetMapping("/mine")
+    public ApiResponse<java.util.List<FileResponse>> mine(@CurrentUser AuthenticatedUser user) {
+        return ApiResponse.ok(fileApplicationService.listMine(user.userId(), 100).stream()
+                .map(FileResponse::from)
+                .toList());
+    }
+
+    @Operation(summary = "按 ID 查询文件元信息", description = "返回文件名、大小、类型与创建时间。")
     @GetMapping("/{fileId}")
     public ApiResponse<FileResponse> get(@CurrentUser AuthenticatedUser user,
                                          @PathVariable long fileId) {

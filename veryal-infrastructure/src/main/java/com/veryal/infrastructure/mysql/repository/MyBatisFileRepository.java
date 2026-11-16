@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -59,6 +60,20 @@ public class MyBatisFileRepository implements FileRepository {
     @Override
     public long totalBytes() {
         return fileMapper.selectTotalBytes();
+    }
+
+    @Override
+    public List<StoredFile> findByUploader(long uploaderId, int limit) {
+        int size = Math.min(Math.max(limit, 1), 200);
+        return fileMapper.selectList(Wrappers.<FilePO>lambdaQuery()
+                        .eq(FilePO::getUploaderId, uploaderId)
+                        .eq(FilePO::getStatus, FileStatus.ACTIVE.code())
+                        .isNull(FilePO::getDeletedAt)
+                        .orderByDesc(FilePO::getId)
+                        .last("limit " + size))
+                .stream()
+                .map(this::toDomain)
+                .toList();
     }
 
     private StoredFile toDomain(FilePO po) {
