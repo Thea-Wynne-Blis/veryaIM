@@ -17,6 +17,8 @@ import org.springframework.stereotype.Component;
 
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -32,13 +34,27 @@ import java.util.Set;
 public class RealtimeDelivery implements RealtimeDeliveryPort {
 
     private static final int MEMBER_PAGE_SIZE = 500;
+    private static final long DEDUPE_TTL_MS = 60_000L;
+    private static final int DEDUPE_MAX_ENTRIES = 50_000;
 
     private final ConnectionRegistry connectionRegistry;
     private final ConversationRepository conversationRepository;
     private final RealtimeStreamPort realtimeStreamPort;
+    private final Map<String, Long> deliveredEvents = new ConcurrentHashMap<>();
 
     @Override
     public void deliver(MessageCreatedEvent event) {
+        // 单机直推与 MQ 消费者会先后到达同一事件，这里按 eventId 去重，
+        // 保证 MQ 开启时既保留本地零延迟，又不会重复推送。
+        long nowMillis = System.currentTimeMillis();
+        Long previous = deliveredEvents.putIfAbsent(event.eventId(), nowMillis);
+        if (previous != null) {
+            return;
+        }
+        if (deliveredEvents.size() > DEDUPE_MAX_ENTRIES) {
+            purgeExpired(nowMillis);
+        }
+
         MessageNotify notify = MessageNotify.newBuilder()
                 .setMessageId(event.messageId())
                 .setConversationId(event.conversationId())
@@ -100,5 +116,11 @@ public class RealtimeDelivery implements RealtimeDeliveryPort {
             log.debug("message pushed: userId={}, connectionId={}, messageId={}",
                     userId, connection.connectionId(), event.messageId());
         }
+    }
+
+    /** 定期清理去重表，避免长期运行后无限增长。 */
+    private void purgeExpired(long nowMillis) {
+        long threshold = nowMillis - DEDUPE_TTL_MS;
+        deliveredEvents.entrySet().removeIf(entry -> entry.getValue() < threshold);
     }
 }
