@@ -16,6 +16,12 @@ import java.util.List;
 @ConfigurationProperties(prefix = "veryal.rate-limit")
 public class RateLimitProperties {
 
+    /**
+     * 全局开关。压测或内网排障时可通过 {@code VERYAL_RATE_LIMIT_ENABLED=false} 关闭，
+     * 关闭后 {@link com.veryal.common.ratelimit.RateLimiterRegistry} 仍会装配，但过滤器与切面直接放行。
+     */
+    private boolean enabled = true;
+
     private List<Policy> policies = new ArrayList<>();
 
     @Getter

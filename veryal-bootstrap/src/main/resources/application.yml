@@ -111,23 +111,24 @@ veryal:
     confirm-timeout-ms: 5000
     stale-timeout-ms: 60000
   rate-limit:
+    enabled: ${VERYAL_RATE_LIMIT_ENABLED:true}
     policies:
       - name: http-login
         algorithm: SLIDING_WINDOW
-        permits: 10
+        permits: ${VERYAL_RATE_LIMIT_LOGIN_PERMITS:10}
         window-seconds: 60
       - name: http-api
         algorithm: TOKEN_BUCKET
-        permits: 200
-        refill-per-second: 50
+        permits: ${VERYAL_RATE_LIMIT_API_PERMITS:200}
+        refill-per-second: ${VERYAL_RATE_LIMIT_API_REFILL:50}
       - name: tcp-login
         algorithm: SLIDING_WINDOW
-        permits: 10
+        permits: ${VERYAL_RATE_LIMIT_TCP_LOGIN_PERMITS:10}
         window-seconds: 60
       - name: message-send
         algorithm: TOKEN_BUCKET
-        permits: 30
-        refill-per-second: 15
+        permits: ${VERYAL_RATE_LIMIT_MESSAGE_PERMITS:30}
+        refill-per-second: ${VERYAL_RATE_LIMIT_MESSAGE_REFILL:15}
   storage:
     type: ${VERYAL_STORAGE_TYPE:local}
     local:

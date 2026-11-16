@@ -1,6 +1,7 @@
 package com.veryal.access.http.security;
 
 import com.veryal.application.identity.AuthenticatedUser;
+import com.veryal.application.ratelimit.RateLimitProperties;
 import com.veryal.common.core.ApiResponse;
 import com.veryal.common.exception.ErrorCode;
 import com.veryal.common.json.JsonUtils;
@@ -34,10 +35,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private static final String API_POLICY = "http-api";
 
     private final RateLimiterRegistry rateLimiterRegistry;
+    private final RateLimitProperties rateLimitProperties;
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !request.getRequestURI().startsWith("/api/v1");
+        return !rateLimitProperties.isEnabled()
+                || !request.getRequestURI().startsWith("/api/v1");
     }
 
     @Override

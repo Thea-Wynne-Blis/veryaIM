@@ -1,6 +1,7 @@
 package com.veryal.access.http.security;
 
 import com.veryal.application.identity.AuthenticatedUser;
+import com.veryal.application.ratelimit.RateLimitProperties;
 import com.veryal.common.exception.BusinessException;
 import com.veryal.common.exception.ErrorCode;
 import com.veryal.common.ratelimit.RateLimit;
@@ -35,9 +36,13 @@ public class RateLimitAspect {
     private static final ExpressionParser PARSER = new SpelExpressionParser();
 
     private final RateLimiterRegistry rateLimiterRegistry;
+    private final RateLimitProperties rateLimitProperties;
 
     @Around("@annotation(rateLimit)")
     public Object around(ProceedingJoinPoint joinPoint, RateLimit rateLimit) throws Throwable {
+        if (!rateLimitProperties.isEnabled()) {
+            return joinPoint.proceed();
+        }
         String key = resolveKey(joinPoint, rateLimit);
         RateLimitResult result = rateLimiterRegistry.tryAcquire(rateLimit.policy(), key);
         if (!result.allowed()) {
