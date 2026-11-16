@@ -394,6 +394,40 @@ curl -s -X POST http://127.0.0.1:8080/api/v1/conversations/p_1_1001_1002/message
 
 `clientMessageId` 在 `sender_id` 维度唯一。重复提交返回同一条消息与相同序号，`duplicate=true`。
 
+### 实时推送（SSE）
+
+浏览器端通过 `GET /api/v1/events`（需 Bearer）建立 SSE 长连接，服务端在消息落库后立即推送；前端据此增量刷新，不再依赖固定轮询。
+
+事件示例（小群/单聊携带完整消息体）：
+
+```text
+event: message
+data: {"kind":"message","conversationId":"p_1_1001_1002","messageId":"123456789",
+       "seq":42,"senderId":"1001","clientMsgId":"m-1","messageType":"TEXT",
+       "content":"hello","contentEncoding":"utf8","createdAt":"2026-11-16T11:20:00Z"}
+```
+
+- 成员数超过 `RealtimeNotice.FULL_PAYLOAD_MAX_RECIPIENTS`（200）时退化为游标事件：`{"kind":"cursor","conversationId":"...","seq":42}`，客户端按 `seq` 调 `GET /conversations/{id}/messages?cursor=<seq>` 补齐，推送体积与群人数无关。
+- 每 15 秒发送一次 SSE 心跳注释；响应带 `X-Accel-Buffering: no`，避免 nginx 缓冲。
+- 推送在线程池中执行（有界队列 + 满则丢弃最旧任务），慢连接不会拖慢发送接口；丢弃的推送由客户端重连后的增量同步补齐。
+- 客户端断线自动重连，并保留低频轮询（SSE 健康时 60 秒一次）作为兜底。
+
+### 跨实例推送（MQ fanout）
+
+`VERYAL_MQ_ENABLED=true` 时，发送节点先在本节点直推，再把事件广播到 fanout 交换机 `veryal.push.exchange`：
+
+```text
+实例A ──本地直推──▶ 本机连接/SSE
+      └──publish──▶ veryal.push.exchange
+                        ├── veryal.push.<实例A>（独占、自动删除）
+                        └── veryal.push.<实例B>
+```
+
+- 每个实例绑定一条非持久、独占、自动删除的队列（`RealtimeBusConfig`），实例下线自动清理。
+- 每个实例收到事件后只推自己持有的连接；发送节点自己也会收到回环，由 `RealtimeDelivery` 按 `eventId` 去重（60s TTL、5 万条上限），不会重复推送。
+- 广播失败只记日志，不阻塞发送；跨节点漏推由客户端增量同步补齐。
+- 单机部署可用 `VERYAL_MQ_ENABLED=false`：此时只有本机直推，没有 fanout 广播。
+
 ## TCP / WebSocket 协议
 
 固定 16 字节头，Big Endian：
