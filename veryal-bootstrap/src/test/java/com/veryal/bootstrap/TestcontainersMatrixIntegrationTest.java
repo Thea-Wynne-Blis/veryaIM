@@ -14,6 +14,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -24,13 +25,26 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Testcontainers 矩阵：MySQL 8 + Redis 7 + RabbitMQ 3.13 启动完整应用并跑通消息链路。
- * 需要 Docker；本机无 Docker 时该测试会被跳过。
+ * Testcontainers 矩阵：MySQL 8 + Redis 7 + RabbitMQ 3.13 启动完整应用。
+ *
+ * <p>验证内容：</p>
+ * <ol>
+ *     <li>Flyway 从 V1 到最新版本在真实 MySQL 上全部执行成功；</li>
+ *     <li>注册 / 登录 / 建会话 / 发消息走通；</li>
+ *     <li>消息写入后 Outbox 记录被 Publisher 发布为 status=1，证明 RabbitMQ 链路可用。</li>
+ * </ol>
+ *
+ * <p>需要 Docker；无 Docker 时自动跳过。</p>
  */
 @Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -51,10 +65,16 @@ class TestcontainersMatrixIntegrationTest {
 
     @Container
     static final RabbitMQContainer RABBIT = new RabbitMQContainer(
-            DockerImageName.parse("rabbitmq:3.13-management"));
+            DockerImageName.parse("rabbitmq:3.13-management"))
+            .withAdminUser("veryal")
+            .withAdminPassword("veryal123");
+
+    private static volatile boolean rabbitReady;
 
     @DynamicPropertySource
     static void containerProperties(DynamicPropertyRegistry registry) {
+        awaitTcp(RABBIT.getHost(), RABBIT.getMappedPort(5672), Duration.ofSeconds(90));
+
         registry.add("spring.datasource.url", MYSQL::getJdbcUrl);
         registry.add("spring.datasource.username", MYSQL::getUsername);
         registry.add("spring.datasource.password", MYSQL::getPassword);
@@ -69,17 +89,21 @@ class TestcontainersMatrixIntegrationTest {
         registry.add("veryal.mq.enabled", () -> true);
         registry.add("spring.rabbitmq.host", RABBIT::getHost);
         registry.add("spring.rabbitmq.port", () -> RABBIT.getMappedPort(5672));
-        registry.add("spring.rabbitmq.username", RABBIT::getAdminUsername);
-        registry.add("spring.rabbitmq.password", RABBIT::getAdminPassword);
+        registry.add("spring.rabbitmq.username", () -> "veryal");
+        registry.add("spring.rabbitmq.password", () -> "veryal123");
         registry.add("management.health.rabbit.enabled", () -> true);
         registry.add("veryal.node-id", () -> 110);
+        registry.add("veryal.outbox.poll-interval-ms", () -> 200);
     }
 
     @Autowired
     private TestRestTemplate rest;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @Test
-    void fullStackStartsAndDeliversMessage() {
+    void fullStackStartsAndPublishesMessageThroughRabbit() {
         String suffix = Long.toString(System.nanoTime());
         register("tc_alice_" + suffix);
         UserResponse bob = register("tc_bob_" + suffix);
@@ -90,13 +114,67 @@ class TestcontainersMatrixIntegrationTest {
                 Map.of("peerUserId", bob.userId()), alice.token(),
                 new ParameterizedTypeReference<ApiResponse<ConversationResponse>>() {
                 }).data();
+        String clientMessageId = "tc-" + suffix;
         ApiResponse<Void> sent = post("/api/v1/conversations/" + conversation.conversationId()
                         + "/messages",
                 Map.of("conversationId", conversation.conversationId(),
-                        "clientMessageId", "tc-" + suffix, "type", "TEXT", "content", "hello"),
+                        "clientMessageId", clientMessageId, "type", "TEXT", "content", "hello"),
                 alice.token(), new ParameterizedTypeReference<>() {
                 });
         assertThat(sent.successful()).isTrue();
+
+        // 消息已落库
+        Long messageId = jdbcTemplate.queryForObject(
+                "SELECT id FROM im_message WHERE client_msg_id = ?", Long.class, clientMessageId);
+        assertThat(messageId).isNotNull();
+
+        // Outbox 被 Publisher 发布（status=1）证明 RabbitMQ 投递链路可用
+        int published = awaitOutboxPublished(conversation.conversationId(), Duration.ofSeconds(30));
+        assertThat(published).isGreaterThan(0);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(1) FROM im_message_delivery WHERE message_id = ?", Long.class,
+                messageId)).isNotNull();
+    }
+
+    private int awaitOutboxPublished(String conversationId, Duration timeout) {
+        Instant deadline = Instant.now().plus(timeout);
+        while (Instant.now().isBefore(deadline)) {
+            Integer count = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(1) FROM im_outbox WHERE status = 1 AND aggregate_id = ?",
+                    Integer.class, conversationId);
+            if (count != null && count > 0) {
+                return count;
+            }
+            sleep(300);
+        }
+        return 0;
+    }
+
+    private static void awaitTcp(String host, int port, Duration timeout) {
+        if (rabbitReady) {
+            return;
+        }
+        Instant deadline = Instant.now().plus(timeout);
+        RuntimeException last = null;
+        while (Instant.now().isBefore(deadline)) {
+            try (Socket socket = new Socket()) {
+                socket.connect(new InetSocketAddress(host, port), 1000);
+                rabbitReady = true;
+                return;
+            } catch (IOException e) {
+                last = new IllegalStateException("rabbitmq not ready at " + host + ":" + port, e);
+                sleep(500);
+            }
+        }
+        throw last == null ? new IllegalStateException("rabbitmq not ready") : last;
+    }
+
+    private static void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private UserResponse register(String username) {
