@@ -8,8 +8,9 @@ import org.springframework.stereotype.Repository;
 /**
  * 会话序号分配实现。
  *
- * <p>同一事务内：INSERT IGNORE 初始化 → SELECT ... FOR UPDATE 锁定行 → UPDATE 递增。
- * 行锁保证同一会话的序号严格递增；不同会话互不阻塞。</p>
+ * <p>单条 upsert 原子自增（首次插入 1），再用 {@code LAST_INSERT_ID()} 取回新值：
+ * 同一会话严格递增，不同会话互不阻塞。行锁只在单条语句内持有，
+ * 因此高并发发送同一会话时不会因为多语句事务窗口被串行化。</p>
  */
 @Repository
 @RequiredArgsConstructor
@@ -19,11 +20,8 @@ public class MyBatisConversationSequenceRepository implements ConversationSequen
 
     @Override
     public long allocate(String conversationId) {
-        sequenceMapper.insertIgnore(conversationId);
-        long current = sequenceMapper.selectForUpdate(conversationId);
-        long next = current + 1;
-        sequenceMapper.updateSeq(conversationId, next);
-        return next;
+        sequenceMapper.advance(conversationId);
+        return sequenceMapper.lastInsertId();
     }
 
     @Override
