@@ -2,6 +2,7 @@ package com.veryal.infrastructure.mysql.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.veryal.infrastructure.mysql.po.ConversationPO;
+import com.veryal.infrastructure.mysql.po.ConversationSendContextPO;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -28,6 +29,38 @@ public interface ConversationMapper extends BaseMapper<ConversationPO> {
             LIMIT 200
             """)
     List<ConversationPO> selectByUser(@Param("userId") long userId);
+
+    @Select("""
+            SELECT c.conversation_type AS conversationType,
+                   (SELECT m.user_id
+                      FROM im_conversation_member m
+                     WHERE m.conversation_id = c.id
+                       AND m.user_id = #{userId})                    AS memberUserId,
+                   (SELECT um.muted_until
+                      FROM im_user_mute um
+                     WHERE um.user_id = #{userId})                   AS mutedUntil,
+                   CASE WHEN c.conversation_type = 1 THEN
+                        (SELECT m2.user_id
+                           FROM im_conversation_member m2
+                          WHERE m2.conversation_id = c.id
+                            AND m2.user_id <> #{userId}
+                          LIMIT 1)
+                   END                                               AS peerUserId,
+                   CASE WHEN c.conversation_type = 1 THEN
+                        EXISTS(SELECT 1
+                                 FROM im_blacklist b
+                                WHERE b.user_id = (SELECT m3.user_id
+                                                     FROM im_conversation_member m3
+                                                    WHERE m3.conversation_id = c.id
+                                                      AND m3.user_id <> #{userId}
+                                                    LIMIT 1)
+                                  AND b.blocked_user_id = #{userId})
+                   END                                               AS peerBlocked
+            FROM im_conversation c
+            WHERE c.id = #{conversationId}
+            """)
+    ConversationSendContextPO selectSendContext(@Param("conversationId") String conversationId,
+                                                @Param("userId") long userId);
 
     @Select("""
             SELECT user_id

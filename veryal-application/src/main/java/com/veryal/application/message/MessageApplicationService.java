@@ -2,7 +2,6 @@ package com.veryal.application.message;
 
 import com.veryal.application.audit.AuditRecorder;
 import com.veryal.application.group.GroupModerationService;
-import com.veryal.application.identity.UserMuteService;
 import com.veryal.application.message.strategy.MessageContentContext;
 import com.veryal.application.message.strategy.MessageTypeStrategyFactory;
 import com.veryal.application.moderation.SensitiveWordService;
@@ -18,9 +17,9 @@ import com.veryal.domain.conversation.Conversation;
 import com.veryal.domain.conversation.ConversationMember;
 import com.veryal.domain.conversation.ConversationRepository;
 import com.veryal.domain.conversation.ConversationType;
+import com.veryal.domain.conversation.SendContext;
 import com.veryal.domain.delivery.DeliveryRecord;
 import com.veryal.domain.delivery.DeliveryRepository;
-import com.veryal.domain.friend.BlacklistRepository;
 import com.veryal.domain.message.ConversationSequenceRepository;
 import com.veryal.domain.message.DuplicateMessageException;
 import com.veryal.domain.message.Message;
@@ -58,7 +57,6 @@ public class MessageApplicationService {
     private final MessageRepository messageRepository;
     private final ConversationSequenceRepository sequenceRepository;
     private final ConversationRepository conversationRepository;
-    private final BlacklistRepository blacklistRepository;
     private final OutboxAppender outboxAppender;
     private final DeliveryRepository deliveryRepository;
     /** 同一会话 2 秒内只更新一次活跃时间，避免每条消息都去锁同一行。 */
@@ -69,7 +67,6 @@ public class MessageApplicationService {
     private final MessageTypeStrategyFactory messageTypeStrategyFactory;
     private final AuditRecorder auditRecorder;
     private final GroupModerationService groupModerationService;
-    private final UserMuteService userMuteService;
     private final SensitiveWordService sensitiveWordService;
     private final MessageRecallNotifier messageRecallNotifier;
     private final IdGenerator idGenerator;
@@ -83,23 +80,20 @@ public class MessageApplicationService {
         messageTypeStrategyFactory.validate(new MessageContentContext(
                 command.senderId(), command.conversationId(), command.messageType(), command.content()));
 
-        Conversation conversation = conversationRepository.findById(command.conversationId())
+        // 一次查询取回会话类型、成员关系、禁言与私聊拉黑状态：此前每条消息要为此多付 5 次数据库往返。
+        SendContext context = conversationRepository
+                .findSendContext(command.conversationId(), command.senderId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND,
                         "conversation not found: " + command.conversationId()));
-        conversationRepository.findMember(conversation.id(), command.senderId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CONVERSATION_MEMBER));
-        if (conversation.type() == ConversationType.GROUP) {
-            groupModerationService.ensureCanSend(conversation.id(), command.senderId());
-            groupModerationService.validateMentions(conversation.id(), command.content());
+        if (!context.member()) {
+            throw new BusinessException(ErrorCode.NOT_CONVERSATION_MEMBER);
         }
-        if (conversation.type() == ConversationType.PRIVATE) {
-            long peerId = conversationRepository.findMembers(conversation.id()).stream()
-                    .map(ConversationMember::userId)
-                    .filter(userId -> userId != command.senderId())
-                    .findFirst().orElse(0L);
-            if (peerId > 0 && blacklistRepository.exists(peerId, command.senderId())) {
-                throw new BusinessException(ErrorCode.USER_BLOCKED);
-            }
+        if (context.type() == ConversationType.GROUP) {
+            groupModerationService.ensureCanSend(command.conversationId(), command.senderId());
+            groupModerationService.validateMentions(command.conversationId(), command.content());
+        }
+        if (context.peerBlocked()) {
+            throw new BusinessException(ErrorCode.USER_BLOCKED);
         }
 
         Optional<Message> existing = messageRepository.findByIdempotencyKey(
@@ -110,11 +104,13 @@ public class MessageApplicationService {
 
         // 幂等命中不消耗限流额度；只有真正的新消息才检查发送速率。
         sensitiveWordService.checkMessage(command.messageType(), command.content());
-        userMuteService.ensureCanSend(command.senderId());
-        messageRateLimiter.acquire(command.senderId());
         Instant now = timeProvider.now();
-        long sequence = sequenceRepository.allocate(conversation.id());
-        Message message = Message.create(idGenerator.nextId(), conversation.id(),
+        if (context.mutedUntil() != null && context.mutedUntil().isAfter(now)) {
+            throw new BusinessException(ErrorCode.USER_MUTED);
+        }
+        messageRateLimiter.acquire(command.senderId());
+        long sequence = sequenceRepository.allocate(command.conversationId());
+        Message message = Message.create(idGenerator.nextId(), command.conversationId(),
                 command.senderId(), command.clientMessageId(), sequence, command.messageType(),
                 command.content(), now);
         try {
@@ -126,10 +122,10 @@ public class MessageApplicationService {
             return new SendMessageResult(duplicate, null, true);
         }
 
-        MessageCreatedEvent event = createEvent(command, message, conversation, now);
-        outboxAppender.append(new OutboxMessage(event.eventId(), conversation.id(),
+        MessageCreatedEvent event = createEvent(command, message, context, now);
+        outboxAppender.append(new OutboxMessage(event.eventId(), command.conversationId(),
                 event.eventType(), JsonUtils.toJsonBytes(event), now));
-        touchThrottled(conversation.id(), now);
+        touchThrottled(command.conversationId(), now);
         return new SendMessageResult(message, event, false);
     }
 
@@ -271,17 +267,15 @@ public class MessageApplicationService {
     }
 
     private MessageCreatedEvent createEvent(SendMessageCommand command, Message message,
-                                            Conversation conversation, Instant now) {
-        String eventType = conversation.type() == ConversationType.GROUP
+                                            SendContext context, Instant now) {
+        String eventType = context.type() == ConversationType.GROUP
                 ? MessageEvents.GROUP_CREATED
                 : MessageEvents.PRIVATE_CREATED;
         // 群消息不携带接收者快照，由消费者/本地投递按成员分页拉取，避免大群事件体积膨胀。
-        List<Long> recipients = conversation.type() == ConversationType.GROUP
+        // 私聊接收者就是发送上下文里已经查到的对端，不用再查一次成员表。
+        List<Long> recipients = context.type() == ConversationType.GROUP || context.peerUserId() == null
                 ? List.of()
-                : conversationRepository.findMembers(message.conversationId()).stream()
-                        .map(ConversationMember::userId)
-                        .filter(userId -> userId != command.senderId())
-                        .toList();
+                : List.of(context.peerUserId());
         return new MessageCreatedEvent(RandomIds.newId(), eventType, message.conversationId(),
                 message.id(), message.senderId(), command.senderDeviceId(),
                 message.seq(), message.type().code(), message.content(), now,

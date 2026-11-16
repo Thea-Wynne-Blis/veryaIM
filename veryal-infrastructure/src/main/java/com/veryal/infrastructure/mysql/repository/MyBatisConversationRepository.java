@@ -5,11 +5,13 @@ import com.veryal.domain.conversation.Conversation;
 import com.veryal.domain.conversation.ConversationMember;
 import com.veryal.domain.conversation.ConversationRepository;
 import com.veryal.domain.conversation.ConversationType;
+import com.veryal.domain.conversation.SendContext;
 import com.veryal.infrastructure.mysql.SqlTime;
 import com.veryal.infrastructure.mysql.mapper.ConversationMapper;
 import com.veryal.infrastructure.mysql.mapper.ConversationMemberMapper;
 import com.veryal.infrastructure.mysql.po.ConversationMemberPO;
 import com.veryal.infrastructure.mysql.po.ConversationPO;
+import com.veryal.infrastructure.mysql.po.ConversationSendContextPO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
@@ -65,6 +67,19 @@ public class MyBatisConversationRepository implements ConversationRepository {
                         .eq(ConversationMemberPO::getConversationId, conversationId)
                         .eq(ConversationMemberPO::getUserId, userId)))
                 .map(this::toDomain);
+    }
+
+    @Override
+    public Optional<SendContext> findSendContext(String conversationId, long userId) {
+        ConversationSendContextPO po = conversationMapper.selectSendContext(conversationId, userId);
+        if (po == null) {
+            return Optional.empty();
+        }
+        return Optional.of(new SendContext(ConversationType.fromCode(po.conversationType),
+                po.memberUserId != null,
+                po.mutedUntil == null ? null : SqlTime.toInstant(po.mutedUntil),
+                po.peerUserId,
+                Boolean.TRUE.equals(po.peerBlocked)));
     }
 
     @Override

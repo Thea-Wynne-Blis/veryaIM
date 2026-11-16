@@ -27,6 +27,12 @@ public interface ConversationRepository {
 
     Optional<ConversationMember> findMember(String conversationId, long userId);
 
+    /**
+     * 一次查询取回发送校验所需的上下文（类型、成员关系、禁言、私聊对端与拉黑状态）。
+     * 会话不存在时返回空。
+     */
+    Optional<SendContext> findSendContext(String conversationId, long userId);
+
     void addMember(ConversationMember member);
 
     void removeMember(String conversationId, long userId);
