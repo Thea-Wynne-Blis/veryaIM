@@ -603,7 +603,7 @@ mvn test
 
 集成测试使用 `test` profile，Netty Gateway 端口配置为 0（系统分配），不占用本机端口。
 
-`TestcontainersMatrixIntegrationTest` 使用真实 MySQL 8.0.30 / Redis 7.4 / RabbitMQ 3.13，启动完整应用并执行 Flyway V1–V16；已在云服务器 Docker 29.8.1 上通过（Testcontainers 2.0.5 / docker-java 3.7.1）。没有可用 Docker 的机器会自动跳过该测试。
+`TestcontainersMatrixIntegrationTest` 使用真实 MySQL 8.0.30 / Redis 7.4 / RabbitMQ 3.13，启动完整应用并执行 Flyway V1–V22；已在云服务器 Docker 29.8.1 上通过，断言包括：22 个迁移全部成功、Redis 可读写、消息落库、Outbox 发布为 `status=1`（证明 RabbitMQ 链路真实可用）。没有可用 Docker 的机器会自动跳过该测试。
 
 ## 开发约定
 

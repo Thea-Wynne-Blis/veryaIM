@@ -159,7 +159,7 @@
 - [x] 云服务器 MySQL V21 冒烟：`tenant_id` 列全部删除，health UP，无租户注册/登录/建会话/发消息通过
 - [x] 云服务器 MySQL V22 冒烟：推送设备 token 注册/查询成功
 - [x] 单聊/群聊 ID 不再包含租户前缀（`p_{a}_{b}` / `g_{snowflake}`）
-- [x] Testcontainers 矩阵：MySQL 8.0.30 + Redis 7.4 + RabbitMQ 3.13 启动完整应用，Flyway V1–V16，注册/登录/私聊消息通过（服务器 54s）
+- [x] Testcontainers 矩阵（2026-11-16 在云服务器 Docker 29.8.1 重跑）：MySQL 8.0.30 + Redis 7.4 + RabbitMQ 3.13 启动完整应用，断言 Flyway 已执行 22 个迁移至 V22、Redis 可读写、消息落库、Outbox `status=1` 发布成功（即 RabbitMQ 链路真实可用）；耗时约 57s
 - [x] HTTP 集成测试：注册→登录→建会话→发消息→幂等→历史→同步→已读→越权/未认证，并校验 Outbox 事件写入
 - [x] 群聊集成测试：建群、成员权限、群消息、群事件类型、非成员越权
 - [x] 群管理集成测试：管理员设置、改名、踢人、退群、群主/管理员权限边界
@@ -218,11 +218,11 @@
 
 - 环境：Windows 11、JDK 21.0.11、Maven 3.9.4。
 - `mvn -B -ntp verify`：6 个代码模块 + bootstrap + 父工程全部构建成功。
-- 测试共 77 个（本机 76 通过 + 1 跳过；Testcontainers 矩阵在云服务器 Docker 29.8.1 上 1 个通过）：
+- 测试共 77 个（本机 76 通过 + 1 跳过；该 Testcontainers 用例已在云服务器 Docker 环境单独执行并通过）：
   - `veryal-common`：雪花 ID、限流算法、TOTP、DFA 敏感词（15）。
   - `veryal-protocol`：Envelope 编解码、未知指令、版本校验、帧头格式、半包/粘包、非法魔数、超大帧、指令不一致（12）。
   - `veryal-application`：JWT、PBKDF2、Outbox 事件 JSON（9）。
-  - `veryal-bootstrap`：HTTP 全流程、用户搜索/隐私/举报/推送设备、运营后台、敏感词、好友、群聊、1000 人群、限流、审计、文件、撤回、搜索、已读、TCP/WebSocket（40 通过 + 1 Testcontainers 跳过/服务器通过）。
+  - `veryal-bootstrap`：HTTP 全流程、用户搜索/隐私/举报/推送设备、运营后台、敏感词、好友、群聊、1000 人群、限流、审计、文件、撤回、搜索、已读、TCP/WebSocket（40 通过 + 1 Testcontainers 本机跳过/服务器通过）。
 - 可执行 jar 使用默认 `dev` profile 启动验证：H2 内存库 + 内存在线状态，`/actuator/health=UP`，注册接口返回成功。
 
 ### MySQL 8.0.30 + Redis 实际环境验证
