@@ -7,6 +7,7 @@ import com.veryal.infrastructure.mysql.po.ConversationSendContextPO;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
 
@@ -20,6 +21,16 @@ public interface ConversationMapper extends BaseMapper<ConversationPO> {
             VALUES (#{id}, #{conversationType}, #{createdAt}, #{updatedAt})
             """)
     int insertIgnore(ConversationPO conversation);
+
+    @Update("""
+            UPDATE im_conversation_member
+            SET last_read_seq = GREATEST(last_read_seq, #{sequence})
+            WHERE conversation_id = #{conversationId}
+              AND user_id = #{userId}
+            """)
+    int advanceReadCursor(@Param("conversationId") String conversationId,
+                          @Param("userId") long userId,
+                          @Param("sequence") long sequence);
 
     @Select("""
             SELECT c.id, c.conversation_type, c.created_at, c.updated_at

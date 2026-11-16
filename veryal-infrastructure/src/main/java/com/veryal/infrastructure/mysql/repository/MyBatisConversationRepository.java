@@ -101,6 +101,11 @@ public class MyBatisConversationRepository implements ConversationRepository {
     }
 
     @Override
+    public void advanceReadCursor(String conversationId, long userId, long sequence) {
+        conversationMapper.advanceReadCursor(conversationId, userId, sequence);
+    }
+
+    @Override
     public List<Conversation> findByUser(long userId) {
         return conversationMapper.selectByUser(userId).stream().map(this::toDomain).toList();
     }

@@ -125,6 +125,9 @@ public class MessageApplicationService {
         MessageCreatedEvent event = createEvent(command, message, context, now);
         outboxAppender.append(new OutboxMessage(event.eventId(), command.conversationId(),
                 event.eventType(), JsonUtils.toJsonBytes(event), now));
+        // 发送即视为已读：否则自己刚发的消息会让会话列表显示未读。
+        // 单条 UPDATE + GREATEST，不需要先读后写；这里不发已读回执事件，避免每条消息多一次 Outbox。
+        conversationRepository.advanceReadCursor(command.conversationId(), command.senderId(), sequence);
         touchThrottled(command.conversationId(), now);
         return new SendMessageResult(message, event, false);
     }

@@ -39,6 +39,14 @@ public interface ConversationRepository {
 
     void updateMemberCursor(ConversationMember member);
 
+    /**
+     * 把自己的读游标推进到 {@code sequence}（只前进不后退），单条 UPDATE 完成。
+     *
+     * <p>用于「发送成功即视为已读」：否则自己刚发的消息会让会话列表显示未读。
+     * 走 {@code GREATEST(last_read_seq, sequence)}，不需要先读后写。</p>
+     */
+    void advanceReadCursor(String conversationId, long userId, long sequence);
+
     /** 查询用户参与的会话，按更新时间倒序。 */
     List<Conversation> findByUser(long userId);
 
