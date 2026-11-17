@@ -1,5 +1,6 @@
 package com.veryal.access.core.push;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.concurrent.ConcurrentHashMap;
@@ -14,6 +15,9 @@ import java.util.concurrent.ConcurrentMap;
  *
  * <p>只保留短时间窗口：重复投递只会在同一事件的两条链路之间发生，超过窗口的
  * 重投由客户端按 messageId 兜底。字典按 TTL 与容量上限清理，避免长期运行膨胀。</p>
+ *
+ * <p>MQ 关闭时只有一条投递链路，本组件退化为直通（恒返回 {@code true}），
+ * 不产生任何表操作。</p>
  */
 @Component
 public class ConnectionPushDedup {
@@ -21,7 +25,17 @@ public class ConnectionPushDedup {
     private static final long TTL_MS = 60_000L;
     private static final int MAX_ENTRIES = 500_000;
 
+    /**
+     * 只有 MQ 开启时同一条消息才会走两条链路；关闭时直接跳过整个去重表，
+     * 省掉每次推送的字符串拼接与 Map 操作。
+     */
+    private final boolean enabled;
+
     private final ConcurrentMap<String, Long> seen = new ConcurrentHashMap<>();
+
+    public ConnectionPushDedup(@Value("${veryal.mq.enabled:false}") boolean enabled) {
+        this.enabled = enabled;
+    }
 
     /**
      * 抢占某连接的本次投递权。
@@ -29,6 +43,9 @@ public class ConnectionPushDedup {
      * @return {@code true} 表示第一次投递，可以发送；{@code false} 表示已有链路发过。
      */
     public boolean firstDelivery(String eventId, String connectionId) {
+        if (!enabled) {
+            return true;
+        }
         if (eventId == null || connectionId == null) {
             return true;
         }

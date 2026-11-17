@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 按 connectionId 向本节点连接推送消息。
@@ -28,6 +29,7 @@ public class LocalGatewayPush implements GatewayPushPort {
 
     private final ConnectionRegistry connectionRegistry;
     private final ConnectionPushDedup connectionPushDedup;
+    private final AtomicLong unwritableSkips = new AtomicLong();
 
     @Override
     public void push(MessageCreatedEvent message, List<String> connectionIds) {
@@ -54,6 +56,15 @@ public class LocalGatewayPush implements GatewayPushPort {
                 continue;
             }
             // 本节点直推可能已经发过同一条消息，共用去重表避免重复。
+            // 慢连接直接跳过：MQ 链路不追加重试，客户端轮询/游标会补齐。
+            if (!connection.isWritable()) {
+                long total = unwritableSkips.incrementAndGet();
+                if (total == 1 || total % 500 == 0) {
+                    log.warn("skip gateway push, connection not writable: connectionId={}, skippedTotal={}",
+                            connectionId, total);
+                }
+                continue;
+            }
             if (!connectionPushDedup.firstDelivery(message.eventId(), connectionId)) {
                 continue;
             }

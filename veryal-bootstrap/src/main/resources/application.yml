@@ -97,6 +97,12 @@ veryal:
       key-password: ${VERYAL_TLS_KEY_PASSWORD:}
     max-connections: ${VERYAL_GATEWAY_MAX_CONNECTIONS:0}
     max-connections-per-ip: ${VERYAL_GATEWAY_MAX_CONNECTIONS_PER_IP:0}
+  realtime:
+    fanout:
+      # 本节点扇出线程数；0 表示退回同步扇出（请求线程内逐个连接写入）
+      threads: ${VERYAL_REALTIME_FANOUT_THREADS:2}
+      # 有界队列，满了丢最旧任务，客户端靠轮询/游标补齐
+      queue-capacity: ${VERYAL_REALTIME_FANOUT_QUEUE:10000}
   security:
     token:
       issuer: veryal

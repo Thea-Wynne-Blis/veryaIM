@@ -72,6 +72,21 @@ public final class Connection {
         return status == ConnectionStatus.ONLINE;
     }
 
+    /** Channel 是否仍然可用。 */
+    public boolean isActive() {
+        return channel.isActive();
+    }
+
+    /**
+     * Channel 是否还能继续接收写入。
+     *
+     * <p>Netty 在未消费的出站缓冲超过高水位时返回 {@code false}；此时继续写只会把数据
+     * 堆在内存里。实时推送在写之前应先判断，慢连接直接跳过，由客户端轮询/游标补齐。</p>
+     */
+    public boolean isWritable() {
+        return channel.isActive() && channel.isWritable();
+    }
+
     public long nextSequence() {
         return sequence.incrementAndGet();
     }

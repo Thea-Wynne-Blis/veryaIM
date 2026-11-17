@@ -20,6 +20,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 本节点实时投递实现（单机直投模式）。
@@ -27,6 +28,9 @@ import java.util.Set;
  * <p>私聊使用事件中的接收者快照；群聊事件不携带接收者，按会话成员分页拉取后推送。</p>
  *
  * <p>与 MQ 出箱路由共用 {@link ConnectionPushDedup}，两条链路命中同一连接时只发一次。</p>
+ *
+ * <p>扇出交给 {@link RealtimeFanoutExecutor}（有界队列、丢最旧），发送请求线程不再等待
+ * 逐个连接写入；不可写（慢连接）直接跳过，客户端靠轮询/游标补齐。</p>
  */
 @Slf4j
 @Component
@@ -38,9 +42,16 @@ public class RealtimeDelivery implements RealtimeDeliveryPort {
     private final ConnectionRegistry connectionRegistry;
     private final ConversationRepository conversationRepository;
     private final ConnectionPushDedup connectionPushDedup;
+    private final RealtimeFanoutExecutor fanoutExecutor;
+    private final AtomicLong unwritableSkips = new AtomicLong();
 
     @Override
     public void deliver(MessageCreatedEvent event) {
+        // 落库已提交：扇出放到有界线程池，发送接口不再等待本节点逐个连接写入。
+        fanoutExecutor.submit(() -> doDeliver(event));
+    }
+
+    private void doDeliver(MessageCreatedEvent event) {
         MessageNotify notify = MessageNotify.newBuilder()
                 .setMessageId(event.messageId())
                 .setConversationId(event.conversationId())
@@ -99,6 +110,15 @@ public class RealtimeDelivery implements RealtimeDeliveryPort {
                 continue;
             }
             if (!pushed.add(connection.connectionId())) {
+                continue;
+            }
+            // 慢连接先跳过：继续写只会堆内存；丢了推送由轮询/游标补齐。
+            if (!connection.isWritable()) {
+                long total = unwritableSkips.incrementAndGet();
+                if (total == 1 || total % 500 == 0) {
+                    log.warn("skip realtime push, connection not writable: connectionId={}, skippedTotal={}",
+                            connection.connectionId(), total);
+                }
                 continue;
             }
             if (!connectionPushDedup.firstDelivery(event.eventId(), connection.connectionId())) {
