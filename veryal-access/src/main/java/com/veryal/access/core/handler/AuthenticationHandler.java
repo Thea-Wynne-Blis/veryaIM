@@ -25,6 +25,7 @@ import com.veryal.protocol.api.ProtocolMessage;
 import com.veryal.protocol.protobuf.EnvelopeCodec;
 import com.veryal.protocol.protobuf.LoginRequest;
 import com.veryal.protocol.protobuf.LoginResponse;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -108,7 +109,7 @@ public class AuthenticationHandler extends SimpleChannelInboundHandler<ProtocolM
         try (TraceContext.Scope ignored = TraceContext.start(message.traceId())) {
             connection.markAuthenticating();
             String clientIp = clientIp(ctx);
-            RateLimitResult loginRate = rateLimiterRegistry.tryAcquire("tcp-login", clientIp);
+            RateLimitResult loginRate = rateLimiterRegistry.tryAcquire("gateway-login", clientIp);
             if (!loginRate.allowed()) {
                 throw new AuthenticationException(ErrorCode.RATE_LIMITED,
                         "too many login attempts, retry after " + loginRate.retryAfterSeconds() + "s");
@@ -178,7 +179,14 @@ public class AuthenticationHandler extends SimpleChannelInboundHandler<ProtocolM
     }
 
     private void cancelLoginTimeout(ChannelHandlerContext ctx) {
-        ScheduledFuture<?> future = ctx.channel().attr(LOGIN_TIMEOUT).getAndSet(null);
+        cancelLoginTimeout(ctx.channel());
+    }
+
+    /**
+     * 票据建连在握手阶段就完成认证，需要取消“必须发 LOGIN 帧”的超时任务。
+     */
+    public static void cancelLoginTimeout(Channel channel) {
+        ScheduledFuture<?> future = channel.attr(LOGIN_TIMEOUT).getAndSet(null);
         if (future != null) {
             future.cancel(false);
         }

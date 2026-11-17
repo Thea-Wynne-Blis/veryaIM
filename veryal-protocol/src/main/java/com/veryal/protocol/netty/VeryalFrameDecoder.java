@@ -14,7 +14,7 @@ import java.util.List;
 /**
  * VERYAL 自定义帧解码器。
  *
- * <p>按固定 16 字节协议头拆包，处理 TCP 粘包 / 半包。协议帧长度超过 {@code maxFrameLength} 时
+ * <p>按固定 16 字节协议头拆包，处理字节流粘包 / 半包。协议帧长度超过 {@code maxFrameLength} 时
  * 抛出 {@link ProtocolException}，由接入层关闭连接。</p>
  */
 public final class VeryalFrameDecoder extends ByteToMessageDecoder {

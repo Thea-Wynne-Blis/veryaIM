@@ -8,8 +8,6 @@ import com.veryal.domain.presence.PresenceRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
-
 /**
  * 会话在线状态应用服务。接入层登录 / 断开时调用。
  */
@@ -34,9 +32,5 @@ public class SessionApplicationService {
 
     public void offline(AuthenticatedUser user, String connectionId) {
         presenceRepository.markOffline(user.userId(), user.deviceId(), connectionId);
-    }
-
-    public List<PresenceRecord> onlineDevices(long userId) {
-        return presenceRepository.findByUserId(userId);
     }
 }

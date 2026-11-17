@@ -5,6 +5,7 @@ import com.veryal.application.platform.PlatformAuditRecorder;
 import com.veryal.common.core.TimeProvider;
 import com.veryal.common.exception.BusinessException;
 import com.veryal.common.exception.ErrorCode;
+import com.veryal.domain.delivery.RealtimeSessionPort;
 import com.veryal.domain.identity.User;
 import com.veryal.domain.identity.UserRepository;
 import com.veryal.domain.identity.UserStatus;
@@ -26,6 +27,7 @@ public class OpsUserService {
     private final UserMuteService userMuteService;
     private final PlatformAuditRecorder auditRecorder;
     private final TimeProvider timeProvider;
+    private final RealtimeSessionPort realtimeSessionPort;
 
     @Transactional(readOnly = true)
     public List<OpsUserView> search(String keyword, int limit) {
@@ -48,6 +50,10 @@ public class OpsUserService {
         userRepository.update(updated);
         auditRecorder.record(adminId, "OPS_USER_STATUS", "user", Long.toString(userId),
                 "status=" + status + ",reason=" + (reason == null ? "" : reason));
+        if (status == UserStatus.DISABLED) {
+            // 封禁立即生效：已在线设备的实时连接一并断开，不等客户端自己掉线。
+            realtimeSessionPort.closeByUserId(userId, "banned");
+        }
         return OpsUserView.from(updated);
     }
 

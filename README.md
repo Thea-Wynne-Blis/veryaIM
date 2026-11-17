@@ -12,8 +12,8 @@ VERYAL 是面向个人用户的消费级社交即时通讯产品（类微信 / Q
 
 当前版本完成了 **V0.1 通信核心**、**V0.2 基础 IM 业务** 与 **V0.3 消息可靠性核心** 的可运行纵向切片：
 
-- 自定义 16 字节二进制协议帧 + Protobuf Envelope，TCP 与 WebSocket 共用。
-- Netty TCP Gateway（默认 9099）与 WebSocket Gateway（默认 9098，`/ws`）。
+- 自定义 16 字节二进制协议帧 + Protobuf Envelope，浏览器与原生客户端共用。
+- Netty WebSocket Gateway（默认 9098，`/ws`）：浏览器用一次性 ticket 建连并走 JSON 文本帧，原生客户端走二进制 Protobuf 帧，同端口并存。
 - 登录认证（HS256 JWT）、心跳租约、连接注册表、读空闲断开、命令分发、业务线程池隔离。
 - 用户 / 设备 / 单聊 / **群聊** / 消息 / 会话序号 / 历史消息 / 幂等发送 / Server ACK / Delivery ACK / Read ACK / 游标同步。
 - 群聊基础：建群、加成员、群主/管理员权限、群会话与群消息；群 ID 与群会话 ID 一致，消息权限复用会话成员校验。
@@ -26,9 +26,9 @@ VERYAL 是面向个人用户的消费级社交即时通讯产品（类微信 / Q
 - MySQL 8.0.30 + MyBatis-Plus + Flyway；本地开发使用 H2（MySQL 兼容模式）零依赖启动。
 - Redis 在线状态（生产 profile）+ 内存实现（开发/测试 profile）；Caffeine 用户资料缓存由 `CacheConfig` 在代码中显式配置（10 万条 / 10 分钟）。
 - Prometheus / Actuator 指标、统一日志字段（traceId / userId / connectionId 等）。
-- **策略模式限流**：令牌桶 / 滑动窗口 / 固定窗口可配置；HTTP 登录按 IP、HTTP API 按用户、TCP 登录按 IP、消息发送按用户。
+- **策略模式限流**：令牌桶 / 滑动窗口 / 固定窗口可配置；HTTP 登录按 IP、HTTP API 按用户、网关登录按 IP、消息发送按用户。
 - **审计日志**：登录、建群/改名/成员变更/踢人/退群/转让/解散写入 `im_audit_log`，独立事务、失败不影响主业务。
-- **可选 TLS**：TCP 与 WebSocket Gateway 支持 TLS 1.2/1.3（PEM 证书链 + 私钥）；HTTP 通过 Spring Boot `server.ssl` 开启。
+- **可选 TLS**：WebSocket Gateway 支持 TLS 1.2/1.3（PEM 证书链 + 私钥）；HTTP 通过 Spring Boot `server.ssl` 开启。
 - **连接数治理**：单节点总连接数与单 IP 连接数可配置，准入处理器在 TLS/协议握手前拒绝超限连接，并输出拒绝指标。
 - **文件存储策略**：`local` / `minio` / `oss` 三种实现，`veryal.storage.type` 选择；文件本体不入 MySQL，元数据与 SHA-256 落库，支持上传、下载、删除、临时 URL。
 - **分片上传/断点续传**：初始化会话 → 逐片上传 → 查询已上传分片 → 完成后合并；图片上传自动缩放/压缩。
@@ -48,7 +48,7 @@ veryal-backend/
 ├── veryal-domain/          领域层：identity / device / conversation / message / presence（纯 Java）
 ├── veryal-application/     应用层：identity / conversation / message / sync（用例编排、事务）
 ├── veryal-infrastructure/  基础设施：mysql(MyBatis-Plus) / redis / cache / mq(Outbox+RabbitMQ)
-├── veryal-access/          接入层：core / tcp / websocket / http（连接、认证、分发、API）
+├── veryal-access/          接入层：core / websocket / http（连接、认证、分发、API）
 ├── veryal-bootstrap/       启动装配、application*.yml、Flyway 迁移、集成测试
 └── deploy/docker/          Dockerfile、docker-compose、.env 示例
 ```
@@ -117,13 +117,12 @@ com.veryal
 │   └── mq              RabbitMqConfig / OutboxPublisher / MessageDeliveryListener / GatewayRouter / GatewayPushListener / RabbitInstance
 ├── access
 │   ├── core            Connection / ConnectionRegistry / GatewayHandlers / handler / protocol / push（RealtimeDelivery + LocalGatewayPush）/ tls / metrics
-│   ├── tcp             TcpGatewayServer / TcpGatewayProperties
-│   ├── websocket       WebSocketGatewayServer / codec
+│   ├── websocket       WebSocketGatewayServer / WsTicketAuthHandler / WebSocketTextHandler / codec
 │   └── http            controller / dto / security（AuthenticationFilter + RateLimitFilter）/ error / config
 └── bootstrap           VeryalApplication / CoreConfig / resources
 ```
 
-> 设计文档中的 `protocol-api / protocol-protobuf / protocol-netty` 与 `access-core / access-tcp / access-websocket / access-http` 已收敛为 `veryal-protocol`、`veryal-access` 内部的包边界；分层约束不变，构建与查阅成本更低。
+> 设计文档中的 `protocol-api / protocol-protobuf / protocol-netty` 与 `access-core / access-websocket / access-http` 已收敛为 `veryal-protocol`、`veryal-access` 内部的包边界；分层约束不变，构建与查阅成本更低。
 
 
 ## 快速开始（无需 MySQL / Redis）
@@ -408,41 +407,43 @@ curl -s -X POST http://127.0.0.1:8080/api/v1/conversations/p_1_1001_1002/message
 
 `clientMessageId` 在 `sender_id` 维度唯一。重复提交返回同一条消息与相同序号，`duplicate=true`。
 
-### 实时推送（SSE）
+### 实时推送（WebSocket）
 
-浏览器端通过 `GET /api/v1/events`（需 Bearer）建立 SSE 长连接，服务端在消息落库后立即推送；前端据此增量刷新，不再依赖固定轮询。
+浏览器不能给 WebSocket 握手设置 `Authorization` 头，因此建连分两步：
 
-事件示例（小群/单聊携带完整消息体）：
+1. `POST /api/v1/auth/ws-ticket`（需 Bearer）换取一张 60 秒有效、只能使用一次的 ticket；
+2. 连接 `ws://<host>/ws?ticket=<ticket>&format=json`，握手完成即认证成功，服务端下发 `ready`。
 
-```text
-event: message
-data: {"kind":"message","conversationId":"p_1_1001_1002","messageId":"123456789",
-       "seq":42,"senderId":"1001","clientMsgId":"m-1","messageType":"TEXT",
-       "content":"hello","contentEncoding":"utf8","createdAt":"2026-11-16T11:20:00Z"}
+下行统一为文本 JSON 帧 `{cmd, seq, data, ts}`，`seq` 单调递增便于客户端断言丢失：
+
+```json
+{"cmd":"message","seq":42,"ts":1763380000000,"data":{"kind":"message","conversationId":"p_1_1001_1002","messageId":"123456789","seq":42,"senderId":"1001","clientMsgId":"m-1","messageType":"TEXT","content":"hello","contentEncoding":"utf8","createdAt":"2026-11-16T11:20:00Z"}}
 ```
 
 - 成员数超过 `RealtimeNotice.FULL_PAYLOAD_MAX_RECIPIENTS`（200）时退化为游标事件：`{"kind":"cursor","conversationId":"...","seq":42}`，客户端按 `seq` 调 `GET /conversations/{id}/messages?cursor=<seq>` 补齐，推送体积与群人数无关。
-- 每 15 秒发送一次 SSE 心跳注释；响应带 `X-Accel-Buffering: no`，避免 nginx 缓冲。
-- 推送在线程池中执行（有界队列 + 满则丢弃最旧任务），慢连接不会拖慢发送接口；丢弃的推送由客户端重连后的增量同步补齐。
-- 客户端断线自动重连，并保留低频轮询（SSE 健康时 60 秒一次）作为兜底。
+- 浏览器心跳为应用层 `ping/pong`（25 秒一次，60 秒无响应则重连）；服务端读空闲 90 秒断开。
+- 原生客户端在同一端口使用二进制 Protobuf 帧，`format=json` 只影响下行编码。
+- 票据一次性：Redis `GETDEL` 原子消费，重复使用返回 `1008` 关闭；未开 Redis 时使用单机内存实现。
+- 客户端断线自动重连（每次重新换票），并保留低频轮询作为兜底（长连接健康时 60 秒一次）。
 
 ### 跨实例推送（MQ fanout）
 
 `VERYAL_MQ_ENABLED=true` 时，发送节点先在本节点直推，再把事件广播到 fanout 交换机 `veryal.push.exchange`：
 
 ```text
-实例A ──本地直推──▶ 本机连接/SSE
+实例A ──本地直推──▶ 本机连接
       └──publish──▶ veryal.push.exchange
                         ├── veryal.push.<实例A>（独占、自动删除）
                         └── veryal.push.<实例B>
 ```
 
 - 每个实例绑定一条非持久、独占、自动删除的队列（`RealtimeBusConfig`），实例下线自动清理。
-- 每个实例收到事件后只推自己持有的连接；发送节点自己也会收到回环，由 `RealtimeDelivery` 按 `eventId` 去重（60s TTL、5 万条上限），不会重复推送。
+- 每个实例收到事件后只推自己持有的连接；发送节点自己也会收到回环。
+- 本节点直推与 MQ 出箱路由共用 `ConnectionPushDedup`，按 `eventId + connectionId` 去重（60s TTL），不会重复推送。
 - 广播失败只记日志，不阻塞发送；跨节点漏推由客户端增量同步补齐。
 - 单机部署可用 `VERYAL_MQ_ENABLED=false`：此时只有本机直推，没有 fanout 广播。
 
-## TCP / WebSocket 协议
+## WebSocket 协议
 
 固定 16 字节头，Big Endian：
 
@@ -450,7 +451,7 @@ data: {"kind":"message","conversationId":"p_1_1001_1002","messageId":"123456789"
 | Magic "VRYL"(4) | Version(1) | Flags(1) | Command(2) | Sequence(4) | BodyLength(4) | Envelope(N) |
 ```
 
-`Envelope`（Protobuf）字段：`protocol_version / request_id / trace_id / command / payload`，业务消息放在 `payload` 中。TCP 帧与 WebSocket Binary Frame 的字节内容完全一致。
+`Envelope`（Protobuf）字段：`protocol_version / request_id / trace_id / command / payload`，业务消息放在 `payload` 中。浏览器的 JSON 文本帧与原生客户端的 WebSocket Binary Frame 并存，二进制帧的字节内容与 16 字节帧格式完全一致。
 
 连接生命周期：
 
@@ -465,7 +466,7 @@ connect → (10s 内) LOGIN(token, deviceId) → LOGIN_RESPONSE
 
 ## TLS
 
-TCP 与 WebSocket 共用一套可选 TLS 配置，开启后端口仍为 9099 / 9098，但客户端必须使用 TLS（TCP over TLS / `wss://`）：
+WebSocket Gateway 支持可选 TLS 配置，开启后端口仍为 9098，但客户端必须使用 `wss://`：
 
 ```yaml
 veryal:
@@ -569,7 +570,7 @@ veryal:
 ### 线程模型与虚拟线程
 
 - **Netty EventLoop 固定使用平台线程**，只做解码/编码与投递，禁止阻塞调用。
-- **TCP/WebSocket 业务执行器**可选 `platform`（有界线程池）或 `virtual`（虚拟线程 + 信号量并发上限）：
+- **WebSocket 业务执行器**可选 `platform`（有界线程池）或 `virtual`（虚拟线程 + 信号量并发上限）：
   ```yaml
   veryal:
     gateway:
@@ -835,7 +836,7 @@ mvn test
 ```
 
 - 单元测试：雪花 ID、Envelope 编解码、Netty 帧拆包/粘包/非法帧、JWT、PBKDF2、Outbox 事件 JSON、限流算法（令牌桶/滑动窗口/固定窗口/注册表）、TLS 配置开关与快速失败、连接数限制、Caffeine 缓存配置、本地/云端存储策略。
-- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、运营管理员登录/MFA/Refresh Token/登录锁定/角色/审计、运营后台用户/群/举报/敏感词、用户搜索/隐私/举报/推送设备、Web Push 订阅与 VAPID 配置、好友申请/接受/拒绝/好友/黑名单/通讯录、好友实时通知、群建群/成员权限/群消息、群管理、群公告/禁言、1000 人群容量与 100 并发发送冒烟、限流、审计、TLS、连接限制、缓存、文件、分片、图片压缩、多消息类型、撤回、搜索、已读回执、TCP/WebSocket、mapper XML 冒烟。
+- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、运营管理员登录/MFA/Refresh Token/登录锁定/角色/审计、运营后台用户/群/举报/敏感词、用户搜索/隐私/举报/推送设备、Web Push 订阅与 VAPID 配置、好友申请/接受/拒绝/好友/黑名单/通讯录、好友实时通知、群建群/成员权限/群消息、群管理、群公告/禁言、1000 人群容量与 100 并发发送冒烟、限流、审计、TLS、连接限制、缓存、文件、分片、图片压缩、多消息类型、撤回、搜索、已读回执、WebSocket（二进制登录 + ticket 建连）、mapper XML 冒烟。
 
 集成测试使用 `test` profile，Netty Gateway 端口配置为 0（系统分配），不占用本机端口。
 

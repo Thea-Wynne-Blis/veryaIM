@@ -38,10 +38,6 @@ veryal:
     bootstrap-username: platform_admin
     bootstrap-password: admin12345
     bootstrap-display-name: Test Platform Admin
-  billing:
-    user-cents: 100
-    group-cents: 0
-    storage-gb-cents: 0
   push:
     web-push:
       enabled: true
@@ -58,7 +54,7 @@ veryal:
         algorithm: TOKEN_BUCKET
         permits: 10000
         refill-per-second: 10000
-      - name: tcp-login
+      - name: gateway-login
         algorithm: SLIDING_WINDOW
         permits: 1000
         window-seconds: 60
@@ -75,8 +71,6 @@ veryal:
     login-timeout: 5s
     business-threads: 4
     business-queue-capacity: 1000
-    tcp:
-      port: 0
     websocket:
       port: 0
 

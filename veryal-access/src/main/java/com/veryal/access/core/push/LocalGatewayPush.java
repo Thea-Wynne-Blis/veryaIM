@@ -3,6 +3,7 @@ package com.veryal.access.core.push;
 import com.google.protobuf.ByteString;
 import com.veryal.access.core.Connection;
 import com.veryal.access.core.ConnectionRegistry;
+import com.veryal.access.http.realtime.RealtimeNotice;
 import com.veryal.domain.delivery.GatewayPushPort;
 import com.veryal.domain.message.event.MessageCreatedEvent;
 import com.veryal.protocol.api.Command;
@@ -26,6 +27,7 @@ import java.util.List;
 public class LocalGatewayPush implements GatewayPushPort {
 
     private final ConnectionRegistry connectionRegistry;
+    private final ConnectionPushDedup connectionPushDedup;
 
     @Override
     public void push(MessageCreatedEvent message, List<String> connectionIds) {
@@ -40,14 +42,27 @@ public class LocalGatewayPush implements GatewayPushPort {
                 .setClientMessageId(message.clientMessageId() == null ? "" : message.clientMessageId())
                 .build();
         byte[] payload = notify.toByteArray();
+        boolean fullPayload = message.recipientUserIds() == null
+                || message.recipientUserIds().size() <= RealtimeNotice.FULL_PAYLOAD_MAX_RECIPIENTS;
+        RealtimeNotice textNotice = fullPayload
+                ? RealtimeNotice.message(message)
+                : RealtimeNotice.cursor(message);
         for (String connectionId : connectionIds) {
             Connection connection = connectionRegistry.find(connectionId);
             if (connection == null || !connection.authenticated()) {
                 log.debug("skip gateway push, connection unavailable: connectionId={}", connectionId);
                 continue;
             }
-            connection.send(ProtocolMessage.of(Command.MESSAGE_NOTIFY, connection.nextSequence(),
-                    null, null, payload));
+            // 本节点直推可能已经发过同一条消息，共用去重表避免重复。
+            if (!connectionPushDedup.firstDelivery(message.eventId(), connectionId)) {
+                continue;
+            }
+            if (connection.textFrameMode()) {
+                connection.sendJson("message", textNotice);
+            } else {
+                connection.send(ProtocolMessage.of(Command.MESSAGE_NOTIFY, connection.nextSequence(),
+                        null, null, payload));
+            }
         }
     }
 }

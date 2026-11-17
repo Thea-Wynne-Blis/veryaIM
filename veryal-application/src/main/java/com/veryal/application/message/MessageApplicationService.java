@@ -205,11 +205,6 @@ public class MessageApplicationService {
         return message.conversationId();
     }
 
-    @Transactional(readOnly = true)
-    public long latestSequence(String conversationId) {
-        return messageRepository.maxSeq(conversationId);
-    }
-
     /**
      * 撤回消息：仅发送者本人，且必须在发送后 2 分钟内；重复撤回保持幂等。
      */

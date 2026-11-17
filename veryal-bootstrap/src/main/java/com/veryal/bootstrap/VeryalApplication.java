@@ -8,7 +8,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 /**
  * VERYAL 启动入口。
  *
- * <p>采用模块化单体部署：同一进程内装配 HTTP API、TCP Gateway、WebSocket Gateway、Outbox 发布器与投递消费者。</p>
+ * <p>采用模块化单体部署：同一进程内装配 HTTP API、WebSocket Gateway、Outbox 发布器与投递消费者。</p>
  */
 @SpringBootApplication(scanBasePackages = "com.veryal")
 @ConfigurationPropertiesScan("com.veryal")

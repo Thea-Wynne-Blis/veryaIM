@@ -9,7 +9,7 @@ import io.netty.channel.ChannelPipeline;
 import org.springframework.stereotype.Component;
 
 /**
- * TCP 与 WebSocket 共用的业务 Handler 装配。
+ * WebSocket 网关的业务 Handler 装配（浏览器 JSON 与原生客户端二进制共用）。
  *
  * <p>顺序固定为：认证 → 心跳 → 分发 → 空闲关闭 → 异常出口。传输层只负责编码器差异。</p>
  */

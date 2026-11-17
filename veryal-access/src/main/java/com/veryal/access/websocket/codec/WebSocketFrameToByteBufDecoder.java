@@ -11,7 +11,7 @@ import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 import java.util.List;
 
 /**
- * 将 WebSocket Binary Frame 还原为 VERYAL 字节流，复用 TCP 的帧解码器。
+ * 将 WebSocket Binary Frame 还原为 VERYAL 字节流，复用协议层的帧解码器。
  */
 public final class WebSocketFrameToByteBufDecoder extends MessageToMessageDecoder<WebSocketFrame> {
 

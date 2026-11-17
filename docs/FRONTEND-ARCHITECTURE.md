@@ -493,7 +493,7 @@ syncCursor
 4. 重发待发消息；
 5. 去重、排序、恢复 UI。
 
-浏览器只使用 WebSocket；原生客户端可选 TCP。
+浏览器使用 WebSocket（一次性 ticket 建连，文本 JSON 帧）；原生客户端也用 WebSocket（二进制 Protobuf 帧），同一端口并存。
 
 ---
 

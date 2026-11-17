@@ -29,7 +29,6 @@ public enum ErrorCode {
 
     FORBIDDEN(40300, "无权执行该操作", 403),
     NOT_CONVERSATION_MEMBER(40301, "不是该会话成员", 403),
-    CONVERSATION_TYPE_NOT_SUPPORTED(40302, "不支持的会话类型", 403),
 
     NOT_FOUND(40400, "资源不存在", 404),
     USER_NOT_FOUND(40401, "用户不存在", 404),
@@ -49,7 +48,6 @@ public enum ErrorCode {
     CONFLICT(40900, "资源状态冲突", 409),
     USERNAME_ALREADY_EXISTS(40901, "用户名已存在", 409),
     DUPLICATE_MESSAGE(40902, "重复消息", 409),
-    DUPLICATE_REQUEST(40903, "重复请求", 409),
 
     RATE_LIMITED(42900, "请求过于频繁", 429),
     ACCOUNT_LOCKED(42300, "账号已锁定，请稍后再试", 423),

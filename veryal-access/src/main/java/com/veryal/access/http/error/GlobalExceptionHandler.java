@@ -50,7 +50,7 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 客户端提前断开（SSE 长连接、下载中途取消、浏览器切页）不是服务端故障：
+     * 客户端提前断开（下载中途取消、浏览器切页）不是服务端故障：
      * 响应已经不可写，再回 JSON 只会二次报错，所以只记 debug。
      */
     @ExceptionHandler(AsyncRequestNotUsableException.class)

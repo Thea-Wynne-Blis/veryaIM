@@ -34,8 +34,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ConversationApplicationService {
 
-    private static final int MAX_MEMBERS_SHOWN = 500;
-
     private final ConversationRepository conversationRepository;
     private final UserRepository userRepository;
     private final MessageRepository messageRepository;
@@ -252,16 +250,6 @@ public class ConversationApplicationService {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "sync sequence must not be negative");
         }
         conversationRepository.updateMemberCursor(member.advanceSync(syncSequence));
-    }
-
-    @Transactional(readOnly = true)
-    public List<Long> recipientIds(String conversationId, long senderId) {
-        requireMember(conversationId, senderId);
-        return conversationRepository.findMembers(conversationId).stream()
-                .map(ConversationMember::userId)
-                .filter(userId -> userId != senderId)
-                .limit(MAX_MEMBERS_SHOWN)
-                .toList();
     }
 
     private void addMemberIfAbsent(String conversationId, long userId, Instant now) {

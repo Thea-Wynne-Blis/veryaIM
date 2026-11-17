@@ -7,7 +7,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
 
 /**
- * VERYAL 自定义帧编码器（TCP 使用）。
+ * VERYAL 自定义帧编码器（WebSocket 二进制帧与原生客户端共用格式）。
  */
 public final class VeryalFrameEncoder extends MessageToByteEncoder<ProtocolFrame> {
 

@@ -33,7 +33,7 @@ public class RateLimitConfig {
         return List.of(
                 RateLimitPolicy.slidingWindow("http-login", 10, Duration.ofSeconds(60)),
                 RateLimitPolicy.tokenBucket("http-api", 200, 50),
-                RateLimitPolicy.slidingWindow("tcp-login", 10, Duration.ofSeconds(60)),
+                RateLimitPolicy.slidingWindow("gateway-login", 10, Duration.ofSeconds(60)),
                 RateLimitPolicy.tokenBucket("message-send", 30, 15)
         );
     }

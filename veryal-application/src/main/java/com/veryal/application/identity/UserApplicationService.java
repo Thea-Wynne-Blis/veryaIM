@@ -3,6 +3,7 @@ package com.veryal.application.identity;
 import com.veryal.common.core.TimeProvider;
 import com.veryal.common.exception.BusinessException;
 import com.veryal.common.exception.ErrorCode;
+import com.veryal.domain.delivery.RealtimeSessionPort;
 import com.veryal.domain.device.Device;
 import com.veryal.domain.device.DeviceRepository;
 import com.veryal.domain.identity.User;
@@ -31,6 +32,7 @@ public class UserApplicationService {
     private final UserRepository userRepository;
     private final DeviceRepository deviceRepository;
     private final TimeProvider timeProvider;
+    private final RealtimeSessionPort realtimeSessionPort;
 
     @Cacheable(cacheNames = "user", key = "#userId")
     @Transactional(readOnly = true)
@@ -91,6 +93,8 @@ public class UserApplicationService {
             throw new BusinessException(ErrorCode.FORBIDDEN, "cannot remove current device");
         }
         deviceRepository.deleteByUserIdAndDeviceIds(userId, removable);
+        // 记录删掉只是「下次不能登录」，已经连着的实时连接要立刻断开才算真正下线。
+        realtimeSessionPort.closeByDevices(userId, removable, "device-removed");
         return removable.size();
     }
 

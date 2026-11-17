@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 /**
  * 发送后的实时通知入口。
  *
- * <p>HTTP 与 TCP/WebSocket 两条发送链路共用。</p>
+ * <p>HTTP 与 WebSocket 两条发送链路共用。</p>
  *
  * <p>投递顺序：先在本节点直推（保证同机在线用户零延迟），再通过
  * {@link RealtimeBusPort} 广播给其他实例（MQ 开启时才有实现）。

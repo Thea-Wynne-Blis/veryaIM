@@ -102,11 +102,4 @@ public class CommandDispatcher extends SimpleChannelInboundHandler<ProtocolMessa
             TraceContext.clear();
         }
     }
-
-    /**
-     * 供测试与诊断使用：已注册的指令集合。
-     */
-    public java.util.Set<Command> supportedCommands() {
-        return handlers.keySet();
-    }
 }

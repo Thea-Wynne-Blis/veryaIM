@@ -7,6 +7,7 @@ import com.veryal.common.exception.BusinessException;
 import com.veryal.common.exception.ErrorCode;
 import com.veryal.common.id.IdGenerator;
 import com.veryal.domain.audit.AuditAction;
+import com.veryal.domain.delivery.RealtimeSessionPort;
 import com.veryal.domain.device.Device;
 import com.veryal.domain.device.DeviceRepository;
 import com.veryal.domain.device.Platform;
@@ -44,6 +45,7 @@ public class AuthApplicationService {
     private final TimeProvider timeProvider;
     private final AuditRecorder auditRecorder;
     private final TokenRevocationService tokenRevocationService;
+    private final RealtimeSessionPort realtimeSessionPort;
 
     /**
      * 用户「存在且可用」的短 TTL 缓存（userId → 过期时间戳）。
@@ -100,7 +102,7 @@ public class AuthApplicationService {
     }
 
     /**
-     * 校验 Token 并加载用户，供 TCP / WebSocket / HTTP 认证入口统一调用。
+     * 校验 Token 并加载用户，供 WebSocket / HTTP 认证入口统一调用。
      *
      * <p>不需要外层事务：这里只有一次单行读取，加 {@code @Transactional(readOnly = true)}
      * 反而多出 BEGIN/COMMIT 两次往返；用户状态走 5 秒短缓存。</p>
@@ -164,9 +166,12 @@ public class AuthApplicationService {
         }
     }
     /**
-     * 退出登录：吊销当前 Token，使其立即失效。
+     * 退出登录：吊销当前 Token，并立即断开该 Token 建立的实时连接。
+     *
+     * <p>只按 tokenId 关闭，不影响同一账号在其他设备上的会话。</p>
      */
     public void logout(AuthenticatedUser user) {
         tokenRevocationService.revoke(user.tokenId());
+        realtimeSessionPort.closeByTokenId(user.tokenId(), "logout");
     }
 }

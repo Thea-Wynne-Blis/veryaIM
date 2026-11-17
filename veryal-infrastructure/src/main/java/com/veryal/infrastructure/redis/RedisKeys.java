@@ -9,6 +9,7 @@ public final class RedisKeys {
     private static final String PRESENCE = PREFIX + "presence:user:";
     private static final String CONNECTION = PREFIX + "connection:";
     private static final String GATEWAY = PREFIX + "gateway:";
+    private static final String WS_TICKET = PREFIX + "ws:ticket:";
 
     private RedisKeys() {
     }
@@ -23,5 +24,9 @@ public final class RedisKeys {
 
     public static String gateway(String gatewayId) {
         return GATEWAY + gatewayId;
+    }
+
+    public static String wsTicket(String ticket) {
+        return WS_TICKET + ticket;
     }
 }

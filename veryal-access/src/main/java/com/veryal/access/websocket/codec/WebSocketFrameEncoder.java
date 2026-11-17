@@ -11,7 +11,7 @@ import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import java.util.List;
 
 /**
- * 将协议帧编码为 WebSocket Binary Frame，帧格式与 TCP 完全一致。
+ * 将协议帧编码为 WebSocket Binary Frame，帧格式与原生客户端的二进制帧一致。
  */
 public final class WebSocketFrameEncoder extends MessageToMessageEncoder<ProtocolFrame> {
 

@@ -59,10 +59,6 @@ public final class SnowflakeIdGenerator implements IdGenerator {
                 | sequence;
     }
 
-    public long nodeId() {
-        return nodeId;
-    }
-
     private long waitUntil(long targetTimestamp) {
         long timestamp = System.currentTimeMillis();
         while (timestamp < targetTimestamp) {

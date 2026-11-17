@@ -3,8 +3,8 @@ package com.veryal.bootstrap;
 import com.veryal.access.http.dto.AuthResponse;
 import com.veryal.access.http.dto.FriendRequestResponse;
 import com.veryal.access.http.dto.UserResponse;
-import com.veryal.access.tcp.TcpGatewayServer;
-import com.veryal.bootstrap.support.TcpTestClient;
+import com.veryal.access.websocket.WebSocketGatewayServer;
+import com.veryal.bootstrap.support.WsTestClient;
 import com.veryal.common.core.ApiResponse;
 import com.veryal.protocol.api.Command;
 import com.veryal.protocol.api.ProtocolMessage;
@@ -39,7 +39,7 @@ class FriendRealtimeIntegrationTest {
     private TestRestTemplate rest;
 
     @Autowired
-    private TcpGatewayServer tcpGatewayServer;
+    private WebSocketGatewayServer webSocketGatewayServer;
 
     @Test
     void requestAndAcceptPushFriendNotify() throws Exception {
@@ -51,17 +51,17 @@ class FriendRealtimeIntegrationTest {
         AuthResponse aliceLogin = login("frn_alice_" + suffix, aliceDevice);
         AuthResponse bobLogin = login("frn_bob_" + suffix, bobDevice);
 
-        try (TcpTestClient aliceTcp = TcpTestClient.connect(tcpGatewayServer.boundPort());
-             TcpTestClient bobTcp = TcpTestClient.connect(tcpGatewayServer.boundPort())) {
-            loginTcp(aliceTcp, aliceLogin.token(), aliceDevice);
-            loginTcp(bobTcp, bobLogin.token(), bobDevice);
+        try (WsTestClient aliceWs = WsTestClient.connect(webSocketGatewayServer.boundPort());
+             WsTestClient bobWs = WsTestClient.connect(webSocketGatewayServer.boundPort())) {
+            loginBinary(aliceWs, aliceLogin.token(), aliceDevice);
+            loginBinary(bobWs, bobLogin.token(), bobDevice);
 
             FriendRequestResponse request = post("/api/v1/friends/requests",
                     Map.of("toUserId", bob.userId(), "message", "hello"), aliceLogin.token(),
                     new ParameterizedTypeReference<ApiResponse<FriendRequestResponse>>() {
                     }).data();
 
-            FriendNotify bobNotify = bobTcp.awaitPayload(Command.FRIEND_NOTIFY, FriendNotify.parser());
+            FriendNotify bobNotify = bobWs.awaitPayload(Command.FRIEND_NOTIFY, FriendNotify.parser());
             assertThat(bobNotify.getEventType()).isEqualTo(1);
             assertThat(bobNotify.getFromUserId()).isEqualTo(alice.userId());
             assertThat(bobNotify.getRequestId()).isEqualTo(request.requestId());
@@ -70,25 +70,25 @@ class FriendRealtimeIntegrationTest {
                     bobLogin.token(), new ParameterizedTypeReference<ApiResponse<FriendRequestResponse>>() {
                     });
 
-            FriendNotify aliceNotify = awaitFriendType(aliceTcp, 2);
+            FriendNotify aliceNotify = awaitFriendType(aliceWs, 2);
             assertThat(aliceNotify.getEventType()).isEqualTo(2);
             assertThat(aliceNotify.getToUserId()).isEqualTo(bob.userId());
 
             post("/api/v1/blocks/" + alice.userId(), Map.of(), bobLogin.token(),
                     new ParameterizedTypeReference<ApiResponse<Void>>() {
                     });
-            FriendNotify blockedNotify = awaitFriendType(bobTcp, 5);
+            FriendNotify blockedNotify = awaitFriendType(bobWs, 5);
             assertThat(blockedNotify.getToUserId()).isEqualTo(alice.userId());
 
             rest.exchange("/api/v1/blocks/" + alice.userId(), HttpMethod.DELETE,
                     new HttpEntity<>(headers(bobLogin.token())),
                     new ParameterizedTypeReference<>() {
                     });
-            assertThat(awaitFriendType(bobTcp, 6).getEventType()).isEqualTo(6);
+            assertThat(awaitFriendType(bobWs, 6).getEventType()).isEqualTo(6);
         }
     }
 
-    private FriendNotify awaitFriendType(TcpTestClient client, int expectedType) throws Exception {
+    private FriendNotify awaitFriendType(WsTestClient client, int expectedType) throws Exception {
         for (int i = 0; i < 5; i++) {
             ProtocolMessage message = client.read();
             if (message.command() != Command.FRIEND_NOTIFY) {
@@ -103,7 +103,7 @@ class FriendRealtimeIntegrationTest {
         throw new AssertionError("friend notify type not received: " + expectedType);
     }
 
-    private void loginTcp(TcpTestClient client, String token, String deviceId) throws Exception {
+    private void loginBinary(WsTestClient client, String token, String deviceId) throws Exception {
         client.send(Command.LOGIN, LoginRequest.newBuilder()
                 .setToken(token).setDeviceId(deviceId).setPlatform("LINUX").build());
         LoginResponse response = client.awaitPayload(Command.LOGIN_RESPONSE, LoginResponse.parser());

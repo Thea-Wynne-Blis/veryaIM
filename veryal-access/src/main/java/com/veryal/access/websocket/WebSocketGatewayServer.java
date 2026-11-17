@@ -41,7 +41,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Netty WebSocket Gateway。与 TCP 共用 Protobuf Envelope 与业务 Handler，仅传输编码不同。
+ * Netty WebSocket Gateway。浏览器走 JSON 文本帧，原生客户端走 Protobuf 二进制帧，共用业务 Handler。
  */
 @Slf4j
 @Component
@@ -56,6 +56,9 @@ public class WebSocketGatewayServer implements SmartLifecycle {
     private final GatewaySslContextFactory sslContextFactory;
     private final ConnectionLimiter connectionLimiter;
     private final GatewayMetrics metrics;
+    private final WsHandshakeHandler wsHandshakeHandler;
+    private final WsTicketAuthHandler wsTicketAuthHandler;
+    private final WebSocketTextHandler webSocketTextHandler;
 
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
@@ -87,12 +90,15 @@ public class WebSocketGatewayServer implements SmartLifecycle {
                         }
                         pipeline.addLast("http-codec", new HttpServerCodec());
                         pipeline.addLast("http-aggregator", new HttpObjectAggregator(properties.getMaxHttpContentLength()));
+                        pipeline.addLast("ws-handshake", wsHandshakeHandler);
                         pipeline.addLast("ws-protocol", new WebSocketServerProtocolHandler(properties.getPath(), null,
                                 true, gatewayProperties.getMaxFrameLength()));
+                        pipeline.addLast("ws-ticket-auth", wsTicketAuthHandler);
                         pipeline.addLast("ws-frame-aggregator",
                                 new WebSocketFrameAggregator(gatewayProperties.getMaxFrameLength()));
                         pipeline.addLast("veryal-idle",
                                 new IdleStateHandler((int) gatewayProperties.getHeartbeatIdle().toSeconds(), 0, 0));
+                        pipeline.addLast("ws-text", webSocketTextHandler);
                         pipeline.addLast("ws-to-bytebuf", new WebSocketFrameToByteBufDecoder());
                         pipeline.addLast("veryal-frame-decoder",
                                 new VeryalFrameDecoder(gatewayProperties.getMaxFrameLength()));

@@ -4,7 +4,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -25,16 +24,6 @@ public class LocalConnectionRegistry implements ConnectionRegistry {
         connections.put(connection.connectionId(), connection);
         if (connection.userId() > 0) {
             byUser.computeIfAbsent(connection.userId(), id -> new CopyOnWriteArrayList<>()).add(connection);
-        }
-    }
-
-    /**
-     * 登录成功后调用，将连接挂到用户索引。
-     */
-    public void bindUser(Connection connection) {
-        List<Connection> list = byUser.computeIfAbsent(connection.userId(), id -> new CopyOnWriteArrayList<>());
-        if (!list.contains(connection)) {
-            list.add(connection);
         }
     }
 
@@ -70,14 +59,5 @@ public class LocalConnectionRegistry implements ConnectionRegistry {
     @Override
     public Collection<Connection> findAll() {
         return List.copyOf(connections.values());
-    }
-
-    @Override
-    public int activeCount() {
-        return connections.size();
-    }
-
-    Map<Long, List<Connection>> userIndex() {
-        return byUser;
     }
 }

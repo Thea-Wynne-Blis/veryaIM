@@ -129,7 +129,7 @@ VERYAL 不是企业协作平台，不是飞书 / 企业微信的替代品。
 
 ### 性能目标
 
-- 支持大量 TCP / WebSocket 长连接。
+- 支持大量 WebSocket 长连接。
 - 降低单连接内存开销。
 - 减少 JVM 对象分配。
 - 降低 GC 压力。
@@ -278,7 +278,7 @@ VERYAL 不是企业协作平台，不是飞书 / 企业微信的替代品。
 | 技术 | 选型 | 作用 |
 |---|---|---|
 | Java | Java 21 | 核心业务开发 |
-| Netty | Netty 4.x | TCP / WebSocket 网络通信 |
+| Netty | Netty 4.x | WebSocket 网络通信 |
 | Spring Boot | Spring Boot 3.x | HTTP API、管理服务 |
 | MySQL | MySQL 8.0.30 | 核心数据持久化 |
 | Redis | Redis | 分布式缓存、在线状态 |
@@ -316,7 +316,7 @@ Netty 提供：
 - EventLoop 事件驱动模型。
 - ByteBuf 内存管理。
 - 零拷贝相关能力。
-- TCP 和 WebSocket 支持。
+- WebSocket 支持。
 - 丰富的编解码器。
 - 成熟的连接管理机制。
 
@@ -403,12 +403,10 @@ flowchart TB
 
     CLIENT[VERYAL Clients]
 
-    CLIENT --> TCP[TCP Gateway]
     CLIENT --> WS[WebSocket Gateway]
     CLIENT --> HTTP[HTTP API]
 
-    TCP --> ACCESS[Access Layer]
-    WS --> ACCESS
+    WS --> ACCESS[Access Layer]
     HTTP --> APP[Application Layer]
 
     ACCESS --> APP
@@ -439,7 +437,6 @@ flowchart TB
     MQ --> SOCIAL[Social Consumer]
 
     DELIVERY --> ROUTER[Gateway Router]
-    ROUTER --> TCP
     ROUTER --> WS
 
     MEDIA --> S3[(MinIO / S3)]
@@ -466,7 +463,6 @@ flowchart TB
 
 负责：
 
-- TCP 接入。
 - WebSocket 接入。
 - HTTP 接入。
 - 协议解析。
@@ -537,7 +533,6 @@ veryal/
 │   └── proto/
 │
 ├── veryal-access/
-│   ├── access-tcp/
 │   ├── access-websocket/
 │   └── access-http/
 │
@@ -598,13 +593,9 @@ veryal/
 
 客户端、移动端和 Web 端从这里生成协议代码；不对外提供第三方 SDK。
 
-### access-tcp
-
-负责 Netty TCP Server。
-
 ### access-websocket
 
-负责 WebSocket 接入。
+负责 WebSocket 接入：浏览器走一次性 ticket + JSON 文本帧，原生客户端走二进制 Protobuf 帧。
 
 ### access-http
 
@@ -911,18 +902,18 @@ stateDiagram-v2
 - 向后兼容。
 - 可扩展。
 - 统一版本管理。
-- TCP 和 WebSocket 共用业务消息定义。
+- 浏览器与原生客户端共用业务消息定义。
 
 ## 7.2 传输协议
 
 | 方式 | 使用场景 |
 |---|---|
-| TCP | 原生客户端 |
-| WebSocket | Web 客户端 |
+| WebSocket（JSON 文本帧） | 浏览器客户端 |
+| WebSocket（Protobuf 二进制帧） | 原生客户端 |
 | HTTP | 管理接口和业务 API |
 | HTTPS | 安全 API |
 
-TCP 与 WebSocket 使用同一套 Protobuf Envelope。
+两种帧编码共用同一套业务定义与 Envelope 字段；浏览器建连前先用 HTTP 换取一次性 ticket，避免 token 出现在 URL 中。
 
 ## 7.3 自定义帧格式
 
@@ -942,9 +933,9 @@ VERYAL V1 使用固定 16 字节协议头。
 
 - Big Endian。
 - 最大消息帧长度受配置限制。
-- TCP 使用长度字段拆包。
-- WebSocket 使用 Binary Frame。
-- 所有消息体使用 Protobuf。
+- 按长度字段拆包。
+- WebSocket 使用 Binary Frame / Text Frame。
+- 消息体使用 Protobuf。
 - 协议版本必须兼容。
 - 禁止重复使用已废弃字段编号。
 
@@ -2255,7 +2246,6 @@ RabbitMQ 关键队列使用 Quorum Queue 时，需要根据节点数量和副本
 
 ## 16.2 通信安全
 
-- TCP 使用 TLS。
 - WebSocket 使用 WSS。
 - HTTP 使用 HTTPS。
 - 禁止明文传输敏感凭证。
@@ -2405,7 +2395,6 @@ timestamp
 
 测试：
 
-- TCP 连接。
 - WebSocket 连接。
 - 粘包拆包。
 - 心跳。
@@ -2453,7 +2442,6 @@ timestamp
 
 功能：
 
-- TCP Server。
 - WebSocket Server。
 - Protobuf。
 - 协议拆包。
@@ -2630,8 +2618,7 @@ RabbitMQ Routing Key 使用点分隔。
 
 ## 通信基础
 
-- [ ] Netty TCP。
-- [ ] WebSocket。
+- [ ] Netty WebSocket。
 - [ ] Protobuf。
 - [ ] 自定义协议帧。
 - [ ] 心跳。
@@ -2718,7 +2705,7 @@ RabbitMQ Routing Key 使用点分隔。
 | ADR-004 | 缓存 | Redis + Caffeine |
 | ADR-005 | 消息队列 | RabbitMQ |
 | ADR-006 | 序列化 | Protobuf |
-| ADR-007 | 网络协议 | TCP + WebSocket |
+| ADR-007 | 网络协议 | WebSocket（浏览器 JSON + 原生二进制，一次性 ticket 认证；不再提供裸 TCP / SSE） |
 | ADR-008 | 架构模式 | DDD + Modular Monolith |
 | ADR-009 | 消息可靠性 | ACK + Outbox + 幂等 + 游标同步 |
 | ADR-010 | 文件存储 | MinIO / S3 |

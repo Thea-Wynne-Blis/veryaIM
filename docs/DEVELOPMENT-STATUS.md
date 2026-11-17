@@ -36,8 +36,8 @@
 
 ### 通信基础
 
-- [x] Netty TCP Gateway（9099）
-- [x] WebSocket Gateway（9098，`/ws`，Binary Frame）
+- [x] Netty WebSocket Gateway（9098，`/ws`）：浏览器走 JSON 文本帧，原生客户端走二进制 Protobuf 帧，同端口并存
+- [x] 一次性 ticket 建连（`POST /api/v1/auth/ws-ticket` → `GETDEL` 消费，60 秒有效，token 不进 WS URL）
 - [x] Protobuf Envelope（`veryal.proto`）
 - [x] 自定义 16 字节协议帧（Magic/Version/Flags/Command/Sequence/BodyLength）
 - [x] 拆包 / 粘包处理、非法帧与超大帧拒绝
@@ -46,9 +46,9 @@
 - [x] 连接管理（本地连接注册表、多端连接、登录/断开回调、在线状态）
 - [x] 业务线程池隔离（有界队列、拒绝时返回 SERVICE_UNAVAILABLE）
 - [x] 虚拟线程业务执行器（可选 platform/virtual，信号量限并发；生产默认 virtual，HTTP 开启虚拟线程）
-- [x] 限流（策略模式：令牌桶 / 滑动窗口 / 固定窗口；HTTP 登录、HTTP API、TCP 登录、消息发送）
+- [x] 限流（策略模式：令牌桶 / 滑动窗口 / 固定窗口；HTTP 登录、HTTP API、网关登录、消息发送）
 - [x] 审计日志（登录、群创建/改名/成员变更/踢人/退群/转让/解散；独立事务写入）
-- [x] 可选 TLS（TCP/WebSocket，TLS 1.2/1.3，PEM 证书；HTTP 通过 Spring Boot server.ssl）
+- [x] 可选 TLS（WebSocket，TLS 1.2/1.3，PEM 证书；HTTP 通过 Spring Boot server.ssl）
 - [x] 连接数上限（单节点总连接数 + 单 IP 连接数，超限关闭并计数）
 
 ### 基础业务
@@ -126,7 +126,7 @@
 - [x] 限流集成测试：消息发送超过令牌桶容量返回 429
 - [x] 审计集成测试：登录、建群、踢人写入审计表
 - [x] TLS 配置测试：关闭时不加 SslHandler、开启但证书缺失时快速失败
-- [x] TLS 手工验证：自签证书下 TCP TLS 1.3 登录成功、WebSocket `wss://` 登录成功
+- [x] TLS 手工验证：自签证书下 WebSocket `wss://` 登录成功（裸 TCP 链路已移除）
 - [x] 连接数限制测试：单 IP 上限下第二个连接被拒绝，释放后可重新接入
 - [x] 缓存配置测试：用户缓存容量 10 万、过期时间 10 分钟
 - [x] 文件测试：本地存储读写/删除/路径穿越、文件 API 上传下载权限删除、策略选择与 OSS 预签名
@@ -142,7 +142,7 @@
 - [x] 多租户测试：平台开通、同名用户跨租户、跨租户私聊拒绝、配额 403、停用租户登录 403
 - [x] 好友/黑名单测试：申请-接受-备注-通讯录；拉黑后好友移除、私聊 403、解除拉黑
 - [x] 云服务器 MySQL 实测：V9/V10 迁移、租户开通、租户码登录、好友接受、拉黑后私聊 403
-- [x] 好友实时通知测试：双方 TCP 在线，申请方/接受方收到 FRIEND_NOTIFY
+- [x] 好友实时通知测试：双方 WebSocket 在线，申请方/接受方收到 FRIEND_NOTIFY
 - [x] 平台管理员测试：平台登录返回 scope=PLATFORM/role，平台 Token 调用租户接口；租户登录 scope=TENANT
 - [x] 平台管理员生命周期测试：SUPPORT 只读鉴权、创建/重置密码/停用/自我停用拒绝
 - [x] 平台审计测试：ADMIN_CREATE / ADMIN_PASSWORD_RESET / ADMIN_STATUS 可查询
@@ -165,8 +165,8 @@
 - [x] 群聊集成测试：建群、成员权限、群消息、群事件类型、非成员越权
 - [x] 群管理集成测试：管理员设置、改名、踢人、退群、群主/管理员权限边界
 - [x] 群生命周期集成测试：群主转让、解散群、解散后会话不可用
-- [x] TCP 端到端测试：真实 Socket、认证、心跳、发送、私聊/群聊实时推送、投递记录与查询
-- [x] WebSocket 端到端测试：握手、登录、心跳
+- [x] WebSocket 端到端测试：二进制登录、心跳、发送、私聊/群聊实时推送、投递记录与查询
+- [x] WebSocket ticket 端到端测试：换票建连、文本 JSON 心跳、票据复用被拒（1008）
 - [ ] Testcontainers（当前环境无 Docker，集成测试使用 H2 MySQL 模式）
 - [ ] 压力测试 / 72 小时长稳（待 V0.5 与独立压测环境）
 
@@ -176,7 +176,7 @@
 |---|---|
 | 模块收敛为 6 + 1 | 设计文档中的 `common-* / protocol-* / access-*` 子模块收敛为 `veryal-common / protocol / domain / application / infrastructure / access` + `bootstrap`，模块内部以包边界隔离。分层约束不变，构建速度与查阅成本明显降低 |
 | `veryal-protocol` 合并 Netty 编解码 | 帧编解码属于协议实现细节，与 Protobuf 定义同模块维护；`protocol.api / protobuf / netty` 仍保持包级隔离 |
-| `veryal-access` 合并 core/tcp/ws/http | 连接注册表、认证、心跳、命令分发由 TCP/WebSocket/HTTP 共用，放在同一模块内复用，避免跨模块循环依赖 |
+| `veryal-access` 合并 core/ws/http | 连接注册表、认证、心跳、命令分发由 WebSocket/HTTP 共用，放在同一模块内复用，避免跨模块循环依赖 |
 | `im_user.password_hash` | 文档核心表未包含认证字段，V0.1 需要账号密码登录；后续可拆分为独立凭证表 |
 | 群 ID = 群会话 ID | 群与群会话一一对应，建群/加成员同时写群成员与会话成员；消息权限统一由会话成员校验 |
 | 群成员上限 1000 | 群消息分页拉取成员；建群/加成员接口接收列表，大群压测待执行 |
@@ -190,7 +190,7 @@
 1. **路由依赖 Redis presence**：网关路由取自 presence 租约，节点宕机后需要主动清理/补偿；推送失败会进入死信队列，客户端仍以同步游标补偿。
 2. **会话序号死锁重试未实现**：高并发同一会话写入可能触发死锁，当前依赖数据库自动回滚，重试策略待补齐。
 3. **Redis 在线状态过期清理**：读空闲断开会主动删除，但节点宕机场景需要周期补偿任务。
-4. **无 TLS**：TCP/WebSocket 明文传输，部署层需接入 Nginx / TLS 或 Netty SslHandler。
+4. **无 TLS**：WebSocket 明文传输，部署层需接入 Nginx / TLS 或 Netty SslHandler。
 5. **风控仅基础限流**：已有限流与连接数上限，但异常登录/设备风控、内容安全与敏感词检测未实现。
 6. **群规模上限 1000，未做压测**：群消息已分页拉取成员，但 1000 人群的扇出与建群/批量加成员性能尚未验证。
 7. **Docker 未在开发机验证**：开发环境无 Docker，`deploy/docker` 为交付文件，需在具备 Docker 的机器上执行 `docker compose up` 验证。
@@ -207,7 +207,7 @@
 18. **搜索范围有限**：仅支持会话内 TEXT/EMOJI 内容，不含文件名、图片 OCR 与跨会话搜索。
 19. **分片暂存需共享卷才能跨节点续传**：分片写在 `veryal.upload.staging-path`，指向 NFS/CephFS 等共享卷即可多节点续传；完成时逐片追加到 `merged.tmp` 后流式入库，不再整份读入内存（上限 256MB）。
 20. **图片压缩仅覆盖 JPEG/PNG**：其他格式原样存储（GIF 动图必须保留原始字节）；不做视频转码。视频封面、宽高、时长由客户端用 `<video>` + canvas 抓帧生成，服务端无 ffmpeg。
-21. **虚拟线程收益未压测**：TCP 虚拟执行器/HTTP 虚拟线程已提供，但未做平台线程 vs 虚拟线程的吞吐/P99 对比；Hikari、Redis、RabbitMQ 仍是主要瓶颈。
+21. **虚拟线程收益未压测**：网关虚拟执行器/HTTP 虚拟线程已提供，但未做平台线程 vs 虚拟线程的吞吐/P99 对比；Hikari、Redis、RabbitMQ 仍是主要瓶颈。
 22. **多租户清理完成**：租户表、租户码、租户管理接口、租户管理员、用量/导出/删除已删除；V21 删除所有 `tenant_id` 列；Java 代码中的 `tenantId` 字段、参数、`TenantIds` 常量与测试断言已全部移除。
 23. **好友/黑名单能力边界**：好友事件已实时推送；黑名单只过滤私聊，不过滤群消息；拉黑不删除历史会话。
 24. **租户删除边界**：数据库硬删除已实现，但对象存储文件实体与 Outbox 历史不清理；导出不含消息正文，单次上限 10000 用户/群。
@@ -223,7 +223,7 @@
   - `veryal-common`：雪花 ID、限流算法、TOTP、DFA 敏感词、Web Push 加密（RFC 5869 向量 + RFC 8188 布局）（20）。
   - `veryal-protocol`：Envelope 编解码、未知指令、版本校验、帧头格式、半包/粘包、非法魔数、超大帧、指令不一致（12）。
   - `veryal-application`：JWT、PBKDF2、Outbox 事件 JSON（9）。
-  - `veryal-bootstrap`：HTTP 全流程、用户搜索/隐私/举报/推送设备、Web Push 订阅、运营后台、敏感词、好友、群聊、1000 人群、限流、审计、文件、撤回、搜索、已读、TCP/WebSocket（42 通过 + 1 Testcontainers 本机跳过/服务器通过）。
+  - `veryal-bootstrap`：HTTP 全流程、用户搜索/隐私/举报/推送设备、Web Push 订阅、运营后台、敏感词、好友、群聊、1000 人群、限流、审计、文件、撤回、搜索、已读、WebSocket（二进制 + ticket）、（42 通过 + 1 Testcontainers 本机跳过/服务器通过）。
 - 可执行 jar 使用默认 `dev` profile 启动验证：H2 内存库 + 内存在线状态，`/actuator/health=UP`，注册接口返回成功。
 
 ### MySQL 8.0.30 + Redis 实际环境验证
@@ -235,7 +235,7 @@
 - `GET /actuator/health` 返回 `UP`（MySQL + Redis）。
 - HTTP 流程验证通过：注册 → 登录 → 创建单聊 → 发送消息（seq=1）→ 重复发送命中幂等（`duplicate=true`，同 messageId/seq）→ 历史消息 1 条 → 同步 1 条 → 已读上报。
 - 数据库核对：`im_user`、`im_conversation_sequence.last_seq=1`、`im_message` 记录存在。
-- 裸 TCP 客户端（Python，独立于服务端代码）完成 LOGIN，收到 `LOGIN_RESPONSE`（command=0x11）。
+- WebSocket 二进制客户端完成 LOGIN，收到 `LOGIN_RESPONSE`（command=0x11）。
 - 连接在线期间 Redis `veryal:presence:user:{userId}` Hash 存在设备元数据（deviceId/gatewayId/connectionId/status），TTL 约 300s；断开后由服务端清理。
 
 ### Outbox + RabbitMQ 端到端验证
@@ -245,18 +245,18 @@
 - Flyway 自动升级到 V2，`im_outbox` 表创建成功。
 - HTTP 发送消息后，`im_outbox` 记录 status=1（已发布）、retry_count=0、published_at 非空。
 - 每个 Gateway 实例声明独立投递队列；`rabbitmqctl list_queues` 显示实例队列消费者数=2、消息积压=0。
-- 接收方通过裸 TCP 客户端连接，成功收到 `MESSAGE_NOTIFY`（command=0x0102），验证“持久化 → Outbox → RabbitMQ → 消费者 → 本节点连接”完整链路。
+- 接收方通过 WebSocket 客户端连接，成功收到 `MESSAGE_NOTIFY`（command=0x0102），验证“持久化 → Outbox → RabbitMQ → 消费者 → 本节点连接”完整链路。
 - 重试队列与死信队列为空（无失败消息），拓扑创建成功。
 
 ### 群聊 + MQ 验证
 
 - Flyway 自动升级到 V3，`im_group`、`im_group_member` 表创建成功。
 - HTTP 建群（3 人）、群主发送群消息、非成员读/发返回 403、群主添加成员后新成员可发送，全部通过。
-- 群消息写入 `message.group.created` 类型 Outbox；接收方 TCP 客户端收到 `MESSAGE_NOTIFY`，队列积压为 0。
+- 群消息写入 `message.group.created` 类型 Outbox；接收方 WebSocket 客户端收到 `MESSAGE_NOTIFY`，队列积压为 0。
 
 ### 多 Gateway 跨节点路由验证
 
-使用两个应用实例（gateway-a:8080/9099、gateway-b:8081/9199）连接同一 MySQL/Redis/RabbitMQ：
+使用两个应用实例（gateway-a:8080/9098、gateway-b:8081/9198）连接同一 MySQL/Redis/RabbitMQ：
 
 - 接收方登录 gateway-b，presence 记录 gatewayId=gateway-b。
 - 发送方通过 gateway-a HTTP 发送消息；全局单投递队列只消费一次，按 Redis 路由拆分到 `gateway.push.gateway-b`。
@@ -267,13 +267,12 @@
 
 - 群消息 Outbox 事件 `recipientUserIds` 为空，不再随成员数增长。
 - 单机直投与 MQ 消费者均按 `user_id` 分页拉取会话成员后再路由。
-- 真实 RabbitMQ 环境验证：群主通过 HTTP 发送群消息，群成员 TCP 客户端成功收到 `MESSAGE_NOTIFY`；队列无积压。
+- 真实 RabbitMQ 环境验证：群主通过 HTTP 发送群消息，群成员 WebSocket 客户端成功收到 `MESSAGE_NOTIFY`；队列无积压。
 
 ### TLS 验证
 
-- 使用自签证书（PEM）启动 gateway：`VERYAL_TLS_ENABLED=true`，TCP 9443、WebSocket 9444。
-- TCP 客户端完成 TLS 1.3 握手并登录成功（LOGIN_RESPONSE）。
-- WebSocket 客户端通过 `wss://127.0.0.1:9444/ws` 完成 TLS 握手并登录成功。
+- 使用自签证书（PEM）启动 gateway：`VERYAL_TLS_ENABLED=true`，WebSocket 9444。
+- WebSocket 客户端通过 `wss://127.0.0.1:9444/ws` 完成 TLS 1.3 握手并登录成功。
 - 证书缺失时应用快速失败；未开启 TLS 时原有明文测试全部通过。
 
 ### MinIO 文件存储验证
@@ -292,7 +291,7 @@
 - 分片上传：10 字节按 4 字节分片，缺片返回 409；补齐后合并下载内容一致；重复分片幂等。
 - 多租户相关验证已随功能移除；当前验证单平台注册登录、同名用户全局唯一、私聊/群聊与配额无关。
 - 好友：申请→接受→备注→通讯录；拉黑后好友关系移除，私聊发送返回 403（USER_BLOCKED）；解除后黑名单为空。
-- 好友实时通知：双方 TCP 在线，申请方收到 REQUEST、接受方收到 ACCEPTED（FRIEND_NOTIFY）。
+- 好友实时通知：双方 WebSocket 在线，申请方收到 REQUEST、接受方收到 ACCEPTED（FRIEND_NOTIFY）。
 - 平台管理员：独立登录返回 `scope=PLATFORM`、`role=PLATFORM_ADMIN`；普通用户登录返回 `scope=USER`；平台 Token 仅用于运营接口。
 - 平台管理员 CRUD：创建 SUPPORT、SUPPORT 创建租户 403、重置密码旧密码失效、停用后登录 403、自我停用 400；审计可查询。
 - 好友实时通知：申请/接受/拉黑/解除分别收到 FRIEND_NOTIFY，事件类型 1/2/5/6。

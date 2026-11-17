@@ -17,6 +17,4 @@ public interface ConnectionRegistry {
     List<Connection> findByUserId(long userId);
 
     Collection<Connection> findAll();
-
-    int activeCount();
 }

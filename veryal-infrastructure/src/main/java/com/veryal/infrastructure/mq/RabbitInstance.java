@@ -27,10 +27,6 @@ public class RabbitInstance {
         return gatewayId;
     }
 
-    public String instanceId() {
-        return instanceId;
-    }
-
     public String gatewayPushQueueName() {
         return RabbitConstants.GATEWAY_PUSH_QUEUE + "." + instanceId;
     }

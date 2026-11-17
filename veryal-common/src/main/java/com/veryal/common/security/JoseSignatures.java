@@ -1,6 +1,5 @@
 package com.veryal.common.security;
 
-import java.math.BigInteger;
 import java.util.Base64;
 
 /**
@@ -44,13 +43,6 @@ public final class JoseSignatures {
         copyRightAligned(der, rOffset, rLength, result, 0);
         copyRightAligned(der, sOffset, sLength, result, P256_COORDINATE_BYTES);
         return result;
-    }
-
-    /**
-     * 无符号大端字节 → BigInteger，用于从 65 字节未压缩点还原密钥。
-     */
-    public static BigInteger unsigned(byte[] value) {
-        return new BigInteger(1, value);
     }
 
     private static void copyRightAligned(byte[] source, int offset, int length, byte[] target,

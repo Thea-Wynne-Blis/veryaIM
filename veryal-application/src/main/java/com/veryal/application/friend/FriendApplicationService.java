@@ -227,13 +227,6 @@ public class FriendApplicationService {
                 .toList();
     }
 
-    /**
-     * 私聊发送校验：接收者把发送者拉黑时拒绝。
-     */
-    public boolean blocked(long userId, long otherUserId) {
-        return blacklistRepository.exists(otherUserId, userId);
-    }
-
     public long pendingIncoming(long userId) {
         return friendRequestRepository.countPendingIncoming(userId);
     }

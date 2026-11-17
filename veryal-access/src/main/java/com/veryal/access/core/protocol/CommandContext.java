@@ -3,7 +3,6 @@ package com.veryal.access.core.protocol;
 import com.google.protobuf.MessageLite;
 import com.google.protobuf.Parser;
 import com.veryal.access.core.Connection;
-import com.veryal.common.exception.ErrorCode;
 import com.veryal.protocol.api.Command;
 import com.veryal.protocol.api.ProtocolMessage;
 import com.veryal.protocol.protobuf.EnvelopeCodec;
@@ -29,15 +28,7 @@ public final class CommandContext {
         connection.send(ProtocolMessages.response(command, connection.nextSequence(), request, body));
     }
 
-    public void replyError(ErrorCode errorCode, String message) {
-        connection.send(ProtocolMessages.error(connection.nextSequence(), request, errorCode, message));
-    }
-
     public Connection connection() {
         return connection;
-    }
-
-    public ProtocolMessage request() {
-        return request;
     }
 }
