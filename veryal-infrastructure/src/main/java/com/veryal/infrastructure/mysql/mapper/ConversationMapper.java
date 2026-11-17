@@ -79,15 +79,17 @@ public interface ConversationMapper extends BaseMapper<ConversationPO> {
                    c.conversation_type               AS conversationType,
                    c.updated_at                      AS updatedAt,
                    me.last_read_seq                  AS lastReadSeq,
-                   COALESCE(sq.last_seq,
-                            (SELECT MAX(m3.seq)
-                               FROM im_message m3
-                              WHERE m3.conversation_id = c.id), 0) AS lastSeq,
+                   -- 与旧实现一致：lastSeq 取「真实消息的最大 seq」，不取会话序号表。
+                   -- 两者在正常路径相同；一旦把序号分配与消息插入拆到不同事务
+                   -- （例如走异步持久化），序号表会领先于真实消息，未读数就会虚高。
+                   COALESCE(lm.seq, 0)               AS lastSeq,
                    (SELECT COUNT(*)
                       FROM im_conversation_member cnt
                      WHERE cnt.conversation_id = c.id)            AS memberCount,
                    lm.msg_type                       AS lastMessageType,
-                   lm.content                        AS lastMessageContent,
+                   -- 预览只需要前 60 个字符，这里拦到 1KB，避免 200 个会话把
+                   -- 潜在的大文本消息（单条上限 256KB）全部拉进内存。
+                   LEFT(lm.content, 1024)             AS lastMessageContent,
                    lm.recalled_at                    AS lastMessageRecalledAt,
                    lm.created_at                     AS lastMessageCreatedAt,
                    g.name                            AS groupName,
@@ -110,7 +112,6 @@ public interface ConversationMapper extends BaseMapper<ConversationPO> {
             FROM im_conversation c
                      INNER JOIN im_conversation_member me
                                 ON me.conversation_id = c.id AND me.user_id = #{userId}
-                     LEFT JOIN im_conversation_sequence sq ON sq.conversation_id = c.id
                      LEFT JOIN im_message lm
                                ON lm.conversation_id = c.id
                                    AND lm.seq = (SELECT MAX(m2.seq)
