@@ -521,6 +521,25 @@ syncCursor
 
 @ 未读提醒 / “提及我的消息”后端待补。
 
+### 消息操作能力（右键菜单）
+
+| 操作 | 现有接口 | 结论 |
+|---|---|---|
+| 复制 | 无（纯前端） | 前端本地完成 |
+| 转发 | `POST /conversations/{id}/messages` 复用发送接口 | 可行，但不叫转发；附件消息受「文件必须属于发送者」校验，别人的图片/文件无法转发到其它会话 |
+| 引用 | 无 | `im_message` 没有 `reply_to` / `quote_id` 列，历史消息也不返回引用信息，需加列 + DTO + 渲染 |
+| 删除 | 仅 `POST /conversations/{id}/messages/{messageId}/recall` | 只能撤回自己 2 分钟内的消息；没有通用删除接口，也没有「仅删除我这边」的会话级可见性表 |
+| 翻译 | 无 | 需要接入翻译服务并新增接口，属于外部依赖 |
+
+撤回规则：`MessageApplicationService.RECALL_WINDOW = 2 分钟`，仅发送者本人可撤回；撤回后消息保留占位，写 `recalled_at` / `recalled_by`，并广播 `MESSAGE_RECALLED` 事件。
+
+补充方向（按优先级）：
+
+1. `im_message` 增加 `reply_to_id`，发送 DTO 增加可选 `replyToId`，历史接口返回被引用消息的精简快照；
+2. 增加 `im_user_message_visibility(user_id, message_id, hidden_at)`，实现「删除（仅我）」而不影响他人；
+3. 转发落一条 `forwarded_from` 字段用于溯源，避免与普通发送混淆；
+4. 翻译按 `messageId + targetLang` 缓存结果，避免重复调用外部服务。
+
 ---
 
 ## 10. 文件上传
