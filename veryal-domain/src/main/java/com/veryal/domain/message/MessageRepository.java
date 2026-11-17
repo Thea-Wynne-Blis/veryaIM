@@ -30,9 +30,11 @@ public interface MessageRepository {
 
     /**
      * 会话内文本/表情搜索，按 seq 倒序游标分页；已撤回消息不参与搜索。
+     *
+     * @param afterSeq 本人「清空记录」的水位，早于等于它的消息不参与搜索
      */
     List<Message> searchText(String conversationId, String pattern,
-                             long beforeSeq, int limit);
+                             long afterSeq, long beforeSeq, int limit);
 
 
     long countAll();

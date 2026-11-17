@@ -30,6 +30,7 @@
           AND recalled_at IS NULL
           AND msg_type IN (1, 6)
           AND seq &lt; #{beforeSeq}
+          AND seq &gt; #{afterSeq}
           AND content LIKE #{pattern} ESCAPE '!'
         ORDER BY seq DESC
         LIMIT #{limit}

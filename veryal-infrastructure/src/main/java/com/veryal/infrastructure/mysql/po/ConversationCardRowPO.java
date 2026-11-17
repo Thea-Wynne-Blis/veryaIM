@@ -17,6 +17,11 @@ public class ConversationCardRowPO {
     public LocalDateTime updatedAt;
     public long lastReadSeq;
     public long lastSeq;
+    public long clearedSeq;
+    public boolean manualUnread;
+    public boolean pinned;
+    public boolean muted;
+    public boolean hidden;
     public int memberCount;
     public Integer lastMessageType;
     public byte[] lastMessageContent;

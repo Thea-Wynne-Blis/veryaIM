@@ -33,13 +33,20 @@ public record ConversationCardResponse(
                                  @Schema(description = "最后一条消息的时间")
                                  Instant lastMessageAt,
                                  @Schema(description = "更新时间（UTC）")
-                                 Instant updatedAt
+                                 Instant updatedAt,
+                                 @Schema(description = "当前用户是否置顶了该会话")
+                                 boolean pinned,
+                                 @Schema(description = "当前用户是否对会话开启了消息免打扰")
+                                 boolean muted,
+                                 @Schema(description = "当前用户是否把会话设为「不显示」")
+                                 boolean hidden
 ) {
 
     public static ConversationCardResponse from(ConversationCard card) {
         return new ConversationCardResponse(card.conversationId(), card.type().name(),
                 card.title(), card.peerUserId(), card.memberCount(), card.lastReadSeq(),
                 card.lastSeq(), card.unreadCount(), card.lastMessageType(),
-                card.lastMessagePreview(), card.lastMessageAt(), card.updatedAt());
+                card.lastMessagePreview(), card.lastMessageAt(), card.updatedAt(),
+                card.pinned(), card.muted(), card.hidden());
     }
 }

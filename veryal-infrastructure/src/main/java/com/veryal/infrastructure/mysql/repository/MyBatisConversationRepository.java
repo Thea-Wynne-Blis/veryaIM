@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.veryal.domain.conversation.Conversation;
 import com.veryal.domain.conversation.ConversationCardSnapshot;
 import com.veryal.domain.conversation.ConversationMember;
+import com.veryal.domain.conversation.ConversationMemberPrefs;
 import com.veryal.domain.conversation.ConversationRepository;
 import com.veryal.domain.conversation.ConversationType;
 import com.veryal.domain.conversation.SendContext;
@@ -11,6 +12,7 @@ import com.veryal.infrastructure.mysql.SqlTime;
 import com.veryal.infrastructure.mysql.mapper.ConversationMapper;
 import com.veryal.infrastructure.mysql.mapper.ConversationMemberMapper;
 import com.veryal.infrastructure.mysql.po.ConversationMemberPO;
+import com.veryal.infrastructure.mysql.po.ConversationMemberPrefsPO;
 import com.veryal.infrastructure.mysql.po.ConversationPO;
 import com.veryal.infrastructure.mysql.po.ConversationSendContextPO;
 import lombok.RequiredArgsConstructor;
@@ -84,6 +86,41 @@ public class MyBatisConversationRepository implements ConversationRepository {
     }
 
     @Override
+    public Optional<ConversationMemberPrefs> findMemberPrefs(String conversationId, long userId) {
+        ConversationMemberPrefsPO po = conversationMapper.selectMemberPrefs(conversationId, userId);
+        if (po == null) {
+            return Optional.empty();
+        }
+        return Optional.of(new ConversationMemberPrefs(po.pinned, po.muted,
+                po.hiddenAt == null ? null : SqlTime.toInstant(po.hiddenAt),
+                po.clearedSeq, po.manualUnread));
+    }
+
+    @Override
+    public void updateMemberFlags(String conversationId, long userId, Boolean pinned, Boolean muted) {
+        if (pinned == null && muted == null) {
+            return;
+        }
+        conversationMapper.updateMemberFlags(conversationId, userId, pinned, muted);
+    }
+
+    @Override
+    public void updateMemberHidden(String conversationId, long userId, Instant hiddenAt) {
+        conversationMapper.updateMemberHidden(conversationId, userId,
+                hiddenAt == null ? null : SqlTime.toLocal(hiddenAt));
+    }
+
+    @Override
+    public void clearMemberHistory(String conversationId, long userId, long sequence, Instant now) {
+        conversationMapper.clearMemberHistory(conversationId, userId, sequence, SqlTime.toLocal(now));
+    }
+
+    @Override
+    public void updateMemberManualUnread(String conversationId, long userId, boolean manualUnread) {
+        conversationMapper.updateMemberManualUnread(conversationId, userId, manualUnread);
+    }
+
+    @Override
     public void addMember(ConversationMember member) {
         memberMapper.insertIgnore(toPO(member));
     }
@@ -127,7 +164,12 @@ public class MyBatisConversationRepository implements ConversationRepository {
                                 : SqlTime.toInstant(row.lastMessageCreatedAt),
                         row.peerUserId,
                         row.peerNickname,
-                        row.groupName))
+                        row.groupName,
+                        row.clearedSeq,
+                        row.manualUnread,
+                        row.pinned,
+                        row.muted,
+                        row.hidden))
                 .toList();
     }
 

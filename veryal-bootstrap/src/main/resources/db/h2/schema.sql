@@ -43,7 +43,12 @@ CREATE TABLE IF NOT EXISTS im_conversation_member
     user_id         BIGINT      NOT NULL,
     last_read_seq   BIGINT      NOT NULL DEFAULT 0,
     last_sync_seq   BIGINT      NOT NULL DEFAULT 0,
-    joined_at       TIMESTAMP(3) NOT NULL
+    joined_at       TIMESTAMP(3) NOT NULL,
+    pinned          TINYINT     NOT NULL DEFAULT 0,
+    muted           TINYINT     NOT NULL DEFAULT 0,
+    hidden_at       TIMESTAMP(3) NULL,
+    cleared_seq     BIGINT      NOT NULL DEFAULT 0,
+    manual_unread   TINYINT     NOT NULL DEFAULT 0
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uk_conversation_user ON im_conversation_member (conversation_id, user_id);
 CREATE INDEX IF NOT EXISTS idx_member_user_id ON im_conversation_member (user_id);

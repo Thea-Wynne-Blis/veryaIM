@@ -24,6 +24,7 @@ public interface MessageMapper extends BaseMapper<MessagePO> {
     /** 会话内按关键字搜索（只搜文本/表情，跳过已撤回）。 */
     List<MessagePO> searchText(@Param("conversationId") String conversationId,
                                @Param("pattern") String pattern,
+                               @Param("afterSeq") long afterSeq,
                                @Param("beforeSeq") long beforeSeq,
                                @Param("limit") int limit);
 

@@ -150,12 +150,14 @@ public class MessageApplicationService {
                                        long cursor, int limit) {
         requireMember(conversationId, userId);
         int pageSize = clampLimit(limit);
-        List<Message> messages = messageRepository.pageAfter(conversationId, cursor, pageSize + 1);
+        // 清空记录是「本人可见水位」：cursor 之外再从水位之后开始翻，别把删掉的记录翻回来。
+        long afterSeq = Math.max(cursor, clearedSeqOf(conversationId, userId));
+        List<Message> messages = messageRepository.pageAfter(conversationId, afterSeq, pageSize + 1);
         boolean hasMore = messages.size() > pageSize;
         if (hasMore) {
             messages = messages.subList(0, pageSize);
         }
-        long nextCursor = messages.isEmpty() ? cursor : messages.get(messages.size() - 1).seq();
+        long nextCursor = messages.isEmpty() ? afterSeq : messages.get(messages.size() - 1).seq();
         return new CursorPage<>(messages, Long.toString(nextCursor), hasMore);
     }
 
@@ -176,7 +178,7 @@ public class MessageApplicationService {
         String pattern = "%" + escaped + "%";
         long beforeSeq = cursor <= 0 ? Long.MAX_VALUE : cursor;
         List<Message> messages = messageRepository.searchText(conversationId, pattern,
-                beforeSeq, pageSize + 1);
+                clearedSeqOf(conversationId, userId), beforeSeq, pageSize + 1);
         boolean hasMore = messages.size() > pageSize;
         if (hasMore) {
             messages = messages.subList(0, pageSize);
@@ -266,6 +268,13 @@ public class MessageApplicationService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND));
         conversationRepository.findMember(conversation.id(), userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CONVERSATION_MEMBER));
+    }
+
+    /** 本人「清空记录」的水位；成员关系已由 {@code requireMember} 校验过。 */
+    private long clearedSeqOf(String conversationId, long userId) {
+        return conversationRepository.findMemberPrefs(conversationId, userId)
+                .map(prefs -> prefs.clearedSeq())
+                .orElse(0L);
     }
 
     /** 同一会话 2 秒内只刷新一次活跃时间：避免每条消息都更新同一行导致发送被串行化。 */

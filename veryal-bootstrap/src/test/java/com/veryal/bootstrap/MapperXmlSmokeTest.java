@@ -52,7 +52,8 @@ class MapperXmlSmokeTest {
     void messageStatementsExecute() {
         assertThat(messageMapper.selectPageAfter(MISSING_CONVERSATION, 0L, 10)).isEmpty();
         assertThat(messageMapper.selectMaxSeq(MISSING_CONVERSATION)).isZero();
-        assertThat(messageMapper.searchText(MISSING_CONVERSATION, "%nothing%", Long.MAX_VALUE, 10))
+        assertThat(messageMapper.searchText(MISSING_CONVERSATION, "%nothing%", 0L,
+                Long.MAX_VALUE, 10))
                 .isEmpty();
     }
 

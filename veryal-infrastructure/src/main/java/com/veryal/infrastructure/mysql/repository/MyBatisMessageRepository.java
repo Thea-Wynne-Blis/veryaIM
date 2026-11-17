@@ -83,9 +83,9 @@ public class MyBatisMessageRepository implements MessageRepository {
 
     @Override
     public List<Message> searchText(String conversationId, String pattern,
-                                    long beforeSeq, int limit) {
+                                    long afterSeq, long beforeSeq, int limit) {
         int safeLimit = Math.max(1, Math.min(limit, MAX_PAGE_LIMIT));
-        return messageMapper.searchText(conversationId, pattern, beforeSeq, safeLimit).stream()
+        return messageMapper.searchText(conversationId, pattern, afterSeq, beforeSeq, safeLimit).stream()
                 .map(this::toDomain)
                 .toList();
     }

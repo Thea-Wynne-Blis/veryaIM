@@ -1,6 +1,7 @@
 package com.veryal.access.http.controller;
 
 import com.veryal.access.http.dto.ConversationCardResponse;
+import com.veryal.access.http.dto.ConversationPrefsRequest;
 import com.veryal.access.http.dto.ConversationResponse;
 import com.veryal.access.http.dto.CreateConversationRequest;
 import com.veryal.access.http.dto.DeliveryResponse;
@@ -26,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -82,6 +84,24 @@ public class ConversationController {
                                                  @PathVariable String conversationId) {
         return ApiResponse.ok(ConversationResponse.from(
                 conversationApplicationService.view(conversationId, user.userId())));
+    }
+
+    @Operation(summary = "设置会话列表项", description = "置顶 / 免打扰 / 不显示 / 手动未读，只作用于当前用户；不传的字段保持原值。")
+    @PutMapping("/{conversationId}/prefs")
+    public ApiResponse<Void> updatePrefs(@CurrentUser AuthenticatedUser user,
+                                         @PathVariable String conversationId,
+                                         @RequestBody ConversationPrefsRequest request) {
+        conversationApplicationService.updateMemberPrefs(user.userId(), conversationId,
+                request.pinned(), request.muted(), request.hidden(), request.unread());
+        return ApiResponse.ok();
+    }
+
+    @Operation(summary = "删除聊天记录", description = "清空自己这边的聊天记录并设为不显示；消息仍保留在服务端，不影响会话另一方的记录。")
+    @PostMapping("/{conversationId}/clear")
+    public ApiResponse<Void> clearHistory(@CurrentUser AuthenticatedUser user,
+                                          @PathVariable String conversationId) {
+        conversationApplicationService.clearHistory(user.userId(), conversationId);
+        return ApiResponse.ok();
     }
 
     @Operation(summary = "发送消息", description = "`clientMessageId` 用于幂等：同一发送者重复提交相同 clientMessageId 只会落一条消息。`type` 支持 TEXT/EMOJI/IMAGE/AUDIO/VIDEO/FILE。文本内容会被敏感词过滤。")

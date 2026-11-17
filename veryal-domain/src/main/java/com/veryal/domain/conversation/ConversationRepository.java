@@ -28,6 +28,31 @@ public interface ConversationRepository {
     Optional<ConversationMember> findMember(String conversationId, long userId);
 
     /**
+     * 读取成员级会话设置（置顶 / 免打扰 / 不显示 / 清空水位 / 手动未读）。
+     * 非成员返回空。
+     */
+    Optional<ConversationMemberPrefs> findMemberPrefs(String conversationId, long userId);
+
+    /**
+     * 更新置顶 / 免打扰。传 {@code null} 表示该项不变。
+     */
+    void updateMemberFlags(String conversationId, long userId, Boolean pinned, Boolean muted);
+
+    /**
+     * 设置「不显示」：{@code hiddenAt} 为空表示取消不显示，恢复展示。
+     */
+    void updateMemberHidden(String conversationId, long userId, Instant hiddenAt);
+
+    /**
+     * 清空本人的聊天记录：把可见水位抬到 {@code sequence}，同时取消置顶与手动未读，
+     * 并把会话标为不显示。消息行本身保留，会话另一方不受影响。
+     */
+    void clearMemberHistory(String conversationId, long userId, long sequence, Instant now);
+
+    /** 手动标为未读 / 取消未读。 */
+    void updateMemberManualUnread(String conversationId, long userId, boolean manualUnread);
+
+    /**
      * 一次查询取回发送校验所需的上下文（类型、成员关系、禁言、私聊对端与拉黑状态）。
      * 会话不存在时返回空。
      */

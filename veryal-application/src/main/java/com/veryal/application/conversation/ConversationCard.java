@@ -21,5 +21,8 @@ public record ConversationCard(String conversationId,
                                String lastMessageType,
                                String lastMessagePreview,
                                Instant lastMessageAt,
-                               Instant updatedAt) {
+                               Instant updatedAt,
+                               boolean pinned,
+                               boolean muted,
+                               boolean hidden) {
 }

@@ -13,6 +13,7 @@ import com.veryal.domain.conversation.ConversationRepository;
 import com.veryal.domain.conversation.ConversationType;
 import com.veryal.domain.identity.User;
 import com.veryal.domain.identity.UserRepository;
+import com.veryal.domain.message.MessageRepository;
 import com.veryal.domain.message.MessageType;
 import com.veryal.domain.message.event.MessageEvents;
 import com.veryal.domain.message.event.ReadReceiptEvent;
@@ -37,6 +38,7 @@ public class ConversationApplicationService {
 
     private final ConversationRepository conversationRepository;
     private final UserRepository userRepository;
+    private final MessageRepository messageRepository;
     private final OutboxAppender outboxAppender;
     private final ReadReceiptNotifier readReceiptNotifier;
     private final IdGenerator idGenerator;
@@ -113,8 +115,13 @@ public class ConversationApplicationService {
 
                     return new ConversationCard(snapshot.conversationId(), snapshot.type(), title,
                             peerUserId, snapshot.memberCount(), snapshot.lastReadSeq(),
-                            snapshot.lastSeq(), Math.max(0, snapshot.lastSeq() - snapshot.lastReadSeq()),
-                            lastType, lastPreview, snapshot.lastMessageAt(), snapshot.updatedAt());
+                            snapshot.lastSeq(),
+                            // 清空记录的水位也参与未读计算；手动未读至少为 1。
+                            Math.max(snapshot.manualUnread() ? 1L : 0L,
+                                    Math.max(0L, snapshot.lastSeq()
+                                            - Math.max(snapshot.lastReadSeq(), snapshot.clearedSeq()))),
+                            lastType, lastPreview, snapshot.lastMessageAt(), snapshot.updatedAt(),
+                            snapshot.pinned(), snapshot.muted(), snapshot.hidden());
                 })
                 .sorted((a, b) -> {
                     var at = a.lastMessageAt() == null ? a.updatedAt() : a.lastMessageAt();
@@ -177,7 +184,10 @@ public class ConversationApplicationService {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "read sequence must not be negative");
         }
         ConversationMember updated = member.advanceRead(readSequence);
-        if (updated.lastReadSeq() == member.lastReadSeq()) {
+        boolean advanced = updated.lastReadSeq() != member.lastReadSeq();
+        // 打开会话就等于看过：手动标为未读在这里清掉，否则红点永远消不掉。
+        conversationRepository.updateMemberManualUnread(conversationId, userId, false);
+        if (!advanced) {
             return;
         }
         conversationRepository.updateMemberCursor(updated);
@@ -190,6 +200,40 @@ public class ConversationApplicationService {
         outboxAppender.append(new OutboxMessage(event.eventId(), conversationId,
                 MessageEvents.READ_RECEIPT, JsonUtils.toJsonBytes(event), now));
         readReceiptNotifier.notify(event);
+    }
+
+    /**
+     * 会话列表的成员级设置：置顶、免打扰、不显示、手动未读。
+     *
+     * <p>全部只作用于当前用户，不影响会话里的其他人。</p>
+     */
+    @Transactional
+    public void updateMemberPrefs(long userId, String conversationId, Boolean pinned,
+                                  Boolean muted, Boolean hidden, Boolean manuallyUnread) {
+        requireMember(conversationId, userId);
+        if (pinned != null || muted != null) {
+            conversationRepository.updateMemberFlags(conversationId, userId, pinned, muted);
+        }
+        if (hidden != null) {
+            conversationRepository.updateMemberHidden(conversationId, userId,
+                    hidden ? timeProvider.now() : null);
+        }
+        if (manuallyUnread != null) {
+            conversationRepository.updateMemberManualUnread(conversationId, userId, manuallyUnread);
+        }
+    }
+
+    /**
+     * 删除聊天记录：把本人可见水位抬到当前最大序号，并标为不显示。
+     *
+     * <p>消息行不删除，会话另一方的聊天记录完全不受影响；自己再次收到新消息时会话会重新出现。</p>
+     */
+    @Transactional
+    public void clearHistory(long userId, String conversationId) {
+        requireMember(conversationId, userId);
+        long lastSeq = messageRepository.maxSeq(conversationId);
+        conversationRepository.clearMemberHistory(conversationId, userId, lastSeq,
+                timeProvider.now());
     }
 
     @Transactional(readOnly = true)

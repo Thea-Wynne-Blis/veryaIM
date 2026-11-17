@@ -65,13 +65,27 @@
 
       预览只需要 60 个字符，正文在这里截到 1KB，避免 200 个会话把
       潜在的大文本消息（单条上限 256KB）全部拉进内存。
+
+      成员级设置（me.*）：
+        - cleared_seq 是本人清空记录的水位，预览只认 seq 更高的消息；
+        - hidden_at 是「不显示」的时间点，更晚的消息会把会话重新顶回来；
+        - manual_unread 是手动未读，未读数在 Java 侧兜到至少 1。
     -->
     <select id="selectCardRows" resultType="com.veryal.infrastructure.mysql.po.ConversationCardRowPO">
         SELECT c.id AS conversationId,
                c.conversation_type AS conversationType,
                c.updated_at AS updatedAt,
                me.last_read_seq AS lastReadSeq,
-               COALESCE(lm.seq, 0) AS lastSeq,
+               me.cleared_seq AS clearedSeq,
+               me.manual_unread AS manualUnread,
+               me.pinned AS pinned,
+               me.muted AS muted,
+               CASE WHEN me.hidden_at IS NOT NULL
+                         AND (lm.created_at IS NULL OR lm.created_at &lt;= me.hidden_at)
+                    THEN 1 ELSE 0 END AS hidden,
+               COALESCE((SELECT MAX(mx.seq)
+                         FROM im_message mx
+                         WHERE mx.conversation_id = c.id), 0) AS lastSeq,
                (SELECT COUNT(*)
                 FROM im_conversation_member cnt
                 WHERE cnt.conversation_id = c.id) AS memberCount,
@@ -103,7 +117,8 @@
                            ON lm.conversation_id = c.id
                                AND lm.seq = (SELECT MAX(m2.seq)
                                              FROM im_message m2
-                                             WHERE m2.conversation_id = c.id)
+                                             WHERE m2.conversation_id = c.id
+                                               AND m2.seq &gt; me.cleared_seq)
                  LEFT JOIN im_group g ON g.id = c.id
         ORDER BY COALESCE(lm.created_at, c.updated_at) DESC
         LIMIT 200
