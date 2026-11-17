@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  会话相关查询（多表 / 子查询 / 复杂条件）统一放在这里。
+  单表点查与写操作仍保留在 ConversationMapper 接口的注解上。
+
+  注意：本文件里的标量子查询依赖下列唯一键，改表结构前请先确认：
+    - im_conversation_member：uk(conversation_id, user_id)  -> memberUserId 至多 1 行
+    - im_user_mute：PRIMARY KEY(user_id)                    -> mutedUntil 至多 1 行
+    - im_user：PRIMARY KEY(id)、im_group：PRIMARY KEY(id)   -> 联表取到的资料至多 1 行
+    - im_message：uk(conversation_id, seq)                  -> MAX(seq) 是单值
+-->
+<mapper namespace="com.veryal.infrastructure.mysql.mapper.ConversationMapper">
+
+    <select id="selectByUser" resultType="com.veryal.infrastructure.mysql.po.ConversationPO">
+        SELECT c.id, c.conversation_type, c.created_at, c.updated_at
+        FROM im_conversation c
+                 INNER JOIN im_conversation_member m ON m.conversation_id = c.id
+        WHERE m.user_id = #{userId}
+        ORDER BY c.updated_at DESC
+        LIMIT 200
+    </select>
+
+    <!--
+      mutedUntil 是「全局禁言」（运营后台写入），不是会话级免打扰；
+      会话级设置见 im_conversation_member.muted。im_user_mute 以 user_id 为主键，
+      所以这里的标量子查询有且最多返回 1 行。故意不加 LIMIT 1：
+      一旦唯一性被破坏，希望它直接报错，而不是静默返回任意一行禁言状态。
+    -->
+    <select id="selectSendContext" resultType="com.veryal.infrastructure.mysql.po.ConversationSendContextPO">
+        SELECT c.conversation_type AS conversationType,
+               (SELECT m.user_id
+                FROM im_conversation_member m
+                WHERE m.conversation_id = c.id
+                  AND m.user_id = #{userId}) AS memberUserId,
+               (SELECT um.muted_until
+                FROM im_user_mute um
+                WHERE um.user_id = #{userId}) AS mutedUntil,
+               CASE WHEN c.conversation_type = 1 THEN
+                   (SELECT m2.user_id
+                    FROM im_conversation_member m2
+                    WHERE m2.conversation_id = c.id
+                      AND m2.user_id &lt;&gt; #{userId}
+                    LIMIT 1)
+               END AS peerUserId,
+               CASE WHEN c.conversation_type = 1 THEN
+                   EXISTS(SELECT 1
+                          FROM im_blacklist b
+                          WHERE b.user_id = (SELECT m3.user_id
+                                             FROM im_conversation_member m3
+                                             WHERE m3.conversation_id = c.id
+                                               AND m3.user_id &lt;&gt; #{userId}
+                                             LIMIT 1)
+                            AND b.blocked_user_id = #{userId})
+               END AS peerBlocked
+        FROM im_conversation c
+        WHERE c.id = #{conversationId}
+    </select>
+
+    <!--
+      lastSeq 取「真实消息的最大 seq」，不取 im_conversation_sequence.last_seq。
+      两者在正常路径相同；一旦把序号分配与消息插入拆到不同事务
+      （例如走异步持久化），序号表会领先于真实消息，未读数就会虚高。
+
+      预览只需要 60 个字符，正文在这里截到 1KB，避免 200 个会话把
+      潜在的大文本消息（单条上限 256KB）全部拉进内存。
+    -->
+    <select id="selectCardRows" resultType="com.veryal.infrastructure.mysql.po.ConversationCardRowPO">
+        SELECT c.id AS conversationId,
+               c.conversation_type AS conversationType,
+               c.updated_at AS updatedAt,
+               me.last_read_seq AS lastReadSeq,
+               COALESCE(lm.seq, 0) AS lastSeq,
+               (SELECT COUNT(*)
+                FROM im_conversation_member cnt
+                WHERE cnt.conversation_id = c.id) AS memberCount,
+               lm.msg_type AS lastMessageType,
+               LEFT(lm.content, 1024) AS lastMessageContent,
+               lm.recalled_at AS lastMessageRecalledAt,
+               lm.created_at AS lastMessageCreatedAt,
+               g.name AS groupName,
+               CASE WHEN c.conversation_type = 1 THEN
+                   (SELECT p.user_id
+                    FROM im_conversation_member p
+                    WHERE p.conversation_id = c.id
+                      AND p.user_id &lt;&gt; #{userId}
+                    LIMIT 1)
+               END AS peerUserId,
+               CASE WHEN c.conversation_type = 1 THEN
+                   (SELECT u.nickname
+                    FROM im_user u
+                    WHERE u.id = (SELECT p2.user_id
+                                  FROM im_conversation_member p2
+                                  WHERE p2.conversation_id = c.id
+                                    AND p2.user_id &lt;&gt; #{userId}
+                                  LIMIT 1))
+               END AS peerNickname
+        FROM im_conversation c
+                 INNER JOIN im_conversation_member me
+                            ON me.conversation_id = c.id AND me.user_id = #{userId}
+                 LEFT JOIN im_message lm
+                           ON lm.conversation_id = c.id
+                               AND lm.seq = (SELECT MAX(m2.seq)
+                                             FROM im_message m2
+                                             WHERE m2.conversation_id = c.id)
+                 LEFT JOIN im_group g ON g.id = c.id
+        ORDER BY COALESCE(lm.created_at, c.updated_at) DESC
+        LIMIT 200
+    </select>
+
+    <select id="selectMemberIdsPage" resultType="java.lang.Long">
+        SELECT user_id
+        FROM im_conversation_member
+        WHERE conversation_id = #{conversationId}
+          AND user_id &gt; #{afterUserId}
+        ORDER BY user_id ASC
+        LIMIT #{limit}
+    </select>
+
+</mapper>

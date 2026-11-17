@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  消息读取相关查询。单行语句（COUNT）与写入仍保留在 MessageMapper 注解上。
+-->
+<mapper namespace="com.veryal.infrastructure.mysql.mapper.MessageMapper">
+
+    <select id="selectPageAfter" resultType="com.veryal.infrastructure.mysql.po.MessagePO">
+        SELECT id, conversation_id, sender_id, client_msg_id, seq, msg_type, content,
+               created_at, recalled_at, recalled_by
+        FROM im_message
+        WHERE conversation_id = #{conversationId}
+          AND seq &gt; #{afterSeq}
+        ORDER BY seq ASC
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectMaxSeq" resultType="long">
+        SELECT COALESCE(MAX(seq), 0)
+        FROM im_message
+        WHERE conversation_id = #{conversationId}
+    </select>
+
+    <select id="searchText" resultType="com.veryal.infrastructure.mysql.po.MessagePO">
+        SELECT id, conversation_id, sender_id, client_msg_id, seq, msg_type, content,
+               created_at, recalled_at, recalled_by
+        FROM im_message
+        WHERE conversation_id = #{conversationId}
+          AND recalled_at IS NULL
+          AND msg_type IN (1, 6)
+          AND seq &lt; #{beforeSeq}
+          AND content LIKE #{pattern} ESCAPE '!'
+        ORDER BY seq DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>

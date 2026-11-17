@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 文件相关查询。 -->
+<mapper namespace="com.veryal.infrastructure.mysql.mapper.FileMapper">
+
+    <select id="selectTotalBytes" resultType="long">
+        SELECT COALESCE(SUM(size_bytes), 0)
+        FROM im_file
+        WHERE status = 0
+    </select>
+
+</mapper>

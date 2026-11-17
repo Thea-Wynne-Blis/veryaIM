@@ -6,13 +6,15 @@ import com.veryal.infrastructure.mysql.po.ConversationPO;
 import com.veryal.infrastructure.mysql.po.ConversationSendContextPO;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
-import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
 
 /**
- * 会话 Mapper。幂等插入与联表查询使用显式 SQL，其余 CRUD 由 MyBatis-Plus 提供。
+ * 会话 Mapper。幂等插入与读游标推进使用显式 SQL，其余 CRUD 由 MyBatis-Plus 提供。
+ *
+ * <p>多表 / 子查询类查询的 SQL 写在 {@code resources/mapper/ConversationMapper.xml}，
+ * 这里只保留方法声明。</p>
  */
 public interface ConversationMapper extends BaseMapper<ConversationPO> {
 
@@ -32,105 +34,17 @@ public interface ConversationMapper extends BaseMapper<ConversationPO> {
                           @Param("userId") long userId,
                           @Param("sequence") long sequence);
 
-    @Select("""
-            SELECT c.id, c.conversation_type, c.created_at, c.updated_at
-            FROM im_conversation c
-                     INNER JOIN im_conversation_member m ON m.conversation_id = c.id
-            WHERE m.user_id = #{userId}
-            ORDER BY c.updated_at DESC
-            LIMIT 200
-            """)
+    /** 我参与的会话（按会话更新时间倒序）。 */
     List<ConversationPO> selectByUser(@Param("userId") long userId);
 
-    @Select("""
-            SELECT c.conversation_type AS conversationType,
-                   (SELECT m.user_id
-                      FROM im_conversation_member m
-                     WHERE m.conversation_id = c.id
-                       AND m.user_id = #{userId})                    AS memberUserId,
-                   (SELECT um.muted_until
-                      FROM im_user_mute um
-                     WHERE um.user_id = #{userId})                   AS mutedUntil,
-                   CASE WHEN c.conversation_type = 1 THEN
-                        (SELECT m2.user_id
-                           FROM im_conversation_member m2
-                          WHERE m2.conversation_id = c.id
-                            AND m2.user_id <> #{userId}
-                          LIMIT 1)
-                   END                                               AS peerUserId,
-                   CASE WHEN c.conversation_type = 1 THEN
-                        EXISTS(SELECT 1
-                                 FROM im_blacklist b
-                                WHERE b.user_id = (SELECT m3.user_id
-                                                     FROM im_conversation_member m3
-                                                    WHERE m3.conversation_id = c.id
-                                                      AND m3.user_id <> #{userId}
-                                                    LIMIT 1)
-                                  AND b.blocked_user_id = #{userId})
-                   END                                               AS peerBlocked
-            FROM im_conversation c
-            WHERE c.id = #{conversationId}
-            """)
+    /** 发送前的鉴权上下文：成员关系、全局禁言、单聊对端与拉黑状态。 */
     ConversationSendContextPO selectSendContext(@Param("conversationId") String conversationId,
                                                 @Param("userId") long userId);
 
-    @Select("""
-            SELECT c.id                              AS conversationId,
-                   c.conversation_type               AS conversationType,
-                   c.updated_at                      AS updatedAt,
-                   me.last_read_seq                  AS lastReadSeq,
-                   -- 与旧实现一致：lastSeq 取「真实消息的最大 seq」，不取会话序号表。
-                   -- 两者在正常路径相同；一旦把序号分配与消息插入拆到不同事务
-                   -- （例如走异步持久化），序号表会领先于真实消息，未读数就会虚高。
-                   COALESCE(lm.seq, 0)               AS lastSeq,
-                   (SELECT COUNT(*)
-                      FROM im_conversation_member cnt
-                     WHERE cnt.conversation_id = c.id)            AS memberCount,
-                   lm.msg_type                       AS lastMessageType,
-                   -- 预览只需要前 60 个字符，这里拦到 1KB，避免 200 个会话把
-                   -- 潜在的大文本消息（单条上限 256KB）全部拉进内存。
-                   LEFT(lm.content, 1024)             AS lastMessageContent,
-                   lm.recalled_at                    AS lastMessageRecalledAt,
-                   lm.created_at                     AS lastMessageCreatedAt,
-                   g.name                            AS groupName,
-                   CASE WHEN c.conversation_type = 1 THEN
-                        (SELECT p.user_id
-                           FROM im_conversation_member p
-                          WHERE p.conversation_id = c.id
-                            AND p.user_id <> #{userId}
-                          LIMIT 1)
-                   END                               AS peerUserId,
-                   CASE WHEN c.conversation_type = 1 THEN
-                        (SELECT u.nickname
-                           FROM im_user u
-                          WHERE u.id = (SELECT p2.user_id
-                                          FROM im_conversation_member p2
-                                         WHERE p2.conversation_id = c.id
-                                           AND p2.user_id <> #{userId}
-                                         LIMIT 1))
-                   END                               AS peerNickname
-            FROM im_conversation c
-                     INNER JOIN im_conversation_member me
-                                ON me.conversation_id = c.id AND me.user_id = #{userId}
-                     LEFT JOIN im_message lm
-                               ON lm.conversation_id = c.id
-                                   AND lm.seq = (SELECT MAX(m2.seq)
-                                                   FROM im_message m2
-                                                  WHERE m2.conversation_id = c.id)
-                     LEFT JOIN im_group g ON g.id = c.id
-            ORDER BY COALESCE(lm.created_at, c.updated_at) DESC
-            LIMIT 200
-            """)
+    /** 会话卡片列表：一条联表查询取回全部展示字段。 */
     List<ConversationCardRowPO> selectCardRows(@Param("userId") long userId);
 
-    @Select("""
-            SELECT user_id
-            FROM im_conversation_member
-            WHERE conversation_id = #{conversationId}
-              AND user_id > #{afterUserId}
-            ORDER BY user_id ASC
-            LIMIT #{limit}
-            """)
+    /** 成员 id 游标分页（大群拉人/推送用）。 */
     List<Long> selectMemberIdsPage(@Param("conversationId") String conversationId,
                                    @Param("afterUserId") long afterUserId,
                                    @Param("limit") int limit);

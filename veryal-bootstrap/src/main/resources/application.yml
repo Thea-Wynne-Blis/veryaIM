@@ -54,6 +54,9 @@ spring:
         missing-queues-fatal: false
 
 mybatis-plus:
+  # 多表 / 子查询 / 多条件查询的 SQL 写在 resources/mapper/*.xml，
+  # 注解只保留单表点查与写操作。
+  mapper-locations: classpath*:/mapper/**/*.xml
   configuration:
     map-underscore-to-camel-case: true
     default-fetch-size: 100

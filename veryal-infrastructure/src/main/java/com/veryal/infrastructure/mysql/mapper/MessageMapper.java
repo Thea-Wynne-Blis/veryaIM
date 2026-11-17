@@ -8,41 +8,20 @@ import org.apache.ibatis.annotations.Select;
 import java.util.List;
 
 /**
- * 消息表 Mapper。游标分页与最大序号使用显式 SQL，其余 CRUD 由 MyBatis-Plus 提供。
+ * 消息表 Mapper。游标分页与全文搜索的 SQL 写在
+ * {@code resources/mapper/MessageMapper.xml}，其余 CRUD 由 MyBatis-Plus 提供。
  */
 public interface MessageMapper extends BaseMapper<MessagePO> {
 
-    @Select("""
-            SELECT id, conversation_id, sender_id, client_msg_id, seq, msg_type, content, created_at, recalled_at, recalled_by
-            FROM im_message
-            WHERE conversation_id = #{conversationId}
-              AND seq > #{afterSeq}
-            ORDER BY seq ASC
-            LIMIT #{limit}
-            """)
+    /** 按 seq 游标向后翻页。 */
     List<MessagePO> selectPageAfter(@Param("conversationId") String conversationId,
                                     @Param("afterSeq") long afterSeq,
                                     @Param("limit") int limit);
 
-    @Select("""
-            SELECT COALESCE(MAX(seq), 0)
-            FROM im_message
-            WHERE conversation_id = #{conversationId}
-            """)
+    /** 会话内最大序号，没有消息时返回 0。 */
     long selectMaxSeq(@Param("conversationId") String conversationId);
 
-    @Select("""
-            SELECT id, conversation_id, sender_id, client_msg_id, seq, msg_type, content,
-                   created_at, recalled_at, recalled_by
-            FROM im_message
-            WHERE conversation_id = #{conversationId}
-              AND recalled_at IS NULL
-              AND msg_type IN (1, 6)
-              AND seq < #{beforeSeq}
-              AND content LIKE #{pattern} ESCAPE '!'
-            ORDER BY seq DESC
-            LIMIT #{limit}
-            """)
+    /** 会话内按关键字搜索（只搜文本/表情，跳过已撤回）。 */
     List<MessagePO> searchText(@Param("conversationId") String conversationId,
                                @Param("pattern") String pattern,
                                @Param("beforeSeq") long beforeSeq,
