@@ -11,7 +11,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -104,30 +103,39 @@ public class ChunkedUploadService {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "missing chunks: uploaded " + uploaded.size() + "/" + session.totalChunks());
         }
-        ByteArrayOutputStream assembled = new ByteArrayOutputStream(
-                (int) Math.min(session.sizeBytes(), Integer.MAX_VALUE));
+        Path dir = chunkDir(uploadId);
+        Path merged = dir.resolve("merged.tmp");
         try {
-            for (int index = 0; index < session.totalChunks(); index++) {
-                Path chunk = chunkDir(uploadId).resolve(index + ".part");
-                if (!Files.isRegularFile(chunk) || Files.size(chunk) != expectedSize(session, index)) {
-                    throw new BusinessException(ErrorCode.CONFLICT, "chunk " + index + " is invalid");
+            // 逐个分片追加到暂存文件，避免 25MB 视频又拼出一个 25MB 的 byte[]
+            try (var out = Files.newOutputStream(merged,
+                    java.nio.file.StandardOpenOption.CREATE,
+                    java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
+                    java.nio.file.StandardOpenOption.WRITE)) {
+                for (int index = 0; index < session.totalChunks(); index++) {
+                    Path chunk = dir.resolve(index + ".part");
+                    if (!Files.isRegularFile(chunk)
+                            || Files.size(chunk) != expectedSize(session, index)) {
+                        throw new BusinessException(ErrorCode.CONFLICT,
+                                "chunk " + index + " is invalid");
+                    }
+                    Files.copy(chunk, out);
                 }
-                assembled.write(Files.readAllBytes(chunk));
             }
+            long assembledSize = Files.size(merged);
+            if (assembledSize != session.sizeBytes()) {
+                throw new BusinessException(ErrorCode.CONFLICT, "assembled size mismatch");
+            }
+            FileView file = fileApplicationService.storeFile(uploaderId, session.conversationId(),
+                    session.filename(), session.contentType(), merged, assembledSize);
+            uploadRepository.markStatus(uploadId, UploadStatus.COMPLETED, file.fileId());
+            return file;
         } catch (BusinessException e) {
             throw e;
         } catch (IOException e) {
             throw new BusinessException(ErrorCode.STORAGE_ERROR, "failed to assemble upload chunks");
+        } finally {
+            cleanup(uploadId);
         }
-        byte[] content = assembled.toByteArray();
-        if (content.length != session.sizeBytes()) {
-            throw new BusinessException(ErrorCode.CONFLICT, "assembled size mismatch");
-        }
-        FileView file = fileApplicationService.store(uploaderId, session.conversationId(),
-                session.filename(), session.contentType(), content);
-        uploadRepository.markStatus(uploadId, UploadStatus.COMPLETED, file.fileId());
-        cleanup(uploadId);
-        return file;
     }
 
     public void cancel(long uploaderId, long uploadId) {

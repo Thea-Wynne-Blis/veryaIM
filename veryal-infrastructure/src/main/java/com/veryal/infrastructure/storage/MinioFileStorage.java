@@ -18,6 +18,7 @@ import io.minio.http.Method;
 import org.springframework.stereotype.Component;
 
 import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.time.Duration;
 
 /**
@@ -56,6 +57,55 @@ public class MinioFileStorage implements FileStorage {
                 throw systemException;
             }
             throw new SystemException(ErrorCode.STORAGE_ERROR, "failed to put MinIO object", e);
+        }
+    }
+
+    @Override
+    public void put(String objectKey, InputStream content, long size, String contentType) {
+        try (InputStream input = content) {
+            ensureBucket();
+            client().putObject(PutObjectArgs.builder()
+                    .bucket(bucket())
+                    .object(objectKey)
+                    .stream(input, size, -1)
+                    .contentType(contentType)
+                    .build());
+        } catch (Exception e) {
+            if (e instanceof SystemException systemException) {
+                throw systemException;
+            }
+            throw new SystemException(ErrorCode.STORAGE_ERROR, "failed to put MinIO object", e);
+        }
+    }
+
+    @Override
+    public InputStream open(String objectKey) {
+        return open(objectKey, 0, 0);
+    }
+
+    /** MinIO 原生支持 offset/length，Range 请求不必先丢弃前缀。 */
+    @Override
+    public InputStream open(String objectKey, long offset, long length) {
+        GetObjectArgs.Builder builder = GetObjectArgs.builder()
+                .bucket(bucket()).object(objectKey);
+        if (offset > 0) {
+            builder.offset(offset);
+        }
+        if (length > 0) {
+            builder.length(length);
+        }
+        try {
+            return client().getObject(builder.build());
+        } catch (ErrorResponseException e) {
+            if ("NoSuchKey".equals(e.errorResponse().code())) {
+                throw new BusinessException(ErrorCode.FILE_NOT_FOUND, "file object not found");
+            }
+            throw new SystemException(ErrorCode.STORAGE_ERROR, "failed to get MinIO object", e);
+        } catch (Exception e) {
+            if (e instanceof SystemException systemException) {
+                throw systemException;
+            }
+            throw new SystemException(ErrorCode.STORAGE_ERROR, "failed to get MinIO object", e);
         }
     }
 

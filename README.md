@@ -382,11 +382,13 @@ veryal:
 | `IMAGE` | 2 | JSON：`{"fileId":123,"width":1080,"height":1920}` |
 | `FILE` | 3 | JSON：`{"fileId":123,"fileName":"report.pdf"}` |
 | `AUDIO`（语音） | 4 | JSON：`{"fileId":123,"durationSeconds":12}` |
-| `VIDEO` | 5 | JSON：`{"fileId":123,"durationSeconds":30,"width":1080,"height":1920}` |
+| `VIDEO` | 5 | JSON：`{"fileId":123,"durationSeconds":30,"width":1080,"height":1920,"coverFileId":456}` |
 | `EMOJI` | 6 | UTF-8 表情，或 `{"stickerId":"emoji_01"}`（`[A-Za-z0-9._:-]{1,64}`） |
 | `SYSTEM` | 9 | 服务端保留，客户端提交返回不支持 |
 
 图片/视频的 `width`、`height` 与语音/视频的 `durationSeconds`（≤3600）、视频 `coverFileId` / `thumbnailFileId` 均为可选；`fileId` 必填。文本、表情以外的消息体最大 256KB。
+
+内容类型必须与消息类型匹配，否则 `400`（防止把可执行内容伪装成图片塞进会话）：`IMAGE` 要求 `image/*` 且**明确拒绝 SVG**，`VIDEO` 要求 `video/*`，`AUDIO` 接受 `audio/*` 以及 `video/webm`、`video/ogg`（`MediaRecorder` 录音常见容器）。
 
 消息撤回：仅发送者本人可在发送后 2 分钟内撤回；撤回后历史消息返回 `recalled=true` 且 `content` 为空，原文不再下发。撤回写入审计日志（`MESSAGE_RECALL`），并通过 `message.recalled` Outbox 广播 `MESSAGE_RECALL(0x0103)`；MQ 关闭时本机直接推送。
 
@@ -535,7 +537,7 @@ veryal:
       bucket: ${VERYAL_OSS_BUCKET:veryal}
 ```
 
-- 文件大小上限 20MB（Spring multipart 与应用双重校验）。
+- 单次 multipart 上限 32MB（Spring `multipart` 与应用双重校验）；更大的文件走分片上传，上限 256MB。
 - 对象键：`files/{yyyy/MM/dd}/{fileId}.{ext}`；文件名做路径穿越与控制字符清理。
 - 上传先写对象存储，再写 `im_file`；元数据失败会补偿删除对象。
 - 当前文件若绑定 `conversationId`，会话成员可下载；否则仅上传者可下载/删除。文件消息的成员引用权限与此一致。
@@ -547,13 +549,22 @@ veryal:
   upload:
     staging-path: ${VERYAL_UPLOAD_STAGING:./data/uploads}
     chunk-size-bytes: ${VERYAL_UPLOAD_CHUNK_SIZE:5242880}
-    max-size-bytes: ${VERYAL_UPLOAD_MAX_SIZE:67108864}
+    max-size-bytes: ${VERYAL_UPLOAD_MAX_SIZE:268435456}
 ```
 
 - 流程：`POST /files/uploads` 初始化 → `PUT .../chunks/{index}` 逐片上传（重复上传幂等）→ `GET ...` 查看已上传索引 → `POST .../complete` 合并。
-- 分片暂存在本机 `staging-path`；将其指向 NFS/CephFS 等共享卷即可支持多节点续传。完成后合并为完整对象并写入当前存储策略，再落 `im_file`。
-- 普通上传仍限制 20MB；分片上传默认上限 64MB。
-- JPEG/PNG 图片：最长边超过 1920px 时等比缩放；JPEG 以 0.85 质量重编码；解码失败或压缩变大时保留原图。
+- 分片暂存在本机 `staging-path`；将其指向 NFS/CephFS 等共享卷即可支持多节点续传。完成后逐片 `Files.copy` 追加到 `merged.tmp`，再**流式**写入当前存储策略，最后落 `im_file`——整个过程不会把整份文件读进堆。
+- 普通上传限制 32MB；分片上传上限 256MB（`im_bootstrap` 堆只有 768MB，靠流式写盘支撑）。
+- 存储接口按大小分流读取：`/content` 走 `FileStorage.open(key, offset, length)`（本地 `FileChannel.position`、MinIO/OSS 原生 Range），不再整份 `byte[]` 读入。
+- JPEG/PNG 图片：最长边超过 1920px 时等比缩放；JPEG 以 0.85 质量重编码；解码失败或压缩变大时保留原图。GIF/WebP/SVG 不重编码（GIF 动图必须保留原始字节）。
+- 超过 12MB 的图片在分片合并后直接流式落盘，不做内存压缩。
+
+### 下载与 Range
+
+- `GET /api/v1/files/{fileId}/content` 返回 `Accept-Ranges: bytes`，支持单区间 `Range`（`bytes=0-`、`bytes=-500`）→ `206` + `Content-Range`；语法正确但越界 → `416` + `bytes */{size}`；多区间与非法语法按整份返回（RFC 9110 允许）。
+- `?disposition=inline` 仅对音视频、图片与 PDF 生效，且**排除 SVG**——SVG 是可执行脚本的 XML 文档，同源打开会拿到 `localStorage` 里的 token，因此一律 `attachment`；`/thumb` 对 SVG 直接 `400`。
+- 响应统一带 `ETag`（sha256）+ `Cache-Control: private, max-age=31536000, immutable` 与 `X-Content-Type-Options: nosniff`。
+- 视频消息的宽高、时长、封面全部由客户端生成（服务端无 ffmpeg）：封面是一张普通 JPEG，作为独立文件上传后通过 `coverFileId` 引用。
 
 ### 线程模型与虚拟线程
 

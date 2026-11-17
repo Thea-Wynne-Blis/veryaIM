@@ -31,10 +31,10 @@ public class ImageCompressor {
     static final long RECOMPRESS_THRESHOLD = 1024L * 1024;
 
     public byte[] compress(byte[] content, String contentType) {
-        String type = contentType == null ? "" : contentType.toLowerCase();
-        if (!type.startsWith("image/jpeg") && !type.startsWith("image/png")) {
+        if (!supportsCompression(contentType)) {
             return content;
         }
+        String type = contentType == null ? "" : contentType.toLowerCase();
         int[] size = readDimensions(content);
         if (size == null) {
             return content;
@@ -63,6 +63,12 @@ public class ImageCompressor {
             log.debug("image compression skipped: type={}, reason={}", contentType, e.getMessage());
             return content;
         }
+    }
+
+    /** 只有 JPEG/PNG 会被重新编码；WebP/GIF/AVIF 保持原始字节（动图也不能重编码）。 */
+    public boolean supportsCompression(String contentType) {
+        String type = contentType == null ? "" : contentType.toLowerCase(java.util.Locale.ROOT);
+        return type.startsWith("image/jpeg") || type.startsWith("image/png");
     }
 
     /**

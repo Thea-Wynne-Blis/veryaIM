@@ -16,5 +16,5 @@ public class UploadProperties {
 
     private int chunkSizeBytes = 5 * 1024 * 1024;
 
-    private long maxSizeBytes = 64L * 1024 * 1024;
+    private long maxSizeBytes = 256L * 1024 * 1024;
 }

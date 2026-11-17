@@ -49,6 +49,8 @@ class MessageTypeIntegrationTest {
 
         long aliceFile = upload("image.png", "image/png", aliceLogin.token(), conversationId);
         long bobFile = upload("other.png", "image/png", bobLogin.token());
+        long voiceFile = upload("voice.webm", "audio/webm", aliceLogin.token(), conversationId);
+        long videoFile = upload("clip.mp4", "video/mp4", aliceLogin.token(), conversationId);
 
         SendMessageResponse image = send(conversationId, "mt-image-" + suffix, "IMAGE",
                 JsonUtils.toJson(Map.of("fileId", aliceFile, "width", 100, "height", 200)),
@@ -74,14 +76,22 @@ class MessageTypeIntegrationTest {
                 JsonUtils.toJson(Map.of("stickerId", "bad sticker!")), aliceLogin.token(), 400);
 
         SendMessageResponse voice = send(conversationId, "mt-voice-" + suffix, "AUDIO",
-                JsonUtils.toJson(Map.of("fileId", aliceFile, "durationSeconds", 3)),
+                JsonUtils.toJson(Map.of("fileId", voiceFile, "durationSeconds", 3)),
                 aliceLogin.token(), 200);
         assertThat(voice.message().type()).isEqualTo("AUDIO");
 
-        send(conversationId, "mt-video-" + suffix, "VIDEO",
-                JsonUtils.toJson(Map.of("fileId", aliceFile, "durationSeconds", 5,
+        SendMessageResponse video = send(conversationId, "mt-video-" + suffix, "VIDEO",
+                JsonUtils.toJson(Map.of("fileId", videoFile, "durationSeconds", 5,
                         "width", 640, "height", 480, "coverFileId", aliceFile)),
                 aliceLogin.token(), 200);
+        assertThat(video.message().type()).isEqualTo("VIDEO");
+
+        // 内容类型必须与消息类型匹配：图片不能伪装成视频，SVG 也不能当图片消息
+        send(conversationId, "mt-video-wrong-type-" + suffix, "VIDEO",
+                JsonUtils.toJson(Map.of("fileId", aliceFile)), aliceLogin.token(), 400);
+        long svgFile = upload("vector.svg", "image/svg+xml", aliceLogin.token(), conversationId);
+        send(conversationId, "mt-image-svg-" + suffix, "IMAGE",
+                JsonUtils.toJson(Map.of("fileId", svgFile)), aliceLogin.token(), 400);
     }
 
     private String createConversation(UserResponse alice, UserResponse bob, String token) {

@@ -60,4 +60,21 @@ public abstract class AbstractFileMessageStrategy implements MessageTypeStrategy
                     field + " must be positive");
         }
     }
+
+    /**
+     * 校验文件内容类型。图片/视频/语音消息必须引用对应大类的文件，
+     * 否则可以把任意可执行内容伪装成图片塞进会话（前端会按类型渲染）。
+     */
+    protected void requireContentType(StoredFile file, String... allowedPrefixes) {
+        String contentType = file.contentType() == null
+                ? "" : file.contentType().toLowerCase(java.util.Locale.ROOT);
+        for (String prefix : allowedPrefixes) {
+            if (contentType.startsWith(prefix)) {
+                return;
+            }
+        }
+        throw new BusinessException(ErrorCode.MESSAGE_CONTENT_INVALID,
+                "file content type " + contentType + " is not allowed for "
+                        + type().name().toLowerCase(java.util.Locale.ROOT) + " message");
+    }
 }

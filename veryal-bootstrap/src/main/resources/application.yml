@@ -17,8 +17,9 @@ spring:
       write-dates-as-timestamps: false
   servlet:
     multipart:
-      max-file-size: 20MB
-      max-request-size: 22MB
+      # 单次 multipart 只承接小文件；大文件（视频）由前端切成分片。
+      max-file-size: 32MB
+      max-request-size: 36MB
   datasource:
     url: jdbc:mysql://localhost:3306/veryal_im?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
     username: veryal
@@ -149,7 +150,8 @@ veryal:
   upload:
     staging-path: ${VERYAL_UPLOAD_STAGING:./data/uploads}
     chunk-size-bytes: ${VERYAL_UPLOAD_CHUNK_SIZE:5242880}
-    max-size-bytes: ${VERYAL_UPLOAD_MAX_SIZE:67108864}
+    # 分片合并是流式写盘，256MB 只需磁盘空间，不会整份进堆。
+    max-size-bytes: ${VERYAL_UPLOAD_MAX_SIZE:268435456}
   platform:
     token-secret: ${VERYAL_PLATFORM_TOKEN_SECRET:}
     bootstrap-username: ${VERYAL_PLATFORM_BOOTSTRAP_USERNAME:}

@@ -3,6 +3,7 @@ package com.veryal.infrastructure.storage;
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSClientBuilder;
 import com.aliyun.oss.OSSException;
+import com.aliyun.oss.model.GetObjectRequest;
 import com.aliyun.oss.model.ObjectMetadata;
 import com.aliyun.oss.model.OSSObject;
 import com.veryal.common.exception.BusinessException;
@@ -49,6 +50,48 @@ public class AliyunOssFileStorage implements FileStorage {
                 throw systemException;
             }
             throw new SystemException(ErrorCode.STORAGE_ERROR, "failed to put OSS object", e);
+        }
+    }
+
+    @Override
+    public void put(String objectKey, InputStream content, long size, String contentType) {
+        ObjectMetadata metadata = new ObjectMetadata();
+        metadata.setContentLength(size);
+        metadata.setContentType(contentType);
+        try (InputStream input = content) {
+            client().putObject(bucket(), objectKey, input, metadata);
+        } catch (Exception e) {
+            if (e instanceof SystemException systemException) {
+                throw systemException;
+            }
+            throw new SystemException(ErrorCode.STORAGE_ERROR, "failed to put OSS object", e);
+        }
+    }
+
+    @Override
+    public InputStream open(String objectKey) {
+        return open(objectKey, 0, 0);
+    }
+
+    /** OSS 支持 Range 读取，视频拖动进度时只回传需要的区间。 */
+    @Override
+    public InputStream open(String objectKey, long offset, long length) {
+        try {
+            GetObjectRequest request = new GetObjectRequest(bucket(), objectKey);
+            if (offset > 0 || length > 0) {
+                request.setRange(offset, length > 0 ? offset + length - 1 : -1);
+            }
+            return client().getObject(request).getObjectContent();
+        } catch (OSSException e) {
+            if ("NoSuchKey".equals(e.getErrorCode())) {
+                throw new BusinessException(ErrorCode.FILE_NOT_FOUND, "file object not found");
+            }
+            throw new SystemException(ErrorCode.STORAGE_ERROR, "failed to get OSS object", e);
+        } catch (Exception e) {
+            if (e instanceof SystemException systemException) {
+                throw systemException;
+            }
+            throw new SystemException(ErrorCode.STORAGE_ERROR, "failed to get OSS object", e);
         }
     }
 

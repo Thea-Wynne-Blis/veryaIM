@@ -1,7 +1,10 @@
 package com.veryal.application.message.strategy;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.veryal.common.exception.BusinessException;
+import com.veryal.common.exception.ErrorCode;
 import com.veryal.domain.file.FileRepository;
+import com.veryal.domain.file.StoredFile;
 import com.veryal.domain.message.MessageType;
 import org.springframework.stereotype.Component;
 
@@ -23,7 +26,14 @@ public class ImageMessageStrategy extends AbstractFileMessageStrategy {
     @Override
     public void validate(MessageContentContext context) {
         JsonNode node = parseJson(context);
-        requireOwnedFile(context, node);
+        StoredFile file = requireOwnedFile(context, node);
+        requireContentType(file, "image/");
+        String contentType = file.contentType() == null
+                ? "" : file.contentType().toLowerCase(java.util.Locale.ROOT);
+        if (contentType.contains("svg")) {
+            throw new BusinessException(ErrorCode.MESSAGE_CONTENT_INVALID,
+                    "svg is not allowed as image message");
+        }
         optionalPositive(node, "width");
         optionalPositive(node, "height");
     }

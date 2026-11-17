@@ -2,6 +2,7 @@ package com.veryal.application.message.strategy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.veryal.domain.file.FileRepository;
+import com.veryal.domain.file.StoredFile;
 import com.veryal.domain.message.MessageType;
 import org.springframework.stereotype.Component;
 
@@ -23,7 +24,8 @@ public class VideoMessageStrategy extends AbstractFileMessageStrategy {
     @Override
     public void validate(MessageContentContext context) {
         JsonNode node = parseJson(context);
-        requireOwnedFile(context, node);
+        StoredFile file = requireOwnedFile(context, node);
+        requireContentType(file, "video/");
         optionalPositive(node, "durationSeconds");
         optionalPositive(node, "width");
         optionalPositive(node, "height");

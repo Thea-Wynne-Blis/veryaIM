@@ -113,6 +113,81 @@ class FileApiIntegrationTest {
         assertThat(outsider.userId()).isPositive();
     }
 
+    @Test
+    void supportsRangeRequestsAndInlineDisposition() {
+        String suffix = Long.toString(System.nanoTime());
+        UserResponse user = register("range_user_" + suffix);
+        AuthResponse login = login("range_user_" + suffix, "range-dev-" + suffix);
+        byte[] content = "0123456789abcdef".getBytes(StandardCharsets.UTF_8);
+        FileResponse uploaded = upload(content, "clip.mp4", login.token());
+        String url = "/api/v1/files/" + uploaded.fileId() + "/content";
+
+        HttpHeaders headers = headers(login.token());
+        headers.set(HttpHeaders.RANGE, "bytes=4-7");
+        ResponseEntity<byte[]> partial = rest.exchange(url, HttpMethod.GET,
+                new HttpEntity<>(headers), byte[].class);
+        assertThat(partial.getStatusCode().value()).isEqualTo(206);
+        assertThat(partial.getBody()).isEqualTo("4567".getBytes(StandardCharsets.UTF_8));
+        assertThat(partial.getHeaders().getFirst(HttpHeaders.CONTENT_RANGE)).isEqualTo("bytes 4-7/16");
+        assertThat(partial.getHeaders().getFirst(HttpHeaders.ACCEPT_RANGES)).isEqualTo("bytes");
+
+        // 开区间：从 10 到结尾
+        headers.set(HttpHeaders.RANGE, "bytes=10-");
+        ResponseEntity<byte[]> tail = rest.exchange(url, HttpMethod.GET,
+                new HttpEntity<>(headers), byte[].class);
+        assertThat(tail.getStatusCode().value()).isEqualTo(206);
+        assertThat(tail.getBody()).isEqualTo("abcdef".getBytes(StandardCharsets.UTF_8));
+
+        // 越界 → 416，并告知实际长度
+        headers.set(HttpHeaders.RANGE, "bytes=99-200");
+        ResponseEntity<byte[]> unsatisfiable = rest.exchange(url, HttpMethod.GET,
+                new HttpEntity<>(headers), byte[].class);
+        assertThat(unsatisfiable.getStatusCode().value()).isEqualTo(416);
+        assertThat(unsatisfiable.getHeaders().getFirst(HttpHeaders.CONTENT_RANGE))
+                .isEqualTo("bytes */16");
+
+        // 语法不合法：忽略 Range，回整份内容
+        headers.set(HttpHeaders.RANGE, "bytes=oops");
+        ResponseEntity<byte[]> ignored = rest.exchange(url, HttpMethod.GET,
+                new HttpEntity<>(headers), byte[].class);
+        assertThat(ignored.getStatusCode().value()).isEqualTo(200);
+        assertThat(ignored.getBody()).isEqualTo(content);
+
+        HttpHeaders inlineHeaders = headers(login.token());
+        ResponseEntity<byte[]> inline = rest.exchange(url + "?disposition=inline", HttpMethod.GET,
+                new HttpEntity<>(inlineHeaders), byte[].class);
+        assertThat(inline.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
+                .startsWith("inline");
+
+        delete("/api/v1/files/" + uploaded.fileId(), login.token());
+        assertThat(user.userId()).isPositive();
+    }
+
+    @Test
+    void rejectsSvgThumbnail() {
+        String suffix = Long.toString(System.nanoTime());
+        register("svg_user_" + suffix);
+        AuthResponse login = login("svg_user_" + suffix, "svg-dev-" + suffix);
+        byte[] svg = "<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert(1)</script></svg>"
+                .getBytes(StandardCharsets.UTF_8);
+        FileResponse uploaded = upload(svg, "vector.svg", login.token());
+        assertThat(uploaded.contentType()).isEqualTo("image/svg+xml");
+
+        ResponseEntity<String> thumb = rest.exchange(
+                "/api/v1/files/" + uploaded.fileId() + "/thumb", HttpMethod.GET,
+                new HttpEntity<>(headers(login.token())), String.class);
+        // SVG 是 XML 文档，直接回传会在本站 origin 执行脚本，必须拒绝
+        assertThat(thumb.getStatusCode().value()).isEqualTo(400);
+
+        ResponseEntity<byte[]> content = rest.exchange(
+                "/api/v1/files/" + uploaded.fileId() + "/content?disposition=inline",
+                HttpMethod.GET, new HttpEntity<>(headers(login.token())), byte[].class);
+        assertThat(content.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
+                .startsWith("attachment");
+
+        delete("/api/v1/files/" + uploaded.fileId(), login.token());
+    }
+
     private FileResponse upload(byte[] content, String filename, String token) {
         return upload(content, filename, token, null);
     }

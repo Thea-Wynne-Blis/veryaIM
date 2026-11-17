@@ -551,6 +551,8 @@ POST /api/v1/files
 Content-Type: multipart/form-data
 ```
 
+单次 multipart 上限 32MB；视频、压缩包等更大的文件由前端自动切分片（阈值 8MB），上限 256MB。
+
 ### 分片上传
 
 ```http
@@ -563,12 +565,11 @@ DELETE /api/v1/files/uploads/{uploadId}
 
 前端：
 
-- 计算分片；
-- 逐片上传；
-- 保存 `uploadId`；
-- 刷新后查询进度；
-- 只补缺失分片；
-- 完成后发送文件消息。
+- 超过 `CHUNKED_UPLOAD_THRESHOLD`（8MB）计算分片（服务端返回 `chunkSize`，默认 5MB）；
+- 逐片 `PUT`，进度按「已落盘字节」推进，不会出现「99% 卡住等合并」；
+- 保存 `uploadId`，刷新后查询进度，只补缺失分片；
+- 服务端 `complete` 逐片追加到 `merged.tmp` 再流式入库（不整份进堆）；
+- 完成后发送文件消息；只有用户主动取消才 `DELETE` 暂存分片，网络抖动保留以便续传。
 
 ### 上传进度
 
@@ -576,13 +577,33 @@ DELETE /api/v1/files/uploads/{uploadId}
 拿到字节进度，输入区上方渲染一条 2px 细线进度条，支持中途取消（`AbortController` →
 `xhr.abort()`，接口约定取消时 `code = -2`）。
 
-### 图片缩略图与缓存
+进度条有三个阶段：`prepare`（客户端读尺寸/抓视频封面）→ `upload`（百分比）→ `send`（等服务端确认）。
+
+### 媒体消息的客户端处理
+
+服务端没有 ffmpeg，视频相关的元信息只能由浏览器生成：
+
+| 附件 | 判定 | 处理 |
+|---|---|---|
+| 图片（JPEG/PNG/WebP/AVIF…） | `createImageBitmap` 能解码 | 读 `width/height` 占位，上传后气泡用 `/thumb` |
+| GIF | MIME/扩展名 `.gif` | 归为 `IMAGE`，但**必须用 `/content` 原图**，缩略图会把动图压成静态首帧 |
+| SVG | MIME/扩展名 `.svg` | 一律降级为文件卡片：可执行脚本的 XML 文档，不内联、不生成缩略图（服务端也拒绝 `thumb`） |
+| HEIC/TIFF 等解不开的图片 | `createImageBitmap` 失败 | 降级为文件卡片，而不是坏图 |
+| 视频 | `video/*` 或扩展名兜底 | `<video>` 元数据取宽高/时长，seek 到 10% 处 canvas 抓帧生成 JPEG 封面（≤480px），封面作为独立图片上传后用 `coverFileId` 引用 |
+| 音频 | `audio/*` 或扩展名兜底 | `<audio>` 元数据取时长，`durationSeconds` 写入 `AUDIO` 消息 |
+
+### 下载与 Range
 
 ```http
 GET /api/v1/files/{fileId}/thumb?w=480
 GET /api/v1/files/{fileId}/content
+GET /api/v1/files/{fileId}/content?disposition=inline
 ```
 
+- `/content` 返回 `Accept-Ranges: bytes`，支持单区间 `Range` → `206` + `Content-Range`；
+  语法正确但越界 → `416` + `bytes */{size}`，便于 `<video>` 拖动进度。
+- `disposition=inline` 只对音视频、图片与 PDF 生效，**排除 SVG**（同源打开可执行脚本）；
+  其余一律 `attachment`，并带 `X-Content-Type-Options: nosniff`。
 - `thumb` 等比缩到 `w`（96–1280，默认 480）并转 JPEG，首次请求生成后落盘缓存为
   `<objectKey>.thumb-480.jpg`；聊天气泡用它代替原图，2.4MB PNG → 约 33KB。
 - 两个接口都返回 `ETag`（内容 sha256，缩略图带 `-t{side}` 后缀）与
@@ -595,7 +616,8 @@ GET /api/v1/files/{fileId}/content
 
 - object URL 按 `fileId` 缓存（LRU 48），切会话不重新下载；
 - 同一会话的 `scrollTop` 记忆在 `ChatPane` 内，切回来不强制贴底；
-- 图片消息 `content` 记录 `width`/`height`，前端用 `aspect-ratio` 占位防跳动。
+- 图片消息 `content` 记录 `width`/`height`，前端用 `aspect-ratio` 占位防跳动；
+  视频用同一套 `aspect-ratio` 占位，封面到达前后高度一致。
 
 ---
 

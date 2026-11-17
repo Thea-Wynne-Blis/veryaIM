@@ -3,6 +3,7 @@ package com.veryal.application.file;
 import com.veryal.common.core.TimeProvider;
 import com.veryal.common.exception.BusinessException;
 import com.veryal.common.exception.ErrorCode;
+import com.veryal.common.exception.SystemException;
 import com.veryal.common.id.IdGenerator;
 import com.veryal.domain.conversation.ConversationRepository;
 import com.veryal.domain.file.FileRepository;
@@ -14,7 +15,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
@@ -34,7 +39,9 @@ import java.util.Locale;
 @RequiredArgsConstructor
 public class FileApplicationService {
 
-    public static final long MAX_FILE_SIZE = 20L * 1024 * 1024;
+    public static final long MAX_FILE_SIZE = 32L * 1024 * 1024;
+    /** 图片压缩需要完整解码，超过这个体积直接按原始字节落盘，避免分片合并后又整份进堆。 */
+    private static final long IN_MEMORY_COMPRESS_LIMIT = 12L * 1024 * 1024;
     private static final DateTimeFormatter DATE_PATH =
             DateTimeFormatter.ofPattern("yyyy/MM/dd").withZone(ZoneOffset.UTC);
     private static final long MAX_NAME_LENGTH = 255;
@@ -108,6 +115,63 @@ public class FileApplicationService {
     }
 
     /**
+     * 打开文件内容流，供下载接口按 Range 分块回写。
+     *
+     * <p>{@link #download(long, long)} 会把整份内容读进堆，25MB 的视频并发几次就能把内存顶满；
+     * 这里只返回存储句柄，由接入层决定读哪一段、读多少。</p>
+     */
+    public FileStream open(long userId, long fileId) {
+        StoredFile file = requireAccessible(userId, fileId);
+        return new FileStream(file, storageProvider.get(file.storageType()));
+    }
+
+    /**
+     * 把暂存文件流式写入存储，供分片合并使用。
+     *
+     * <p>只有 JPEG/PNG 且体积可控时才读进内存做压缩；其它类型（视频、音频、压缩包）
+     * 全程走流，避免 {@code byte[]} 把整份文件放进堆。</p>
+     */
+    public FileView storeFile(long uploaderId, String conversationId, String filename,
+                              String contentType, Path source, long size) {
+        if (size <= 0) {
+            throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "file must not be empty");
+        }
+        String normalizedType = normalizeContentType(contentType);
+        if (size <= IN_MEMORY_COMPRESS_LIMIT && imageCompressor.supportsCompression(normalizedType)) {
+            try {
+                return store(uploaderId, conversationId, filename, contentType,
+                        Files.readAllBytes(source));
+            } catch (IOException e) {
+                throw new SystemException(ErrorCode.STORAGE_ERROR, "failed to read staged upload", e);
+            }
+        }
+
+        String safeName = sanitizeName(filename);
+        String extension = extension(safeName);
+        String scopedConversationId = scopeConversation(uploaderId, conversationId);
+        Instant now = timeProvider.now();
+        long fileId = idGenerator.nextId();
+        String objectKey = "files/" + DATE_PATH.format(now) + "/" + fileId + extension;
+        String sha256 = sha256Of(source);
+        FileStorage storage = storageProvider.current();
+        StoredFile file = new StoredFile(fileId, uploaderId, objectKey, safeName, normalizedType,
+                size, sha256, storage.type(), FileStatus.ACTIVE, now, null, scopedConversationId);
+
+        try (InputStream input = Files.newInputStream(source)) {
+            storage.put(objectKey, input, size, normalizedType);
+        } catch (IOException e) {
+            throw new SystemException(ErrorCode.STORAGE_ERROR, "failed to read staged upload", e);
+        }
+        try {
+            fileRepository.save(file);
+        } catch (RuntimeException e) {
+            safeDelete(storage, objectKey);
+            throw e;
+        }
+        return FileView.from(file);
+    }
+
+    /**
      * 图片缩略图：首次请求时生成并落盘缓存，后续直接读缓存。
      *
      * <p>同一张图在会话里只显示 258px，原图动辄 2~4MB；
@@ -119,6 +183,11 @@ public class FileApplicationService {
         if (!contentType.startsWith("image/")) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT,
                     "thumbnail is only available for images");
+        }
+        if (contentType.contains("svg")) {
+            // SVG 是带脚本能力的 XML 文档，不能当图片回传给浏览器直接打开
+            throw new BusinessException(ErrorCode.INVALID_ARGUMENT,
+                    "thumbnail is not available for svg");
         }
         int side = Math.max(THUMB_MIN_SIDE, Math.min(THUMB_MAX_SIDE, requestedSide));
         String thumbKey = file.objectKey() + ".thumb-" + side + ".jpg";
@@ -271,6 +340,24 @@ public class FileApplicationService {
         }
     }
 
+    private String sha256Of(Path source) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            try (InputStream input = Files.newInputStream(source)) {
+                byte[] buffer = new byte[64 * 1024];
+                int read;
+                while ((read = input.read(buffer)) > 0) {
+                    digest.update(buffer, 0, read);
+                }
+            }
+            return HexFormat.of().formatHex(digest.digest());
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        } catch (IOException e) {
+            throw new SystemException(ErrorCode.STORAGE_ERROR, "failed to hash staged upload", e);
+        }
+    }
+
     /**
      * 我上传的文件列表，按时间倒序，供文件中心展示。
      */
@@ -282,6 +369,16 @@ public class FileApplicationService {
     }
 
     public record FileContent(StoredFile file, byte[] content) {
+    }
+
+    /**
+     * 文件内容读取句柄：调用方按 Range 决定 offset/length，读完负责关闭返回的流。
+     */
+    public record FileStream(StoredFile file, FileStorage storage) {
+
+        public InputStream open(long offset, long length) {
+            return storage.open(file.objectKey(), offset, length);
+        }
     }
 
     public record Thumbnail(byte[] content, String contentType, String etag) {
