@@ -13,6 +13,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /**
@@ -46,6 +47,15 @@ public class GlobalExceptionHandler {
             MethodArgumentTypeMismatchException.class})
     public ResponseEntity<ApiResponse<Void>> handleBadRequest(Exception e) {
         return ResponseEntity.badRequest().body(ApiResponse.failure(ErrorCode.BAD_REQUEST, e.getMessage()));
+    }
+
+    /**
+     * 客户端提前断开（SSE 长连接、下载中途取消、浏览器切页）不是服务端故障：
+     * 响应已经不可写，再回 JSON 只会二次报错，所以只记 debug。
+     */
+    @ExceptionHandler(AsyncRequestNotUsableException.class)
+    public void handleClientGone(AsyncRequestNotUsableException e) {
+        log.debug("client disconnected before response completed: {}", e.getMessage());
     }
 
     @ExceptionHandler(Exception.class)

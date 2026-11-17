@@ -133,8 +133,9 @@ public class RealtimeEventHub implements RealtimeStreamPort {
         }
         try {
             emitter.complete();
-        } catch (RuntimeException ignored) {
-            /* 已结束的连接重复关闭可忽略 */
+        } catch (Exception ignored) {
+            // 客户端已断开时 complete() 会抛 AsyncRequestNotUsableException（IOException 子类），
+            // 属于正常断开，不能让它冒到全局异常处理器刷一条 ERROR 堆栈
         }
     }
 }
