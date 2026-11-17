@@ -9,5 +9,11 @@ import com.veryal.domain.message.MessageType;
  */
 public record SendMessageCommand(long senderId, String senderDeviceId,
                                  String conversationId, String clientMessageId,
-                                 MessageType messageType, byte[] content) {
+                                 MessageType messageType, byte[] content,
+                                 Long replyToId) {
+
+    public SendMessageCommand(long senderId, String senderDeviceId, String conversationId,
+                              String clientMessageId, MessageType messageType, byte[] content) {
+        this(senderId, senderDeviceId, conversationId, clientMessageId, messageType, content, null);
+    }
 }

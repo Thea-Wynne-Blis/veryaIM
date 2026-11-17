@@ -11,7 +11,8 @@ import java.util.Objects;
  */
 public record Message(long id, String conversationId, long senderId, String clientMsgId,
                       long seq, MessageType type, byte[] content, Instant createdAt,
-                      Instant recalledAt, Long recalledBy) {
+                      Instant recalledAt, Long recalledBy,
+                      Long replyToId, Long replySenderId, String replyPreview) {
 
     public Message {
         if (id <= 0) {
@@ -41,12 +42,26 @@ public record Message(long id, String conversationId, long senderId, String clie
         if ((recalledAt == null) != (recalledBy == null)) {
             throw new IllegalArgumentException("recalledAt and recalledBy must both be set or both be null");
         }
+        boolean hasReply = replyToId != null || replySenderId != null || replyPreview != null;
+        if (hasReply && (replyToId == null || replySenderId == null
+                || replyPreview == null || replyPreview.isBlank())) {
+            throw new IllegalArgumentException("reply fields must be either all set or all null");
+        }
     }
 
     public static Message create(long id, String conversationId, long senderId,
-                                 String clientMsgId, long seq, MessageType type, byte[] content, Instant now) {
+                                 String clientMsgId, long seq, MessageType type, byte[] content,
+                                 Instant now) {
+        return create(id, conversationId, senderId, clientMsgId, seq, type, content, now,
+                null, null, null);
+    }
+
+    public static Message create(long id, String conversationId, long senderId,
+                                 String clientMsgId, long seq, MessageType type, byte[] content,
+                                 Instant now, Long replyToId, Long replySenderId,
+                                 String replyPreview) {
         return new Message(id, conversationId, senderId, clientMsgId, seq, type, content, now,
-                null, null);
+                null, null, replyToId, replySenderId, replyPreview);
     }
 
     public Message recall(long operatorId, Instant now) {
@@ -54,7 +69,11 @@ public record Message(long id, String conversationId, long senderId, String clie
             return this;
         }
         return new Message(id, conversationId, senderId, clientMsgId, seq, type, content,
-                createdAt, now, operatorId);
+                createdAt, now, operatorId, replyToId, replySenderId, replyPreview);
+    }
+
+    public boolean quoted() {
+        return replyToId != null;
     }
 
     public boolean recalled() {
@@ -78,7 +97,10 @@ public record Message(long id, String conversationId, long senderId, String clie
                 && seq == message.seq && type == message.type && Arrays.equals(content, message.content)
                 && createdAt.equals(message.createdAt)
                 && Objects.equals(recalledAt, message.recalledAt)
-                && Objects.equals(recalledBy, message.recalledBy);
+                && Objects.equals(recalledBy, message.recalledBy)
+                && Objects.equals(replyToId, message.replyToId)
+                && Objects.equals(replySenderId, message.replySenderId)
+                && Objects.equals(replyPreview, message.replyPreview);
     }
 
     @Override
@@ -88,6 +110,7 @@ public record Message(long id, String conversationId, long senderId, String clie
         result = 31 * result + Long.hashCode(seq);
         result = 31 * result + Arrays.hashCode(content);
         result = 31 * result + Objects.hashCode(recalledAt);
+        result = 31 * result + Objects.hashCode(replyToId);
         return result;
     }
 }

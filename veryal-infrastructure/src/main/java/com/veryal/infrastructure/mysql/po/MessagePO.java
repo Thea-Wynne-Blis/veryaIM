@@ -25,4 +25,7 @@ public class MessagePO {
     public LocalDateTime createdAt;
     public LocalDateTime recalledAt;
     public Long recalledBy;
+    public Long replyToId;
+    public Long replySenderId;
+    public String replyPreview;
 }

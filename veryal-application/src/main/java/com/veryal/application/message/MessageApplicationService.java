@@ -102,6 +102,16 @@ public class MessageApplicationService {
             return new SendMessageResult(existing.get(), null, true);
         }
 
+        // 引用：只能引用同一会话里未被撤回的消息，快照原文，原消息后续被撤回也不影响阅读。
+        Message replyTarget = null;
+        if (command.replyToId() != null) {
+            replyTarget = messageRepository.findById(command.replyToId())
+                    .filter(item -> item.conversationId().equals(command.conversationId()))
+                    .filter(item -> !item.recalled())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.MESSAGE_NOT_FOUND,
+                            "reply target not found in this conversation"));
+        }
+
         // 幂等命中不消耗限流额度；只有真正的新消息才检查发送速率。
         sensitiveWordService.checkMessage(command.messageType(), command.content());
         Instant now = timeProvider.now();
@@ -112,7 +122,10 @@ public class MessageApplicationService {
         long sequence = sequenceRepository.allocate(command.conversationId());
         Message message = Message.create(idGenerator.nextId(), command.conversationId(),
                 command.senderId(), command.clientMessageId(), sequence, command.messageType(),
-                command.content(), now);
+                command.content(), now,
+                replyTarget == null ? null : replyTarget.id(),
+                replyTarget == null ? null : replyTarget.senderId(),
+                replyTarget == null ? null : replyPreviewOf(replyTarget));
         try {
             messageRepository.append(message);
         } catch (DuplicateMessageException e) {
@@ -269,6 +282,28 @@ public class MessageApplicationService {
         conversationRepository.touch(conversationId, now);
     }
 
+    /** 引用快照在客户端只占一行，超长直接截断，避免消息表存整段历史。 */
+    private static final int REPLY_PREVIEW_MAX = 120;
+
+    private static String replyPreviewOf(Message target) {
+        String preview = switch (target.type()) {
+            case TEXT -> target.textContent();
+            case EMOJI -> target.textContent().strip().startsWith("{")
+                    ? "[表情]" : target.textContent();
+            case IMAGE -> "[图片]";
+            case VIDEO -> "[视频]";
+            case AUDIO -> "[语音]";
+            case FILE -> "[文件]";
+            case SYSTEM -> "[系统消息]";
+        };
+        String flat = preview.replaceAll("\\s+", " ").strip();
+        if (flat.isEmpty()) {
+            return "消息";
+        }
+        return flat.length() <= REPLY_PREVIEW_MAX
+                ? flat : flat.substring(0, REPLY_PREVIEW_MAX) + "…";
+    }
+
     private MessageCreatedEvent createEvent(SendMessageCommand command, Message message,
                                             SendContext context, Instant now) {
         String eventType = context.type() == ConversationType.GROUP
@@ -282,7 +317,8 @@ public class MessageApplicationService {
         return new MessageCreatedEvent(RandomIds.newId(), eventType, message.conversationId(),
                 message.id(), message.senderId(), command.senderDeviceId(),
                 message.seq(), message.type().code(), message.content(), now,
-                message.clientMsgId(), recipients);
+                message.clientMsgId(), recipients,
+                message.replyToId(), message.replySenderId(), message.replyPreview());
     }
 
     private static int clampLimit(int limit) {

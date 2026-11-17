@@ -65,7 +65,10 @@ CREATE TABLE IF NOT EXISTS im_message
     content         BLOB         NOT NULL,
     created_at      TIMESTAMP(3) NOT NULL,
     recalled_at     TIMESTAMP(3) NULL,
-    recalled_by     BIGINT       NULL
+    recalled_by     BIGINT       NULL,
+    reply_to_id     BIGINT       NULL,
+    reply_sender_id BIGINT       NULL,
+    reply_preview   VARCHAR(255) NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uk_sender_client_msg ON im_message (sender_id, client_msg_id);
 CREATE UNIQUE INDEX IF NOT EXISTS uk_conversation_seq ON im_message (conversation_id, seq);

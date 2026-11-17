@@ -15,7 +15,8 @@ import java.util.Base64;
  */
 public record RealtimeNotice(String kind, String conversationId, String messageId, long seq,
                              String senderId, String clientMsgId, String messageType,
-                             String content, String contentEncoding, String createdAt) {
+                             String content, String contentEncoding, String createdAt,
+                             String replyToId, String replySenderId, String replyPreview) {
 
     /** 携带完整消息体。 */
     public static final String KIND_MESSAGE = "message";
@@ -35,11 +36,15 @@ public record RealtimeNotice(String kind, String conversationId, String messageI
         return new RealtimeNotice(KIND_MESSAGE, event.conversationId(),
                 Long.toString(event.messageId()), event.seq(), Long.toString(event.senderId()),
                 event.clientMessageId(), type.name(), content, text ? "utf8" : "base64",
-                event.createdAt().toString());
+                event.createdAt().toString(),
+                event.replyToId() == null ? null : Long.toString(event.replyToId()),
+                event.replySenderId() == null ? null : Long.toString(event.replySenderId()),
+                event.replyPreview());
     }
 
     public static RealtimeNotice cursor(MessageCreatedEvent event) {
         return new RealtimeNotice(KIND_CURSOR, event.conversationId(), null, event.seq(),
-                Long.toString(event.senderId()), event.clientMessageId(), null, null, null, null);
+                Long.toString(event.senderId()), event.clientMessageId(), null, null, null, null,
+                null, null, null);
     }
 }

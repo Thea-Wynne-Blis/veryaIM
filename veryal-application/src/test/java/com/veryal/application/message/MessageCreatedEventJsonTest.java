@@ -17,7 +17,7 @@ class MessageCreatedEventJsonTest {
         MessageCreatedEvent event = new MessageCreatedEvent("event-1", "message.private.created",
                 "p_1001_1002", 9001L, 1001L, "device-a", 7L, 1,
                 "hello".getBytes(StandardCharsets.UTF_8), Instant.parse("2026-01-01T00:00:00Z"),
-                "client-msg-1", List.of(1002L, 1003L));
+                "client-msg-1", List.of(1002L, 1003L), 9000L, 1002L, "在吗");
 
         byte[] payload = JsonUtils.toJsonBytes(event);
         MessageCreatedEvent decoded = JsonUtils.fromJson(payload, MessageCreatedEvent.class);
@@ -34,5 +34,8 @@ class MessageCreatedEventJsonTest {
         assertThat(decoded.createdAt()).isEqualTo(event.createdAt());
         assertThat(decoded.clientMessageId()).isEqualTo(event.clientMessageId());
         assertThat(decoded.recipientUserIds()).containsExactly(1002L, 1003L);
+        assertThat(decoded.replyToId()).isEqualTo(9000L);
+        assertThat(decoded.replySenderId()).isEqualTo(1002L);
+        assertThat(decoded.replyPreview()).isEqualTo("在吗");
     }
 }

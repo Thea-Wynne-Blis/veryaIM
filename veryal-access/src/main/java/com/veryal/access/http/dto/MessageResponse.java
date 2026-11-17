@@ -32,7 +32,13 @@ public record MessageResponse(
                                  Instant createdAt,
                                  boolean recalled,
                                  @Schema(description = "撤回时间，非空表示已撤回")
-                                 Instant recalledAt
+                                 Instant recalledAt,
+                                 @Schema(description = "引用的原消息 ID，未引用时为空")
+                                 Long replyToId,
+                                 @Schema(description = "被引用消息的发送者 ID")
+                                 Long replySenderId,
+                                 @Schema(description = "被引用消息的文本快照")
+                                 String replyPreview
 ) {
 
     public static MessageResponse from(Message message) {
@@ -43,6 +49,7 @@ public record MessageResponse(
                 : Base64.getEncoder().encodeToString(message.content());
         return new MessageResponse(message.id(), message.conversationId(), message.senderId(), message.seq(),
                 message.type().name(), content, text ? "utf8" : "base64", message.createdAt(),
-                message.recalled(), message.recalledAt());
+                message.recalled(), message.recalledAt(),
+                message.replyToId(), message.replySenderId(), message.replyPreview());
     }
 }

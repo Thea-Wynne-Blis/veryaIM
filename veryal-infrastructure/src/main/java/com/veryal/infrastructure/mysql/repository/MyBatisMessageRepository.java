@@ -99,7 +99,8 @@ public class MyBatisMessageRepository implements MessageRepository {
         return new Message(po.id, po.conversationId, po.senderId,
                 po.clientMsgId, po.seq, MessageType.fromCode(po.msgType), po.content,
                 SqlTime.toInstant(po.createdAt),
-                po.recalledAt == null ? null : SqlTime.toInstant(po.recalledAt), po.recalledBy);
+                po.recalledAt == null ? null : SqlTime.toInstant(po.recalledAt), po.recalledBy,
+                po.replyToId, po.replySenderId, po.replyPreview);
     }
 
     private MessagePO toPO(Message message) {
@@ -112,6 +113,9 @@ public class MyBatisMessageRepository implements MessageRepository {
         po.msgType = message.type().code();
         po.content = message.content();
         po.createdAt = SqlTime.toLocal(message.createdAt());
+        po.replyToId = message.replyToId();
+        po.replySenderId = message.replySenderId();
+        po.replyPreview = message.replyPreview();
         return po;
     }
 }

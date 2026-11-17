@@ -182,6 +182,11 @@ veryal:
       key-file: ${VERYAL_PUSH_WEB_PUSH_KEY_FILE:./data/vapid-keys.json}
       ttl-seconds: ${VERYAL_PUSH_WEB_PUSH_TTL:86400}
       max-subscriptions-per-user: ${VERYAL_PUSH_WEB_PUSH_MAX_SUBS:10}
+  translate:
+    # 百度翻译通用 API：密钥只放服务端环境变量，仓库只留空默认值。
+    app-id: ${VERYAL_TRANSLATE_APP_ID:}
+    secret: ${VERYAL_TRANSLATE_SECRET:}
+    endpoint: ${VERYAL_TRANSLATE_ENDPOINT:https://fanyi-api.baidu.com/api/trans/vip/translate}
 
 logging:
   level:

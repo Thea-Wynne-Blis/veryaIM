@@ -93,7 +93,7 @@ public class ConversationController {
         byte[] content = parseContent(request);
         SendMessageResult result = messageApplicationService.send(new SendMessageCommand(
                 user.userId(), user.deviceId(), conversationId,
-                request.clientMessageId(), type, content));
+                request.clientMessageId(), type, content, request.replyToId()));
         sendMessageNotifier.notify(result);
         return ApiResponse.ok(SendMessageResponse.from(result));
     }

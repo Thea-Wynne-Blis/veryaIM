@@ -8,7 +8,7 @@
 
     <select id="selectPageAfter" resultType="com.veryal.infrastructure.mysql.po.MessagePO">
         SELECT id, conversation_id, sender_id, client_msg_id, seq, msg_type, content,
-               created_at, recalled_at, recalled_by
+               created_at, recalled_at, recalled_by, reply_to_id, reply_sender_id, reply_preview
         FROM im_message
         WHERE conversation_id = #{conversationId}
           AND seq &gt; #{afterSeq}
@@ -24,7 +24,7 @@
 
     <select id="searchText" resultType="com.veryal.infrastructure.mysql.po.MessagePO">
         SELECT id, conversation_id, sender_id, client_msg_id, seq, msg_type, content,
-               created_at, recalled_at, recalled_by
+               created_at, recalled_at, recalled_by, reply_to_id, reply_sender_id, reply_preview
         FROM im_message
         WHERE conversation_id = #{conversationId}
           AND recalled_at IS NULL

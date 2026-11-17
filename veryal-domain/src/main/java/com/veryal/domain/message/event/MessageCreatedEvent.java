@@ -12,7 +12,8 @@ import java.util.List;
 public record MessageCreatedEvent(String eventId, String eventType, String conversationId,
                                   long messageId, long senderId, String senderDeviceId,
                                   long seq, int messageType, byte[] content, Instant createdAt,
-                                  String clientMessageId, List<Long> recipientUserIds) {
+                                  String clientMessageId, List<Long> recipientUserIds,
+                                  Long replyToId, Long replySenderId, String replyPreview) {
 
     public MessageCreatedEvent {
         if (eventId == null || eventId.isBlank()) {

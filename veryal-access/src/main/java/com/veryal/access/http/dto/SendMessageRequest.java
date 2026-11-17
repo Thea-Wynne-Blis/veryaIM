@@ -18,6 +18,13 @@ public record SendMessageRequest(
                                  @NotBlank String type,
                                  @Schema(description = "消息内容。文本为原文，其他类型为附件引用")
                                  @Size(max = 262144) String content,
-                                 @Size(max = 262144) String contentBase64
+                                 @Size(max = 262144) String contentBase64,
+                                 @Schema(description = "引用的原消息 ID；为空表示普通消息")
+                                 Long replyToId
 ) {
+
+    public SendMessageRequest(String conversationId, String clientMessageId, String type,
+                              String content, String contentBase64) {
+        this(conversationId, clientMessageId, type, content, contentBase64, null);
+    }
 }
