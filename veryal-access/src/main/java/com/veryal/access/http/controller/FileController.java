@@ -11,10 +11,12 @@ import com.veryal.application.identity.AuthenticatedUser;
 import com.veryal.common.core.ApiResponse;
 import com.veryal.common.exception.BusinessException;
 import com.veryal.common.exception.ErrorCode;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -44,6 +46,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class FileController {
 
     private static final long MAX_URL_TTL_SECONDS = 7 * 24 * 60 * 60;
+    /** 文件内容按 sha256 寻址、不可变，允许浏览器私有缓存一年。 */
+    private static final String PRIVATE_CACHE = "private, max-age=31536000, immutable";
 
     private final FileApplicationService fileApplicationService;
     private final ChunkedUploadService chunkedUploadService;
@@ -125,7 +129,8 @@ public class FileController {
     @Operation(summary = "下载文件内容", description = "以二进制流返回，私聊文件需具备会话成员身份。")
     @GetMapping("/{fileId}/content")
     public ResponseEntity<byte[]> download(@CurrentUser AuthenticatedUser user,
-                                           @PathVariable long fileId) {
+                                           @PathVariable long fileId,
+                                           HttpServletRequest request) {
         FileApplicationService.FileContent content = fileApplicationService.download(
                 user.userId(), fileId);
         MediaType mediaType;
@@ -134,13 +139,51 @@ public class FileController {
         } catch (RuntimeException e) {
             mediaType = MediaType.APPLICATION_OCTET_STREAM;
         }
-        return ResponseEntity.ok()
-                .contentType(mediaType)
-                .contentLength(content.content().length)
-                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
-                        .filename(content.file().originalName(), StandardCharsets.UTF_8)
-                        .build().toString())
-                .body(content.content());
+        String disposition = ContentDisposition.attachment()
+                .filename(content.file().originalName(), StandardCharsets.UTF_8)
+                .build().toString();
+        return binaryResponse(content.content(), mediaType, content.file().sha256(),
+                disposition, request);
+    }
+
+    @Operation(summary = "图片缩略图",
+            description = "等比缩放到 `w` 像素内并转 JPEG，首次生成后落盘缓存。图片消息列表用它代替原图。")
+    @GetMapping("/{fileId}/thumb")
+    public ResponseEntity<byte[]> thumbnail(@CurrentUser AuthenticatedUser user,
+                                            @PathVariable long fileId,
+                                            @RequestParam(defaultValue = "480") int w,
+                                            HttpServletRequest request) {
+        FileApplicationService.Thumbnail thumb = fileApplicationService.thumbnail(
+                user.userId(), fileId, w);
+        MediaType mediaType;
+        try {
+            mediaType = MediaType.parseMediaType(thumb.contentType());
+        } catch (RuntimeException e) {
+            mediaType = MediaType.IMAGE_JPEG;
+        }
+        return binaryResponse(thumb.content(), mediaType, thumb.etag(), null, request);
+    }
+
+    /**
+     * 二进制响应统一走这里：文件内容不可变，用 sha256 做 ETag 并允许浏览器长期缓存，
+     * 这样再次进入会话、甚至刷新页面都不必重新下载。
+     */
+    private ResponseEntity<byte[]> binaryResponse(byte[] body, MediaType mediaType, String etag,
+                                                  String disposition, HttpServletRequest request) {
+        String quoted = '"' + etag + '"';
+        String ifNoneMatch = request.getHeader(HttpHeaders.IF_NONE_MATCH);
+        boolean notModified = ifNoneMatch != null
+                && (ifNoneMatch.contains(quoted) || ifNoneMatch.contains(etag));
+        ResponseEntity.BodyBuilder builder = notModified
+                ? ResponseEntity.status(HttpStatus.NOT_MODIFIED)
+                : ResponseEntity.ok().contentType(mediaType).contentLength(body.length);
+        builder.eTag(quoted)
+                .header(HttpHeaders.CACHE_CONTROL, PRIVATE_CACHE)
+                .header("X-Content-Type-Options", "nosniff");
+        if (disposition != null) {
+            builder.header(HttpHeaders.CONTENT_DISPOSITION, disposition);
+        }
+        return notModified ? builder.build() : builder.body(body);
     }
 
     @Operation(summary = "获取下载地址", description = "返回可直接访问的 URL（本地存储为相对路径，对象存储为签名地址）。")

@@ -47,6 +47,11 @@ public class FileApplicationService {
     private final IdGenerator idGenerator;
     private final TimeProvider timeProvider;
 
+    /** 缩略图默认最长边；气泡只有 258px 宽，480 足够 2x 屏。 */
+    public static final int THUMB_DEFAULT_SIDE = 480;
+    private static final int THUMB_MIN_SIDE = 96;
+    private static final int THUMB_MAX_SIDE = 1280;
+
     public FileView upload(long uploaderId, String filename, String contentType,
                            byte[] content) {
         return upload(uploaderId, null, filename, contentType, content);
@@ -102,6 +107,51 @@ public class FileApplicationService {
         return new FileContent(file, content);
     }
 
+    /**
+     * 图片缩略图：首次请求时生成并落盘缓存，后续直接读缓存。
+     *
+     * <p>同一张图在会话里只显示 258px，原图动辄 2~4MB；
+     * 用缩略图能把每次进入会话的图片流量降一到两个数量级。</p>
+     */
+    public Thumbnail thumbnail(long userId, long fileId, int requestedSide) {
+        StoredFile file = requireAccessible(userId, fileId);
+        String contentType = file.contentType() == null ? "" : file.contentType().toLowerCase(Locale.ROOT);
+        if (!contentType.startsWith("image/")) {
+            throw new BusinessException(ErrorCode.INVALID_ARGUMENT,
+                    "thumbnail is only available for images");
+        }
+        int side = Math.max(THUMB_MIN_SIDE, Math.min(THUMB_MAX_SIDE, requestedSide));
+        String thumbKey = file.objectKey() + ".thumb-" + side + ".jpg";
+        String etag = file.sha256() + "-t" + side;
+        FileStorage storage = storageProvider.get(file.storageType());
+
+        byte[] cached = readQuietly(storage, thumbKey);
+        if (cached != null && cached.length > 0) {
+            return new Thumbnail(cached, "image/jpeg", etag);
+        }
+        byte[] original = storage.get(file.objectKey());
+        byte[] thumb = imageCompressor.thumbnail(original, side);
+        if (thumb == null || thumb.length == 0) {
+            // 解码失败（少见格式）直接回退原图，至少能看
+            return new Thumbnail(original, file.contentType(), etag);
+        }
+        try {
+            storage.put(thumbKey, thumb, "image/jpeg");
+        } catch (RuntimeException e) {
+            log.warn("failed to cache thumbnail: key={}", thumbKey, e);
+        }
+        return new Thumbnail(thumb, "image/jpeg", etag);
+    }
+
+    private byte[] readQuietly(FileStorage storage, String objectKey) {
+        try {
+            return storage.get(objectKey);
+        } catch (RuntimeException e) {
+            // 未缓存或读取失败都按未命中处理，回到原图生成
+            return null;
+        }
+    }
+
     public FileView get(long userId, long fileId) {
         return FileView.from(requireAccessible(userId, fileId));
     }
@@ -111,7 +161,14 @@ public class FileApplicationService {
         if (file.status() == FileStatus.DELETED) {
             return;
         }
-        storageProvider.get(file.storageType()).delete(file.objectKey());
+        FileStorage storage = storageProvider.get(file.storageType());
+        storage.delete(file.objectKey());
+        try {
+            // 缩略图是按需生成的派生文件，跟着原文件一起清掉（不存在也无妨）
+            storage.delete(file.objectKey() + ".thumb-" + THUMB_DEFAULT_SIDE + ".jpg");
+        } catch (RuntimeException e) {
+            log.debug("thumbnail cleanup skipped: fileId={}", fileId);
+        }
         fileRepository.markDeleted(fileId, timeProvider.now());
     }
 
@@ -225,5 +282,8 @@ public class FileApplicationService {
     }
 
     public record FileContent(StoredFile file, byte[] content) {
+    }
+
+    public record Thumbnail(byte[] content, String contentType, String etag) {
     }
 }

@@ -36,4 +36,32 @@ class ImageCompressorTest {
         assertThat(result.getHeight()).isLessThanOrEqualTo(1920);
         assertThat(compressed.length).isLessThan(original.size());
     }
+
+    /** 未超尺寸的 PNG 不再重编码：重编码要付解码+编码的 CPU，还不一定更小。 */
+    @Test
+    void keepsPngWithinLimitsUntouched() throws Exception {
+        BufferedImage image = new BufferedImage(1920, 1080, BufferedImage.TYPE_INT_RGB);
+        ByteArrayOutputStream original = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", original);
+        byte[] bytes = original.toByteArray();
+
+        byte[] result = new ImageCompressor().compress(bytes, "image/png");
+
+        assertThat(result).isSameAs(bytes);
+    }
+
+    /** 缩略图：等比缩到最长边以内，统一 JPEG。 */
+    @Test
+    void thumbnailFitsWithinRequestedSide() throws Exception {
+        BufferedImage image = new BufferedImage(1920, 1080, BufferedImage.TYPE_INT_RGB);
+        ByteArrayOutputStream original = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", original);
+
+        byte[] thumb = new ImageCompressor().thumbnail(original.toByteArray(), 480);
+
+        assertThat(thumb).isNotNull();
+        BufferedImage result = ImageIO.read(new ByteArrayInputStream(thumb));
+        assertThat(Math.max(result.getWidth(), result.getHeight())).isLessThanOrEqualTo(480);
+        assertThat(result.getWidth()).isGreaterThan(result.getHeight());
+    }
 }

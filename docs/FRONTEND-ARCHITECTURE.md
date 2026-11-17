@@ -570,6 +570,33 @@ DELETE /api/v1/files/uploads/{uploadId}
 - 只补缺失分片；
 - 完成后发送文件消息。
 
+### 上传进度
+
+浏览器 `fetch` 没有上传进度事件，前端改用 `XMLHttpRequest` 的 `upload.onprogress`
+拿到字节进度，输入区上方渲染一条 2px 细线进度条，支持中途取消（`AbortController` →
+`xhr.abort()`，接口约定取消时 `code = -2`）。
+
+### 图片缩略图与缓存
+
+```http
+GET /api/v1/files/{fileId}/thumb?w=480
+GET /api/v1/files/{fileId}/content
+```
+
+- `thumb` 等比缩到 `w`（96–1280，默认 480）并转 JPEG，首次请求生成后落盘缓存为
+  `<objectKey>.thumb-480.jpg`；聊天气泡用它代替原图，2.4MB PNG → 约 33KB。
+- 两个接口都返回 `ETag`（内容 sha256，缩略图带 `-t{side}` 后缀）与
+  `Cache-Control: private, max-age=31536000, immutable`，支持 `If-None-Match` → `304`。
+- 上传时不再对未超 1920px 的 PNG 做解码 + 重编码：只读图片头判断尺寸，
+  避免为压缩付出 300ms+ 的 CPU（实测上传耗时 470–580ms → 90–130ms）。
+- 删除文件时连带删除默认缩略图。
+
+前端配合：
+
+- object URL 按 `fileId` 缓存（LRU 48），切会话不重新下载；
+- 同一会话的 `scrollTop` 记忆在 `ChatPane` 内，切回来不强制贴底；
+- 图片消息 `content` 记录 `width`/`height`，前端用 `aspect-ratio` 占位防跳动。
+
 ---
 
 ## 11. 错误码
