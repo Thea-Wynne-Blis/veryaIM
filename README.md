@@ -735,6 +735,88 @@ DELETE /api/v1/platform/ops/sensitive-words/{id}
 - 群消息事件只包含消息本身，不包含接收者列表；投递时按会话成员分页拉取并逐页路由，私聊仍使用接收者快照。
 - Delivery ACK 按 `(message_id, device_id)` 幂等持久化，投递序号只前进，并推进成员同步游标；Read ACK 推进读游标。
 
+## SQL 组织约定
+
+大 SQL 不进 Java 注解，按下面的规则分家：
+
+| 语句类型 | 放置位置 | 理由 |
+| --- | --- | --- |
+| 多表 JOIN、标量子查询、多条件 SELECT、`GROUP BY`/聚合 | `veryal-infrastructure/src/main/resources/mapper/*.xml` | 可读、可单独 `EXPLAIN`、改 SQL 不用重编译 |
+| 单表点查（`WHERE 主键/唯一键`） | Mapper 接口 `@Select` | 一行放得下，就近看参数绑定 |
+| 所有写操作（`INSERT`/`UPDATE`/`DELETE`） | Mapper 接口注解 | 写入路径要一眼看清事务边界与幂等语义 |
+
+`mapper-locations` 在 `application.yml` 中显式声明，测试与生产共用同一 classpath：
+
+```yaml
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+```
+
+当前 XML 覆盖的语句：
+
+| XML | 语句 |
+| --- | --- |
+| `ConversationMapper.xml` | `selectByUser`、`selectSendContext`、`selectCardRows`、`selectMemberIdsPage` |
+| `MessageMapper.xml` | `selectPageAfter`、`selectMaxSeq`、`searchText` |
+| `GroupMapper.xml` | `selectByUser` |
+| `FileMapper.xml` | `selectTotalBytes` |
+
+### 标量子查询的唯一性前提
+
+`selectSendContext` / `selectCardRows` 里用了标量子查询（`(SELECT ... AS mutedUntil)`）。标量子查询在 MySQL 中**最多只能返回 1 行**，否则直接报 `ERROR 1242 (21000): Subquery returns more than 1 row`——整个接口 500，不是返回脏数据。
+
+因此这些 SQL 依赖下列唯一约束，改表结构前必须一起确认：
+
+| 表 | 唯一约束 | 受益字段 |
+| --- | --- | --- |
+| `im_conversation_member` | `uk_conversation_user (conversation_id, user_id)` | `memberUserId`、`peerUserId`、`peerNickname` |
+| `im_user_mute` | `PRIMARY KEY (user_id)` | `mutedUntil` |
+| `im_message` | `uk_conversation_seq (conversation_id, seq)` | `MAX(seq)` 取最新消息 |
+| `im_user` / `im_group` | `PRIMARY KEY (id)` | 联表取昵称/群名 |
+
+`mutedUntil` 的子查询**故意不加 `LIMIT 1`**：`im_user_mute` 以 `user_id` 为主键，正常情况下永远只有 1 行；一旦唯一性被破坏（手工改表、迁移脚本漏主键），希望它立刻报错暴露问题，而不是静默返回任意一条禁言记录让用户被莫名禁言。
+
+另外，`mutedUntil` 是**全局禁言**（运营后台写入 `im_user_mute`），与 `im_conversation_member.muted`（会话级免打扰）是两件事，不要混用。
+
+### 线上取证与演示
+
+在线上库用只读查询 + 临时表验证了上述前提：
+
+```sql
+-- 1) 真实结构：主键存在
+SHOW CREATE TABLE im_user_mute;            -- PRIMARY KEY (`user_id`)
+SELECT COUNT(*) FROM (SELECT user_id FROM im_user_mute GROUP BY user_id HAVING COUNT(*) > 1) t;  -- 0
+
+-- 2) 破坏唯一性会怎样（临时表，无主键，同一 user 两行）
+CREATE TEMPORARY TABLE tmp_mute_nopk (user_id BIGINT, muted_until DATETIME(3));
+INSERT INTO tmp_mute_nopk VALUES (7,'2030-01-01'),(7,'2031-01-01');
+SELECT (SELECT muted_until FROM tmp_mute_nopk WHERE user_id = 7);
+-- ERROR 1242 (21000): Subquery returns more than 1 row
+
+-- 3) 有主键时同样数据被挡在写入阶段
+CREATE TEMPORARY TABLE tmp_mute_pk (user_id BIGINT PRIMARY KEY, muted_until DATETIME(3));
+INSERT INTO tmp_mute_pk VALUES (7,'2030-01-01');
+INSERT INTO tmp_mute_pk VALUES (7,'2031-01-01');
+-- ERROR 1062 (23000): Duplicate entry '7' for key 'tmp_mute_pk.PRIMARY'
+```
+
+结论：**有唯一键时，脏数据根本写不进去（1062）；没有唯一键时，查询期才炸（1242）。** 所以「多加一个 `LIMIT 1`」只会掩盖问题，正确的做法是把唯一键补齐。
+
+### 同一类风险的排查结果
+
+- 全库 `NON_UNIQUE = 0` 索引核对：`uk_conversation_user`、`uk_blacklist_pair`、`uk_conversation_seq`、`uk_sender_client_msg`、`uk_group_user`、`uk_delivery_message_device`、`uk_friend_pair`、`uk_friend_request_direction`、`uk_device_id`、`uk_push_user_device`、`uk_web_push_endpoint_hash`、`uk_platform_admin_username`、`uk_platform_refresh_hash`、`uk_username` 全部存在。
+- 代码里 18 处 `selectOne` 逐条核对，过滤条件全部命中唯一键；`MyBatisMessageRepository` 取「最新一条消息」属于非唯一场景，已显式加 `LIMIT 1`（`ORDER BY seq DESC LIMIT 1`）。
+
+### XML 冒烟测试
+
+SQL 从注解搬到 XML 后，编译期不再检查语句，写错 `namespace`/`id`/参数名只会在运行时抛 `Invalid bound statement`。`MapperXmlSmokeTest` 在 H2 上把每个 XML 语句都执行一次（用不存在的 id 查空结果），把这类错误前移到 `mvn test`：
+
+```bash
+mvn -pl veryal-bootstrap -am "-Dtest=MapperXmlSmokeTest" "-Dsurefire.failIfNoSpecifiedTests=false" test
+```
+
+覆盖 9 条 XML 语句，断言「能执行 + 返回空/0」，不依赖库内数据，可长期作为回归用例。
+
 ## 测试
 
 ```bash
@@ -742,7 +824,7 @@ mvn test
 ```
 
 - 单元测试：雪花 ID、Envelope 编解码、Netty 帧拆包/粘包/非法帧、JWT、PBKDF2、Outbox 事件 JSON、限流算法（令牌桶/滑动窗口/固定窗口/注册表）、TLS 配置开关与快速失败、连接数限制、Caffeine 缓存配置、本地/云端存储策略。
-- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、运营管理员登录/MFA/Refresh Token/登录锁定/角色/审计、运营后台用户/群/举报/敏感词、用户搜索/隐私/举报/推送设备、Web Push 订阅与 VAPID 配置、好友申请/接受/拒绝/好友/黑名单/通讯录、好友实时通知、群建群/成员权限/群消息、群管理、群公告/禁言、1000 人群容量与 100 并发发送冒烟、限流、审计、TLS、连接限制、缓存、文件、分片、图片压缩、多消息类型、撤回、搜索、已读回执、TCP/WebSocket。
+- 集成测试（`veryal-bootstrap`，H2 + 随机端口）：完整 HTTP 业务流程（含 Outbox 写入与幂等）、运营管理员登录/MFA/Refresh Token/登录锁定/角色/审计、运营后台用户/群/举报/敏感词、用户搜索/隐私/举报/推送设备、Web Push 订阅与 VAPID 配置、好友申请/接受/拒绝/好友/黑名单/通讯录、好友实时通知、群建群/成员权限/群消息、群管理、群公告/禁言、1000 人群容量与 100 并发发送冒烟、限流、审计、TLS、连接限制、缓存、文件、分片、图片压缩、多消息类型、撤回、搜索、已读回执、TCP/WebSocket、mapper XML 冒烟。
 
 集成测试使用 `test` profile，Netty Gateway 端口配置为 0（系统分配），不占用本机端口。
 
