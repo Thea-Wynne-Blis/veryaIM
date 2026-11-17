@@ -618,7 +618,13 @@ veryal:
 
 会话列表原来是最典型的 N+1：`/conversations/cards` 对每个会话分别查成员列表、本人游标、对端资料、最大序号、最后一条消息（5 条 SQL）；`/conversations` 则是 3 条。成本随会话数线性增长。
 
-改造后两个接口共用 `ConversationMapper.selectCardRows` 一条联表查询（`im_conversation` + 本人成员行 + `im_conversation_sequence` + 最后一条 `im_message` + `im_group`，单聊对端用 `CASE WHEN conversation_type = 1` 包住的子查询），数据库往返从 O(会话数) 降为 O(1)。**没有引入缓存**，因此不存在缓存失效与一致性问题。
+改造后两个接口共用 `ConversationMapper.selectCardRows` 一条联表查询（`im_conversation` + 本人成员行 + 最后一条 `im_message` + `im_group`，单聊对端用 `CASE WHEN conversation_type = 1` 包住的子查询），数据库往返从 O(会话数) 降为 O(1)。**没有引入缓存**，因此不存在缓存失效与一致性问题。
+
+实现上有三处刻意与旧语义对齐：
+
+- `lastSeq` 取**真实消息的 `MAX(seq)`**，不取 `im_conversation_sequence.last_seq`。两者在正常路径相同，但一旦把「序号分配」和「消息插入」拆到不同事务（例如将来做异步持久化），序号表会领先于真实消息，未读数就会虚高。
+- 最后一条消息的正文只取前 1KB（`LEFT(content, 1024)`）用于预览。预览本身只截 60 字符，这样即使有人发了 256KB 的长文本，200 个会话也不会把几十 MB 拉进堆内存。
+- 仍沿用原来的 `LIMIT 200`（原 `selectByUser` 也有）。唯一差别是：超过 200 个会话时，取哪 200 条由「最近活跃」决定，而旧实现是「最近更新」；由于发消息会更新会话活跃时间（2 秒节流），两者实际上等价。
 
 实测（同一用户、服务器本机、关闭限流，p50）：
 
