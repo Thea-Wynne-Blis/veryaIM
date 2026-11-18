@@ -104,11 +104,20 @@ public class ConversationApplicationService {
 
                     String lastType = null;
                     String lastPreview = "";
+                    long lastSenderId = 0L;
+                    String lastSenderName = null;
                     if (snapshot.lastMessageTypeCode() != null) {
                         MessageType type = MessageType.fromCode(snapshot.lastMessageTypeCode());
                         lastType = type.name();
                         lastPreview = preview(type, snapshot.lastMessageContent(),
                                 snapshot.lastMessageRecalled());
+                        if (snapshot.lastMessageSenderId() != null) {
+                            lastSenderId = snapshot.lastMessageSenderId();
+                            lastSenderName = snapshot.lastMessageSenderName() == null
+                                    || snapshot.lastMessageSenderName().isBlank()
+                                    ? "用户 " + lastSenderId
+                                    : snapshot.lastMessageSenderName();
+                        }
                     }
 
                     return new ConversationCard(snapshot.conversationId(), snapshot.type(), title,
@@ -119,7 +128,8 @@ public class ConversationApplicationService {
                                     Math.max(0L, snapshot.lastSeq()
                                             - Math.max(snapshot.lastReadSeq(), snapshot.clearedSeq()))),
                             lastType, lastPreview, snapshot.lastMessageAt(), snapshot.updatedAt(),
-                            snapshot.pinned(), snapshot.muted(), snapshot.hidden());
+                            snapshot.pinned(), snapshot.muted(), snapshot.hidden(),
+                            lastSenderId, lastSenderName);
                 })
                 .sorted((a, b) -> {
                     var at = a.lastMessageAt() == null ? a.updatedAt() : a.lastMessageAt();
@@ -144,7 +154,8 @@ public class ConversationApplicationService {
             case SYSTEM -> new String(content, java.nio.charset.StandardCharsets.UTF_8);
         };
         text = text.replaceAll("\\s+", " ").trim();
-        return text.length() > 60 ? text.substring(0, 60) + "…" : text;
+        // 前端按容器宽度做 CSS 省略；这里只兜住超长文本占内存，不再提前截断。
+        return text.length() > 200 ? text.substring(0, 200) + "…" : text;
     }
 
     /**

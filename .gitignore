@@ -46,17 +46,21 @@ build/
 # local build archive
 veryal-src.zip
 
-# 临时调试产物
+# 杩愯鏃堕厤缃細鍙彁浜ゆā鏉匡紝鐪熷疄鍊肩暀鍦ㄦ湇鍔″櫒
+config/.env
+config/application-local.yaml
+
+# 锟斤拷时锟斤拷锟皆诧拷锟斤拷
 dom-check.html
 nick.txt
 reg.json
 out.json
 *.log
 
-# 运行与构建日志（统一放到 logs/）
+# 锟斤拷锟斤拷锟诫构锟斤拷锟斤拷志锟斤拷统一锟脚碉拷 logs/锟斤拷
 logs/
 *.log
 
 
-# Playwright 调试截图
+# Playwright 锟斤拷锟皆斤拷图
 tools/e2e-fail.png

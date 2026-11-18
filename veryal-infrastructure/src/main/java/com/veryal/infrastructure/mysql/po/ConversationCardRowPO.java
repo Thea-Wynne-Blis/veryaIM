@@ -27,6 +27,8 @@ public class ConversationCardRowPO {
     public byte[] lastMessageContent;
     public LocalDateTime lastMessageRecalledAt;
     public LocalDateTime lastMessageCreatedAt;
+    public Long lastMessageSenderId;
+    public String lastMessageSenderName;
     public String groupName;
     public Long peerUserId;
     public String peerNickname;

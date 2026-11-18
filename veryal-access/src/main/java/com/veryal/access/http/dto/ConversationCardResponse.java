@@ -39,7 +39,11 @@ public record ConversationCardResponse(
                                  @Schema(description = "当前用户是否对会话开启了消息免打扰")
                                  boolean muted,
                                  @Schema(description = "当前用户是否把会话设为「不显示」")
-                                 boolean hidden
+                                 boolean hidden,
+                                 @Schema(description = "最后一条真实消息的发送者 ID；没有消息时为 0")
+                                 long lastMessageSenderId,
+                                 @Schema(description = "最后一条真实消息的发送者昵称；没有消息时为 null")
+                                 String lastMessageSenderName
 ) {
 
     public static ConversationCardResponse from(ConversationCard card) {
@@ -47,6 +51,7 @@ public record ConversationCardResponse(
                 card.title(), card.peerUserId(), card.memberCount(), card.lastReadSeq(),
                 card.lastSeq(), card.unreadCount(), card.lastMessageType(),
                 card.lastMessagePreview(), card.lastMessageAt(), card.updatedAt(),
-                card.pinned(), card.muted(), card.hidden());
+                card.pinned(), card.muted(), card.hidden(),
+                card.lastMessageSenderId(), card.lastMessageSenderName());
     }
 }

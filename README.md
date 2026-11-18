@@ -153,6 +153,33 @@ docker compose up -d --build
 
 应用启动时由 Flyway 依次执行 `V1__init.sql`、`V2__outbox.sql` 建表；MySQL 使用 UTC、utf8mb4。生产 profile 默认开启 RabbitMQ 投递，可用 `VERYAL_MQ_ENABLED=false` 回退到单机直投。
 
+## 裸机部署（systemd + config/.env）
+
+`config/` 目录把运行时配置收成一个 `.env`，改配置不用重新打包：
+
+```bash
+cp config/.env.example config/.env
+chmod 600 config/.env
+vi config/.env          # 填数据库、Redis、令牌密钥等
+
+bash config/start.sh    # 渲染 application-local.yaml + 启动 jar
+```
+
+`start.sh` 会扫描 `.env`，按 `config/application-local.yaml.example` 里的
+`${KEY:default}` 占位生成 `config/application-local.yaml`（权限 600、不提交），
+再把 `.env` 导出成环境变量，以 `prod,local` 两个 profile 启动。
+`.env` 里没写的项保留模板默认值，所以只改关心的一行就行。
+
+systemd 把启动命令指到脚本即可：
+
+```ini
+[Service]
+WorkingDirectory=/home/ubuntu/veryal
+ExecStart=/home/ubuntu/veryal/config/start.sh
+```
+
+细节见 [`config/README.md`](config/README.md)。
+
 ## HTTP API
 
 所有业务接口都需要 `Authorization: Bearer <token>`，响应统一为：

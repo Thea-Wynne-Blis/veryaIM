@@ -89,10 +89,17 @@
                (SELECT COUNT(*)
                 FROM im_conversation_member cnt
                 WHERE cnt.conversation_id = c.id) AS memberCount,
-               lm.msg_type AS lastMessageType,
-               LEFT(lm.content, 1024) AS lastMessageContent,
-               lm.recalled_at AS lastMessageRecalledAt,
-               lm.created_at AS lastMessageCreatedAt,
+               <!--
+                 预览只取「真正的最后一条消息」：系统提示（SYSTEM=9，如禁言 / 解除禁言）
+                 不占用会话列表的第二行，直接跳到它前面那条用户消息。
+                 lm 仍保留为任意类型的最新消息，只用于「不显示」判定。
+               -->
+               pm.msg_type AS lastMessageType,
+               LEFT(pm.content, 1024) AS lastMessageContent,
+               pm.recalled_at AS lastMessageRecalledAt,
+               pm.sender_id AS lastMessageSenderId,
+               su.nickname AS lastMessageSenderName,
+               pm.created_at AS lastMessageCreatedAt,
                g.name AS groupName,
                CASE WHEN c.conversation_type = 1 THEN
                    (SELECT p.user_id
@@ -119,8 +126,16 @@
                                              FROM im_message m2
                                              WHERE m2.conversation_id = c.id
                                                AND m2.seq &gt; me.cleared_seq)
+                 LEFT JOIN im_message pm
+                           ON pm.conversation_id = c.id
+                               AND pm.seq = (SELECT MAX(p2.seq)
+                                             FROM im_message p2
+                                             WHERE p2.conversation_id = c.id
+                                               AND p2.seq &gt; me.cleared_seq
+                                               AND p2.msg_type &lt;&gt; 9)
+                 LEFT JOIN im_user su ON su.id = pm.sender_id
                  LEFT JOIN im_group g ON g.id = c.id
-        ORDER BY COALESCE(lm.created_at, c.updated_at) DESC
+        ORDER BY COALESCE(pm.created_at, c.updated_at) DESC
         LIMIT 200
     </select>
 

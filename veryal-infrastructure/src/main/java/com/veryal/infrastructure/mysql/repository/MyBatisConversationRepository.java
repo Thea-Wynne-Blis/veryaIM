@@ -169,7 +169,9 @@ public class MyBatisConversationRepository implements ConversationRepository {
                         row.manualUnread,
                         row.pinned,
                         row.muted,
-                        row.hidden))
+                        row.hidden,
+                        row.lastMessageSenderId,
+                        row.lastMessageSenderName))
                 .toList();
     }
 

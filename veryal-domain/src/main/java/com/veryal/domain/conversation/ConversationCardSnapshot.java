@@ -32,5 +32,8 @@ public record ConversationCardSnapshot(String conversationId,
                                        boolean manualUnread,
                                        boolean pinned,
                                        boolean muted,
-                                       boolean hidden) {
+                                       boolean hidden,
+                                       // 最后一条真实消息的发送者：群聊预览显示「姓名：内容」用。
+                                       Long lastMessageSenderId,
+                                       String lastMessageSenderName) {
 }
