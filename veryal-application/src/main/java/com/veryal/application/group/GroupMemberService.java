@@ -21,6 +21,7 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -60,6 +61,7 @@ public class GroupMemberService {
         Map<Long, Boolean> showOnline = privacyRepository.findByUserIds(userIds).stream()
                 .collect(Collectors.toMap(UserPrivacy::userId, UserPrivacy::showOnline));
         Instant now = timeProvider.now();
+        Set<Long> onlineIds = presenceRepository.onlineUserIds(userIds);
         Map<Long, GroupMute> mutes = moderationRepository.findMutes(group.id()).stream()
                 .filter(mute -> mute.activeAt(now))
                 .collect(Collectors.toMap(GroupMute::userId, Function.identity()));
@@ -71,7 +73,7 @@ public class GroupMemberService {
                     User user = users.get(member.userId());
                     GroupMute mute = mutes.get(member.userId());
                     boolean online = showOnline.getOrDefault(member.userId(), true)
-                            && presenceRepository.isOnline(member.userId());
+                            && onlineIds.contains(member.userId());
                     return new GroupMemberView(member.userId(),
                             user == null ? "用户 " + member.userId() : user.nickname(),
                             user == null ? null : user.avatar(),

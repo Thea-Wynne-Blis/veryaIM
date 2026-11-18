@@ -55,6 +55,8 @@ public class WebSocketTextHandler extends SimpleChannelInboundHandler<TextWebSoc
         }
         switch (cmd) {
             case "ping" -> {
+                // 这里只更新连接本地心跳；Redis 在线状态由 PresenceRenewTask 定期续期，
+                // 避免在 Netty EventLoop 上做阻塞的 Redis 调用。
                 connection.heartbeat(timeProvider.now());
                 connection.sendJson("pong", Map.of("ts", timeProvider.now().toEpochMilli()));
             }

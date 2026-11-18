@@ -6,8 +6,11 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -27,15 +30,18 @@ public class InMemoryPresenceRepository implements PresenceRepository {
     }
 
     @Override
-    public void heartbeat(long userId, String deviceId, String connectionId, Instant now) {
+    public boolean heartbeat(long userId, String deviceId, String connectionId, Instant now) {
         Map<String, PresenceRecord> devices = presence.get(userId);
         if (devices == null) {
-            return;
+            return false;
         }
-        devices.computeIfPresent(deviceId, (key, current) -> current.connectionId().equals(connectionId)
-                ? new PresenceRecord(current.userId(), current.deviceId(), current.gatewayId(),
-                current.connectionId(), now, current.status())
-                : current);
+        PresenceRecord current = devices.get(deviceId);
+        if (current == null || !current.connectionId().equals(connectionId)) {
+            return false;
+        }
+        devices.put(deviceId, new PresenceRecord(current.userId(), current.deviceId(),
+                current.gatewayId(), current.connectionId(), now, current.status()));
+        return true;
     }
 
     @Override
@@ -61,5 +67,19 @@ public class InMemoryPresenceRepository implements PresenceRepository {
     public boolean isOnline(long userId) {
         Map<String, PresenceRecord> devices = presence.get(userId);
         return devices != null && !devices.isEmpty();
+    }
+
+    @Override
+    public Set<Long> onlineUserIds(Collection<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return Set.of();
+        }
+        Set<Long> online = new HashSet<>();
+        for (Long userId : userIds) {
+            if (isOnline(userId)) {
+                online.add(userId);
+            }
+        }
+        return online;
     }
 }

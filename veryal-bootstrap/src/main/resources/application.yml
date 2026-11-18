@@ -109,6 +109,10 @@ veryal:
       ttl: 7d
   redis:
     enabled: ${VERYAL_REDIS_ENABLED:true}
+  presence:
+    # 在线状态在 Redis 的 TTL 是 5 分钟，这里每分钟给本机连接续期；
+    # 浏览器只发应用层 ping，不能靠它维持 Redis 里的在线标记。
+    renew-interval-ms: ${VERYAL_PRESENCE_RENEW_INTERVAL_MS:60000}
   mq:
     enabled: ${VERYAL_MQ_ENABLED:false}
   outbox:
