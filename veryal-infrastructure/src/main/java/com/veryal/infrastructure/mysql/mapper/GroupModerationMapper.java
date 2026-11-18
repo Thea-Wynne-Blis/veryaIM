@@ -8,10 +8,10 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
-import java.time.LocalDateTime;
+import java.util.List;
 
 /**
- * 群设置/禁言 Mapper。
+ * 群公告/禁言 Mapper。
  */
 public interface GroupModerationMapper {
 
@@ -28,17 +28,28 @@ public interface GroupModerationMapper {
             + "updated_at = #{updatedAt}, updated_by = #{updatedBy} WHERE group_id = #{groupId}")
     int updateSetting(GroupSettingPO po);
 
-    @Select("SELECT muted_until FROM im_group_mute WHERE group_id = #{groupId} AND user_id = #{userId}")
-    LocalDateTime selectMutedUntil(@Param("groupId") String groupId, @Param("userId") long userId);
+    @Select("SELECT group_id, user_id, muted_until, created_at FROM im_group_mute "
+            + "WHERE group_id = #{groupId} AND user_id = #{userId}")
+    GroupMutePO selectMute(@Param("groupId") String groupId, @Param("userId") long userId);
+
+    @Select("SELECT group_id, user_id, muted_until, created_at FROM im_group_mute "
+            + "WHERE group_id = #{groupId}")
+    List<GroupMutePO> selectMutes(@Param("groupId") String groupId);
 
     @Insert("INSERT INTO im_group_mute (group_id, user_id, muted_until, created_at) "
-            + "VALUES (#{groupId}, #{userId}, #{mutedUntil}, #{createdAt})")
+            + "VALUES (#{groupId}, #{userId}, #{mutedUntil,jdbcType=TIMESTAMP}, #{createdAt})")
     int insertMute(GroupMutePO po);
 
-    @Update("UPDATE im_group_mute SET muted_until = #{mutedUntil} "
+    @Update("UPDATE im_group_mute SET muted_until = #{mutedUntil,jdbcType=TIMESTAMP} "
             + "WHERE group_id = #{groupId} AND user_id = #{userId}")
     int updateMute(GroupMutePO po);
 
     @Delete("DELETE FROM im_group_mute WHERE group_id = #{groupId} AND user_id = #{userId}")
     int deleteMute(@Param("groupId") String groupId, @Param("userId") long userId);
+
+    @Delete("DELETE FROM im_group_setting WHERE group_id = #{groupId}")
+    int deleteSetting(@Param("groupId") String groupId);
+
+    @Delete("DELETE FROM im_group_mute WHERE group_id = #{groupId}")
+    int deleteMutes(@Param("groupId") String groupId);
 }

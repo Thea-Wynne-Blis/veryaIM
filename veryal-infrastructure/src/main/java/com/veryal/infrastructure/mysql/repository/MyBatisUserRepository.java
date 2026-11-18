@@ -10,6 +10,7 @@ import com.veryal.infrastructure.mysql.po.UserPO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,6 +26,14 @@ public class MyBatisUserRepository implements UserRepository {
     @Override
     public Optional<User> findById(long userId) {
         return Optional.ofNullable(userMapper.selectById(userId)).map(this::toDomain);
+    }
+
+    @Override
+    public List<User> findByIds(Collection<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return List.of();
+        }
+        return userMapper.selectBatchIds(userIds).stream().map(this::toDomain).toList();
     }
 
     @Override

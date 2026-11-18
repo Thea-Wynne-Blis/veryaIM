@@ -1,6 +1,7 @@
 package com.veryal.infrastructure.mysql.repository;
 
 import com.veryal.domain.group.GroupModerationRepository;
+import com.veryal.domain.group.GroupMute;
 import com.veryal.domain.group.GroupSetting;
 import com.veryal.infrastructure.mysql.SqlTime;
 import com.veryal.infrastructure.mysql.mapper.GroupModerationMapper;
@@ -10,10 +11,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 /**
- * 群设置/禁言 MyBatis 实现。
+ * 群公告/禁言 MyBatis 实现。
  */
 @Repository
 @RequiredArgsConstructor
@@ -42,17 +44,21 @@ public class MyBatisGroupModerationRepository implements GroupModerationReposito
     }
 
     @Override
-    public Optional<Instant> findMutedUntil(String groupId, long userId) {
-        return Optional.ofNullable(moderationMapper.selectMutedUntil(groupId, userId))
-                .map(SqlTime::toInstant);
+    public Optional<GroupMute> findMute(String groupId, long userId) {
+        return Optional.ofNullable(moderationMapper.selectMute(groupId, userId)).map(this::toDomain);
     }
 
     @Override
-    public void mute(String groupId, long userId, Instant until, Instant now) {
+    public List<GroupMute> findMutes(String groupId) {
+        return moderationMapper.selectMutes(groupId).stream().map(this::toDomain).toList();
+    }
+
+    @Override
+    public void mute(String groupId, long userId, Instant mutedUntil, Instant now) {
         GroupMutePO po = new GroupMutePO();
         po.groupId = groupId;
         po.userId = userId;
-        po.mutedUntil = SqlTime.toLocal(until);
+        po.mutedUntil = mutedUntil == null ? null : SqlTime.toLocal(mutedUntil);
         po.createdAt = SqlTime.toLocal(now);
         if (moderationMapper.updateMute(po) == 0) {
             moderationMapper.insertMute(po);
@@ -62,5 +68,16 @@ public class MyBatisGroupModerationRepository implements GroupModerationReposito
     @Override
     public void unmute(String groupId, long userId) {
         moderationMapper.deleteMute(groupId, userId);
+    }
+
+    @Override
+    public void deleteGroupState(String groupId) {
+        moderationMapper.deleteMutes(groupId);
+        moderationMapper.deleteSetting(groupId);
+    }
+
+    private GroupMute toDomain(GroupMutePO po) {
+        return new GroupMute(po.groupId, po.userId,
+                po.mutedUntil == null ? null : SqlTime.toInstant(po.mutedUntil));
     }
 }

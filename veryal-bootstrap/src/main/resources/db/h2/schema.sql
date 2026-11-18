@@ -270,7 +270,7 @@ CREATE TABLE IF NOT EXISTS im_group_mute
 (
     group_id    VARCHAR(64) NOT NULL,
     user_id     BIGINT      NOT NULL,
-    muted_until TIMESTAMP(3) NOT NULL,
+    muted_until TIMESTAMP(3) NULL,
     created_at  TIMESTAMP(3) NOT NULL,
     PRIMARY KEY (group_id, user_id)
 );

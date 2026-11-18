@@ -2,13 +2,17 @@ package com.veryal.access.http.controller;
 
 import com.veryal.access.http.dto.AddGroupMembersRequest;
 import com.veryal.access.http.dto.CreateGroupRequest;
+import com.veryal.access.http.dto.GroupMemberResponse;
 import com.veryal.access.http.dto.GroupResponse;
 import com.veryal.access.http.dto.GroupRoleRequest;
 import com.veryal.access.http.dto.GroupSummaryResponse;
 import com.veryal.access.http.dto.TransferGroupRequest;
 import com.veryal.access.http.dto.UpdateGroupRequest;
 import com.veryal.access.http.security.CurrentUser;
+import com.veryal.access.http.security.RequireGroupRole;
 import com.veryal.application.group.GroupApplicationService;
+import com.veryal.application.group.GroupMemberService;
+import com.veryal.application.group.GroupMemberView;
 import com.veryal.application.identity.AuthenticatedUser;
 import com.veryal.common.core.ApiResponse;
 import com.veryal.common.exception.BusinessException;
@@ -32,6 +36,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * 群组接口。群会话复用消息接口发送消息。
+ *
+ * <p>角色矩阵：群主可踢管理员与成员、设撤管理员、转让、解散、改群资料；管理员只能踢普通成员、
+ * 改群名与公告；禁言与全员禁言仅群主。</p>
  */
 @Tag(name = "群聊")
 @RestController
@@ -40,6 +47,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class GroupController {
 
     private final GroupApplicationService groupApplicationService;
+    private final GroupMemberService groupMemberService;
 
     @Operation(summary = "创建群聊", description = "创建后自动把创建者设为群主，群 ID 即会话 ID，可直接用于发消息。")
     @PostMapping
@@ -65,7 +73,18 @@ public class GroupController {
                 user.userId(), groupId)));
     }
 
+    @Operation(summary = "群成员列表", description = "一次返回成员昵称、角色、在线与禁言状态，按群主、管理员、成员排序。")
+    @RequireGroupRole(GroupRole.MEMBER)
+    @GetMapping("/{groupId}/members")
+    public ApiResponse<List<GroupMemberResponse>> members(@CurrentUser AuthenticatedUser user,
+                                                          @PathVariable String groupId) {
+        return ApiResponse.ok(groupMemberService.list(user.userId(), groupId).stream()
+                .map(GroupController::toMemberResponse)
+                .toList());
+    }
+
     @Operation(summary = "邀请成员", description = "群主或管理员可拉人入群。群成员上限 1000。")
+    @RequireGroupRole(GroupRole.ADMIN)
     @PostMapping("/{groupId}/members")
     public ApiResponse<GroupResponse> addMembers(@CurrentUser AuthenticatedUser user,
                                                  @PathVariable String groupId,
@@ -75,6 +94,7 @@ public class GroupController {
     }
 
     @Operation(summary = "修改群信息", description = "仅群主或管理员可改群名。")
+    @RequireGroupRole(GroupRole.ADMIN)
     @PutMapping("/{groupId}")
     public ApiResponse<GroupResponse> rename(@CurrentUser AuthenticatedUser user,
                                              @PathVariable String groupId,
@@ -90,7 +110,8 @@ public class GroupController {
         return ApiResponse.ok();
     }
 
-    @Operation(summary = "移除成员", description = "群主或管理员可移除成员。")
+    @Operation(summary = "移除成员", description = "群主可移除管理员与成员，管理员只能移除普通成员。")
+    @RequireGroupRole(GroupRole.ADMIN)
     @DeleteMapping("/{groupId}/members/{userId}")
     public ApiResponse<GroupResponse> kick(@CurrentUser AuthenticatedUser user,
                                            @PathVariable String groupId,
@@ -99,7 +120,8 @@ public class GroupController {
                 user.userId(), groupId, userId)));
     }
 
-    @Operation(summary = "设置成员角色", description = "群主可授予或撤销管理员。")
+    @Operation(summary = "设置成员角色", description = "仅群主可授予或撤销管理员。")
+    @RequireGroupRole(GroupRole.OWNER)
     @PutMapping("/{groupId}/members/{userId}/role")
     public ApiResponse<GroupResponse> changeRole(@CurrentUser AuthenticatedUser user,
                                                  @PathVariable String groupId,
@@ -109,7 +131,8 @@ public class GroupController {
                 user.userId(), groupId, userId, parseRole(request.role()))));
     }
 
-    @Operation(summary = "转让群主", description = "把群主身份转给指定成员。")
+    @Operation(summary = "转让群主", description = "把群主身份转给指定成员，原群主降为普通成员。")
+    @RequireGroupRole(GroupRole.OWNER)
     @PostMapping("/{groupId}/transfer")
     public ApiResponse<GroupResponse> transfer(@CurrentUser AuthenticatedUser user,
                                                @PathVariable String groupId,
@@ -119,11 +142,17 @@ public class GroupController {
     }
 
     @Operation(summary = "解散群聊", description = "仅群主可解散，解散后会话不再可用。")
+    @RequireGroupRole(GroupRole.OWNER)
     @DeleteMapping("/{groupId}")
     public ApiResponse<Void> disband(@CurrentUser AuthenticatedUser user,
                                      @PathVariable String groupId) {
         groupApplicationService.disband(user.userId(), groupId);
         return ApiResponse.ok();
+    }
+
+    private static GroupMemberResponse toMemberResponse(GroupMemberView view) {
+        return new GroupMemberResponse(view.userId(), view.nickname(), view.avatar(),
+                view.online(), view.role(), view.mutedUntil(), view.mutedPermanently());
     }
 
     private GroupRole parseRole(String role) {

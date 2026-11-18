@@ -64,14 +64,23 @@ class GroupLifecycleIntegrationTest {
                 new ParameterizedTypeReference<ApiResponse<GroupResponse>>() {
                 }).data();
         assertThat(transferred.ownerId()).isEqualTo(nextOwner.userId());
+        // 原群主降为普通成员
+        assertThat(transferred.roleInGroup()).isEqualTo("MEMBER");
 
-        // 原群主降为管理员，不能解散群
+        // 原群主已不是管理员：不能再解散群，也不能再踢人
         ResponseEntity<ApiResponse<Void>> oldOwnerDisband = rest.exchange(
                 "/api/v1/groups/" + groupId, HttpMethod.DELETE,
                 new HttpEntity<>(headers(ownerLogin.token())),
                 new ParameterizedTypeReference<>() {
                 });
         assertThat(oldOwnerDisband.getStatusCode().value()).isEqualTo(403);
+
+        ResponseEntity<ApiResponse<Void>> oldOwnerKick = rest.exchange(
+                "/api/v1/groups/" + groupId + "/members/" + member.userId(), HttpMethod.DELETE,
+                new HttpEntity<>(headers(ownerLogin.token())),
+                new ParameterizedTypeReference<>() {
+                });
+        assertThat(oldOwnerKick.getStatusCode().value()).isEqualTo(403);
 
         // 新群主解散群
         ApiResponse<Void> disbanded = delete("/api/v1/groups/" + groupId, nextLogin.token(),

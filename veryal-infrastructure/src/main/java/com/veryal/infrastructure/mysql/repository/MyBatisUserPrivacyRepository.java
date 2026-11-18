@@ -8,6 +8,8 @@ import com.veryal.infrastructure.mysql.po.UserPrivacyPO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -22,6 +24,14 @@ public class MyBatisUserPrivacyRepository implements UserPrivacyRepository {
     @Override
     public Optional<UserPrivacy> findByUserId(long userId) {
         return Optional.ofNullable(privacyMapper.selectById(userId)).map(this::toDomain);
+    }
+
+    @Override
+    public List<UserPrivacy> findByUserIds(Collection<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return List.of();
+        }
+        return privacyMapper.selectBatchIds(userIds).stream().map(this::toDomain).toList();
     }
 
     @Override

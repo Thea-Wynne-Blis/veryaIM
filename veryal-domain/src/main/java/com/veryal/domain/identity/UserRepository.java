@@ -1,5 +1,6 @@
 package com.veryal.domain.identity;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -9,6 +10,11 @@ import java.util.Optional;
 public interface UserRepository {
 
     Optional<User> findById(long userId);
+
+    /**
+     * 批量查询用户，用于群成员列表等一次取回多个资料，避免 N+1。
+     */
+    List<User> findByIds(Collection<Long> userIds);
 
     Optional<User> findByUsername(String username);
 

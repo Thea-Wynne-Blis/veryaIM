@@ -11,6 +11,7 @@ import com.veryal.domain.conversation.ConversationMember;
 import com.veryal.domain.conversation.ConversationRepository;
 import com.veryal.domain.group.Group;
 import com.veryal.domain.group.GroupMember;
+import com.veryal.domain.group.GroupModerationRepository;
 import com.veryal.domain.group.GroupRepository;
 import com.veryal.domain.group.GroupRole;
 import com.veryal.domain.identity.User;
@@ -35,6 +36,8 @@ import java.util.Set;
 public class GroupApplicationService {
 
     private final GroupRepository groupRepository;
+    private final GroupModerationRepository moderationRepository;
+    private final GroupAccessGuard groupAccessGuard;
     private final ConversationRepository conversationRepository;
     private final UserRepository userRepository;
     private final IdGenerator idGenerator;
@@ -75,12 +78,7 @@ public class GroupApplicationService {
     @Transactional
     public GroupView addMembers(long operatorId, String groupId, List<Long> userIds) {
         Group group = requireGroup(groupId);
-        GroupMember operator = groupRepository.findMember(groupId, operatorId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CONVERSATION_MEMBER,
-                        "not a group member"));
-        if (!operator.role().manager()) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "only owner or admin can add members");
-        }
+        groupAccessGuard.requireRole(groupId, operatorId, GroupRole.ADMIN);
         List<Long> invitees = normalizeInvitees(userIds, operatorId);
         long existing = groupRepository.countMembers(groupId);
         if (existing + invitees.size() > Group.MAX_MEMBERS) {
@@ -97,7 +95,7 @@ public class GroupApplicationService {
         groupRepository.touch(groupId, now);
         auditRecorder.record(operatorId, AuditAction.GROUP_MEMBER_ADD, "group", groupId,
                 "members=" + invitees.size());
-        return view(groupRepository.findById(groupId).orElseThrow());
+        return view(groupRepository.findById(groupId).orElseThrow(), operatorId);
     }
 
     @Transactional(readOnly = true)
@@ -120,15 +118,12 @@ public class GroupApplicationService {
     @Transactional
     public GroupView rename(long operatorId, String groupId, String name) {
         Group group = requireGroup(groupId);
-        GroupMember operator = requireMember(groupId, operatorId);
-        if (!operator.role().manager()) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "only owner or admin can rename group");
-        }
+        groupAccessGuard.requireRole(groupId, operatorId, GroupRole.ADMIN);
         Group renamed = group.rename(validateName(name), timeProvider.now());
         groupRepository.update(renamed);
         auditRecorder.record(operatorId, AuditAction.GROUP_RENAME, "group", groupId,
                 "name=" + renamed.name());
-        return view(renamed);
+        return view(renamed, operatorId);
     }
 
     /**
@@ -144,34 +139,33 @@ public class GroupApplicationService {
         }
         groupRepository.removeMember(groupId, userId);
         conversationRepository.removeMember(groupId, userId);
+        moderationRepository.unmute(groupId, userId);
         groupRepository.touch(groupId, timeProvider.now());
         auditRecorder.record(userId, AuditAction.GROUP_MEMBER_LEAVE, "group", groupId,
                 "userId=" + userId);
     }
 
     /**
-     * 踢人。管理员不能踢管理员或群主，只有群主可以处理管理员。
+     * 踢人：群主可移出管理员与成员，管理员只能移出普通成员。
      */
     @Transactional
     public GroupView kick(long operatorId, String groupId, long targetUserId) {
         Group group = requireGroup(groupId);
-        GroupMember operator = requireMember(groupId, operatorId);
-        if (!operator.role().manager()) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "only owner or admin can remove members");
-        }
+        GroupRole operatorRole = groupAccessGuard.requireRole(groupId, operatorId, GroupRole.ADMIN);
         if (targetUserId == group.ownerId()) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "cannot remove group owner");
         }
         GroupMember target = requireMember(groupId, targetUserId);
-        if (operator.role() == GroupRole.ADMIN && target.role() == GroupRole.ADMIN) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "admin cannot remove another admin");
+        if (!operatorRole.canKick(target.role())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "cannot remove this member");
         }
         groupRepository.removeMember(groupId, targetUserId);
         conversationRepository.removeMember(groupId, targetUserId);
+        moderationRepository.unmute(groupId, targetUserId);
         groupRepository.touch(groupId, timeProvider.now());
         auditRecorder.record(operatorId, AuditAction.GROUP_MEMBER_REMOVE, "group", groupId,
                 "userId=" + targetUserId);
-        return view(groupRepository.findById(groupId).orElseThrow());
+        return view(groupRepository.findById(groupId).orElseThrow(), operatorId);
     }
 
     /**
@@ -181,10 +175,7 @@ public class GroupApplicationService {
     public GroupView changeRole(long operatorId, String groupId, long targetUserId,
                                 GroupRole role) {
         Group group = requireGroup(groupId);
-        GroupMember operator = requireMember(groupId, operatorId);
-        if (operator.role() != GroupRole.OWNER) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "only owner can change member role");
-        }
+        groupAccessGuard.requireRole(groupId, operatorId, GroupRole.OWNER);
         if (targetUserId == group.ownerId() || role == GroupRole.OWNER) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "cannot change owner role");
         }
@@ -193,19 +184,16 @@ public class GroupApplicationService {
         groupRepository.touch(groupId, timeProvider.now());
         auditRecorder.record(operatorId, AuditAction.GROUP_ROLE_CHANGE, "group_member",
                 groupId + ":" + targetUserId, "role=" + role.name());
-        return view(groupRepository.findById(groupId).orElseThrow());
+        return view(groupRepository.findById(groupId).orElseThrow(), operatorId);
     }
 
     /**
-     * 转让群主：原群主降为管理员，新群主必须是群成员。
+     * 转让群主：新群主必须是群成员，原群主降为普通成员（不再保留管理员权限）。
      */
     @Transactional
     public GroupView transferOwner(long currentOwnerId, String groupId, long newOwnerId) {
         Group group = requireGroup(groupId);
-        GroupMember operator = requireMember(groupId, currentOwnerId);
-        if (operator.role() != GroupRole.OWNER) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "only owner can transfer ownership");
-        }
+        groupAccessGuard.requireRole(groupId, currentOwnerId, GroupRole.OWNER);
         if (newOwnerId == currentOwnerId) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "already group owner");
         }
@@ -214,11 +202,11 @@ public class GroupApplicationService {
         Group transferred = group.transferOwner(newOwnerId, now);
         groupRepository.update(transferred);
         groupRepository.updateMemberRole(groupId, newOwnerId, GroupRole.OWNER);
-        groupRepository.updateMemberRole(groupId, currentOwnerId, GroupRole.ADMIN);
+        groupRepository.updateMemberRole(groupId, currentOwnerId, GroupRole.MEMBER);
         groupRepository.touch(groupId, now);
         auditRecorder.record(currentOwnerId, AuditAction.GROUP_OWNER_TRANSFER, "group", groupId,
                 "newOwner=" + newOwnerId);
-        return view(transferred);
+        return view(transferred, currentOwnerId);
     }
 
     /**
@@ -227,11 +215,9 @@ public class GroupApplicationService {
     @Transactional
     public void disband(long ownerId, String groupId) {
         requireGroup(groupId);
-        GroupMember operator = requireMember(groupId, ownerId);
-        if (operator.role() != GroupRole.OWNER) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "only owner can disband group");
-        }
+        groupAccessGuard.requireRole(groupId, ownerId, GroupRole.OWNER);
         auditRecorder.record(ownerId, AuditAction.GROUP_DISBAND, "group", groupId, null);
+        moderationRepository.deleteGroupState(groupId);
         conversationRepository.delete(groupId);
         groupRepository.delete(groupId);
     }
