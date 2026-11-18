@@ -5,6 +5,7 @@ import com.veryal.domain.message.DuplicateMessageException;
 import com.veryal.domain.message.Message;
 import com.veryal.domain.message.MessageRepository;
 import com.veryal.domain.message.MessageType;
+import com.veryal.domain.message.MessageSearchFilter;
 import com.veryal.infrastructure.mysql.SqlTime;
 import com.veryal.infrastructure.mysql.mapper.MessageMapper;
 import com.veryal.infrastructure.mysql.po.MessagePO;
@@ -27,6 +28,15 @@ public class MyBatisMessageRepository implements MessageRepository {
     private static final int MAX_PAGE_LIMIT = 1000;
 
     private final MessageMapper messageMapper;
+
+    @Override
+    public List<Message> searchCandidates(String conversationId, long afterSeq, long beforeSeq,
+                                          MessageSearchFilter filter, int limit) {
+        return messageMapper.searchCandidates(conversationId, afterSeq, beforeSeq, filter,
+                        SqlTime.toLocal(filter.from()), SqlTime.toLocal(filter.to()),
+                        Math.max(1, Math.min(limit, MAX_PAGE_LIMIT))).stream()
+                .map(this::toDomain).toList();
+    }
 
     @Override
     public Optional<Message> findById(long messageId) {
@@ -107,9 +117,10 @@ public class MyBatisMessageRepository implements MessageRepository {
     }
 
     @Override
-    public List<Message> searchMediaAcrossConversations(long userId, String pattern, int limit) {
+    public List<Message> listMediaAcrossConversations(long userId, java.time.Instant beforeTime,
+                                                      long beforeId, int limit) {
         int safeLimit = Math.max(1, Math.min(limit, MAX_PAGE_LIMIT));
-        return messageMapper.searchMediaAcross(userId, pattern, safeLimit).stream()
+        return messageMapper.listMediaAcross(userId, SqlTime.toLocal(beforeTime), beforeId, safeLimit).stream()
                 .map(this::toDomain)
                 .toList();
     }

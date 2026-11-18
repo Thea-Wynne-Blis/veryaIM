@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.annotation.DbType;
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
 import org.mybatis.spring.annotation.MapperScan;
+import org.apache.ibatis.mapping.DatabaseIdProvider;
+import org.apache.ibatis.mapping.VendorDatabaseIdProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -15,6 +17,16 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @MapperScan("com.veryal.infrastructure.mysql.mapper")
 public class MyBatisPlusConfig {
+
+    @Bean
+    public DatabaseIdProvider databaseIdProvider() {
+        VendorDatabaseIdProvider provider = new VendorDatabaseIdProvider();
+        java.util.Properties vendors = new java.util.Properties();
+        vendors.setProperty("MySQL", "mysql");
+        vendors.setProperty("H2", "h2");
+        provider.setProperties(vendors);
+        return provider;
+    }
 
     @Bean
     public MybatisPlusInterceptor mybatisPlusInterceptor() {

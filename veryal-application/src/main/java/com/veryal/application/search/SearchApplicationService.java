@@ -54,9 +54,9 @@ public class SearchApplicationService {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT,
                     "search keyword must be 1-" + MAX_KEYWORD + " characters");
         }
-        String pattern = "%" + query.replace("!", "!!").replace("%", "!%")
+        String lower = query.toLowerCase(java.util.Locale.ROOT);
+        String pattern = "%" + lower.replace("!", "!!").replace("%", "!%")
                 .replace("_", "!_") + "%";
-        String lower = query.toLowerCase();
 
         List<ConversationCard> cards = conversationApplicationService.listCards(userId);
         Map<String, String> titles = cards.stream().collect(Collectors.toMap(
@@ -70,7 +70,7 @@ public class SearchApplicationService {
                 contacts(userId, lower),
                 groups(cards, lower),
                 messages(userId, pattern, titles, remarks),
-                files(userId, pattern, titles, remarks));
+                files(userId, lower, titles, remarks));
     }
 
     private List<SearchView.ContactHit> contacts(long userId, String lower) {
@@ -126,41 +126,44 @@ public class SearchApplicationService {
                 .toList();
     }
 
-    private List<SearchView.FileHit> files(long userId, String pattern,
+    private List<SearchView.FileHit> files(long userId, String lower,
                                            Map<String, String> titles,
                                            Map<Long, String> remarks) {
-        List<Message> messages = messageRepository.searchMediaAcrossConversations(
-                userId, pattern, HIT_LIMIT);
-        if (messages.isEmpty()) {
-            return List.of();
-        }
-        Map<Long, Long> fileIdByMessage = new HashMap<>();
-        for (Message message : messages) {
-            long fileId = fileIdOf(message.content());
-            if (fileId > 0) {
-                fileIdByMessage.put(message.id(), fileId);
+        List<SearchView.FileHit> hits = new ArrayList<>();
+        java.time.Instant beforeTime = null;
+        long beforeId = Long.MAX_VALUE;
+        while (hits.size() < HIT_LIMIT) {
+            List<Message> messages = messageRepository.listMediaAcrossConversations(
+                    userId, beforeTime, beforeId, 200);
+            if (messages.isEmpty()) break;
+            Map<Long, Long> fileIdByMessage = new HashMap<>();
+            for (Message message : messages) {
+                long fileId = fileIdOf(message.content());
+                if (fileId > 0) fileIdByMessage.put(message.id(), fileId);
             }
+            Map<Long, StoredFile> files = new HashMap<>();
+            if (!fileIdByMessage.isEmpty()) {
+                fileRepository.findByIds(new ArrayList<>(fileIdByMessage.values()))
+                        .forEach(file -> files.put(file.id(), file));
+            }
+            Map<Long, User> users = usersOf(messages);
+            for (Message message : messages) {
+                StoredFile file = files.get(fileIdByMessage.get(message.id()));
+                if (file == null || !contains(file.originalName(), lower)) continue;
+                hits.add(new SearchView.FileHit(file.id(), message.id(),
+                        message.conversationId(),
+                        titles.getOrDefault(message.conversationId(), message.conversationId()),
+                        file.originalName(), message.type().name(), file.sizeBytes(),
+                        file.contentType(), message.senderId(),
+                        displayName(message.senderId(), userId, users, remarks), message.createdAt()));
+                if (hits.size() == HIT_LIMIT) break;
+            }
+            if (messages.size() < 200) break;
+            Message last = messages.get(messages.size() - 1);
+            beforeTime = last.createdAt();
+            beforeId = last.id();
         }
-        Map<Long, StoredFile> files = new HashMap<>();
-        fileRepository.findByIds(new ArrayList<>(fileIdByMessage.values()))
-                .forEach(file -> files.put(file.id(), file));
-        Map<Long, User> users = usersOf(messages);
-        return messages.stream()
-                .map(message -> {
-                    StoredFile file = files.get(fileIdByMessage.get(message.id()));
-                    if (file == null) {
-                        return null;
-                    }
-                    return new SearchView.FileHit(file.id(), message.id(),
-                            message.conversationId(),
-                            titles.getOrDefault(message.conversationId(), message.conversationId()),
-                            file.originalName(), message.type().name(), file.sizeBytes(),
-                            file.contentType(), message.senderId(),
-                            displayName(message.senderId(), userId, users, remarks),
-                            message.createdAt());
-                })
-                .filter(java.util.Objects::nonNull)
-                .toList();
+        return hits;
     }
 
     private Map<Long, User> usersOf(List<Message> messages) {
@@ -201,6 +204,6 @@ public class SearchApplicationService {
     }
 
     private static boolean contains(String value, String lower) {
-        return value != null && value.toLowerCase().contains(lower);
+        return value != null && value.toLowerCase(java.util.Locale.ROOT).contains(lower);
     }
 }

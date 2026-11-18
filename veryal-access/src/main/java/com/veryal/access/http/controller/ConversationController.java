@@ -141,6 +141,14 @@ public class ConversationController {
                 .toList());
     }
 
+    @Operation(summary = "定位消息上下文", description = "读取搜索结果前后的消息，排除本人已清空或已撤回的目标。")
+    @GetMapping("/{conversationId}/messages/{messageId}/context")
+    public ApiResponse<MessagePageResponse> context(@CurrentUser AuthenticatedUser user,
+            @PathVariable String conversationId, @PathVariable long messageId) {
+        return ApiResponse.ok(MessagePageResponse.from(
+                messageApplicationService.context(user.userId(), conversationId, messageId)));
+    }
+
     @Operation(summary = "搜索会话内消息", description = "按关键词搜索该会话的历史消息，仅对文本消息生效。")
     @GetMapping("/{conversationId}/messages/search")
     public ApiResponse<MessagePageResponse> search(@CurrentUser AuthenticatedUser user,

@@ -11,6 +11,10 @@ import java.util.Optional;
  */
 public interface MessageRepository {
 
+    /** 会话搜索候选，附件文件名由应用层批量读取文件元信息后匹配。 */
+    List<Message> searchCandidates(String conversationId, long afterSeq, long beforeSeq,
+                                   MessageSearchFilter filter, int limit);
+
     Optional<Message> findById(long messageId);
 
     Optional<Message> findByIdempotencyKey(long senderId, String clientMsgId);
@@ -45,8 +49,9 @@ public interface MessageRepository {
     /** 跨会话搜索文本 / 表情消息，只限我参与的会话；按创建时间倒序。 */
     List<Message> searchAcrossConversations(long userId, String pattern, int limit);
 
-    /** 跨会话搜索附件消息（按文件名 / 内容 JSON 匹配），只限我参与的会话。 */
-    List<Message> searchMediaAcrossConversations(long userId, String pattern, int limit);
+    /** 跨会话附件候选，只限我参与的会话；按创建时间及 ID 稳定分页。 */
+    List<Message> listMediaAcrossConversations(long userId, java.time.Instant beforeTime,
+                                              long beforeId, int limit);
 
 
     long countAll();

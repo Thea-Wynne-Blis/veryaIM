@@ -2,6 +2,7 @@ package com.veryal.infrastructure.mysql.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.veryal.infrastructure.mysql.po.MessagePO;
+import com.veryal.domain.message.MessageSearchFilter;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
@@ -12,6 +13,14 @@ import java.util.List;
  * {@code resources/mapper/MessageMapper.xml}，其余 CRUD 由 MyBatis-Plus 提供。
  */
 public interface MessageMapper extends BaseMapper<MessagePO> {
+
+    List<MessagePO> searchCandidates(@Param("conversationId") String conversationId,
+                                     @Param("afterSeq") long afterSeq,
+                                     @Param("beforeSeq") long beforeSeq,
+                                     @Param("filter") MessageSearchFilter filter,
+                                     @Param("from") java.time.LocalDateTime from,
+                                     @Param("to") java.time.LocalDateTime to,
+                                     @Param("limit") int limit);
 
     /** 按 seq 游标向后翻页。 */
     List<MessagePO> selectPageAfter(@Param("conversationId") String conversationId,
@@ -38,9 +47,10 @@ public interface MessageMapper extends BaseMapper<MessagePO> {
                                  @Param("pattern") String pattern,
                                  @Param("limit") int limit);
 
-    /** 跨会话搜索附件消息（文件名等存在 JSON content 里）。 */
-    List<MessagePO> searchMediaAcross(@Param("userId") long userId,
-                                      @Param("pattern") String pattern,
+    /** 跨会话附件候选，按创建时间及 ID 稳定分页，文件名从文件表匹配。 */
+    List<MessagePO> listMediaAcross(@Param("userId") long userId,
+                                      @Param("beforeTime") java.time.LocalDateTime beforeTime,
+                                      @Param("beforeId") long beforeId,
                                       @Param("limit") int limit);
 
     @Select("SELECT COUNT(1) FROM im_message")

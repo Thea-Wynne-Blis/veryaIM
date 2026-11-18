@@ -6,6 +6,39 @@
 -->
 <mapper namespace="com.veryal.infrastructure.mysql.mapper.MessageMapper">
 
+    <!-- content 为 BLOB，MySQL 需先解码才能进行英文大小写转换。 -->
+    <sql id="searchContent">
+        <choose>
+            <when test="_databaseId == 'h2'">LOWER(content)</when>
+            <otherwise>LOWER(CONVERT(content USING utf8mb4))</otherwise>
+        </choose>
+    </sql>
+
+    <select id="searchCandidates" resultType="com.veryal.infrastructure.mysql.po.MessagePO">
+        SELECT id, conversation_id, sender_id, client_msg_id, seq, msg_type, content,
+               created_at, recalled_at, recalled_by, reply_to_id, reply_sender_id, reply_preview
+        FROM im_message
+        WHERE conversation_id = #{conversationId}
+          AND recalled_at IS NULL
+          AND seq &gt; #{afterSeq} AND seq &lt; #{beforeSeq}
+          AND msg_type IN
+          <foreach collection="filter.types" item="type" open="(" separator="," close=")">
+              #{type}
+          </foreach>
+          <if test="filter.senderId != null">AND sender_id = #{filter.senderId}</if>
+          <if test="from != null">AND created_at &gt;= #{from}</if>
+          <if test="to != null">AND created_at &lt; #{to}</if>
+          <if test="filter.linksOnly">
+              AND (<include refid="searchContent"/> LIKE '%https://%'
+                  OR <include refid="searchContent"/> LIKE '%http://%')
+          </if>
+          <if test="filter.pattern != null">
+              AND (msg_type IN (2, 3, 4, 5) OR <include refid="searchContent"/> LIKE #{filter.pattern} ESCAPE '!')
+          </if>
+        ORDER BY seq DESC
+        LIMIT #{limit}
+    </select>
+
     <select id="selectPageAfter" resultType="com.veryal.infrastructure.mysql.po.MessagePO">
         SELECT id, conversation_id, sender_id, client_msg_id, seq, msg_type, content,
                created_at, recalled_at, recalled_by, reply_to_id, reply_sender_id, reply_preview
@@ -64,13 +97,13 @@
         WHERE m.recalled_at IS NULL
           AND m.msg_type IN (1, 6)
           AND m.seq &gt; cm.cleared_seq
-          AND m.content LIKE #{pattern} ESCAPE '!'
+          AND <include refid="searchContent"/> LIKE #{pattern} ESCAPE '!'
         ORDER BY m.created_at DESC
         LIMIT #{limit}
     </select>
 
-    <!-- 附件消息的 content 是 JSON，文件名也能被 LIKE 命中。 -->
-    <select id="searchMediaAcross" resultType="com.veryal.infrastructure.mysql.po.MessagePO">
+    <!-- 附件候选：图片等消息没有文件名，应用层统一按文件元信息搜索。 -->
+    <select id="listMediaAcross" resultType="com.veryal.infrastructure.mysql.po.MessagePO">
         SELECT m.id, m.conversation_id, m.sender_id, m.client_msg_id, m.seq, m.msg_type,
                m.content, m.created_at, m.recalled_at, m.recalled_by,
                m.reply_to_id, m.reply_sender_id, m.reply_preview
@@ -81,8 +114,11 @@
         WHERE m.recalled_at IS NULL
           AND m.msg_type IN (2, 3, 4, 5)
           AND m.seq &gt; cm.cleared_seq
-          AND m.content LIKE #{pattern} ESCAPE '!'
-        ORDER BY m.created_at DESC
+          <if test="beforeTime != null">
+              AND (m.created_at &lt; #{beforeTime}
+                  OR (m.created_at = #{beforeTime} AND m.id &lt; #{beforeId}))
+          </if>
+        ORDER BY m.created_at DESC, m.id DESC
         LIMIT #{limit}
     </select>
 

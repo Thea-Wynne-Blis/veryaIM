@@ -161,6 +161,18 @@ public class MessageApplicationService {
         return new CursorPage<>(messages, Long.toString(nextCursor), hasMore);
     }
 
+    /** 搜索结果定位：校验可见水位后返回目标消息前后的上下文。 */
+    @Transactional(readOnly = true)
+    public CursorPage<Message> context(long userId, String conversationId, long messageId) {
+        requireMember(conversationId, userId);
+        long clearedSeq = clearedSeqOf(conversationId, userId);
+        Message target = messageRepository.findById(messageId)
+                .filter(message -> message.conversationId().equals(conversationId))
+                .filter(message -> message.seq() > clearedSeq && !message.recalled())
+                .orElseThrow(() -> new BusinessException(ErrorCode.MESSAGE_NOT_FOUND));
+        return history(userId, conversationId, Math.max(clearedSeq, target.seq() - 16), 40);
+    }
+
     /**
      * 会话内文本/表情搜索，按 seq 倒序返回；cursor 为上一页最后一条 seq。
      */
