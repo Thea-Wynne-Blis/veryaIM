@@ -29,6 +29,13 @@ public interface GroupRepository {
 
     long countMembers(String groupId);
 
+    /**
+     * 批量取多个群的成员数，供群列表使用，避免每个群一次 count 查询。
+     *
+     * @return groupId → 成员数；没有任何成员的群不会出现在结果里
+     */
+    java.util.Map<String, Long> countMembersByGroup(java.util.Collection<String> groupIds);
+
     List<Group> findByUser(long userId);
 
     long count();

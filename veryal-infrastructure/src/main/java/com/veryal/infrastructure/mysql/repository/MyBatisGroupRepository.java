@@ -14,7 +14,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -92,6 +95,29 @@ public class MyBatisGroupRepository implements GroupRepository {
         Long count = memberMapper.selectCount(Wrappers.<GroupMemberPO>lambdaQuery()
                 .eq(GroupMemberPO::getGroupId, groupId));
         return count == null ? 0L : count;
+    }
+
+    @Override
+    public Map<String, Long> countMembersByGroup(Collection<String> groupIds) {
+        if (groupIds == null || groupIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Long> counts = new HashMap<>();
+        for (Map<String, Object> row : memberMapper.countByGroupIds(groupIds)) {
+            String groupId = null;
+            Long total = null;
+            for (Map.Entry<String, Object> cell : row.entrySet()) {
+                if (cell.getKey().equalsIgnoreCase("groupId")) {
+                    groupId = String.valueOf(cell.getValue());
+                } else if (cell.getKey().equalsIgnoreCase("total")) {
+                    total = cell.getValue() == null ? 0L : ((Number) cell.getValue()).longValue();
+                }
+            }
+            if (groupId != null) {
+                counts.put(groupId, total == null ? 0L : total);
+            }
+        }
+        return counts;
     }
 
     @Override

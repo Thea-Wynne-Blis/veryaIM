@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 运营后台群管理。
@@ -31,10 +32,15 @@ public class OpsGroupService {
     @Transactional(readOnly = true)
     public List<OpsGroupView> search(String keyword, int limit) {
         String value = keyword == null ? "" : keyword.trim();
-        return groupRepository.search(value,
-                        Math.max(1, Math.min(limit, 100))).stream()
+        List<Group> groups = groupRepository.search(value, Math.max(1, Math.min(limit, 100)));
+        if (groups.isEmpty()) {
+            return List.of();
+        }
+        Map<String, Long> memberCounts = groupRepository.countMembersByGroup(
+                groups.stream().map(Group::id).toList());
+        return groups.stream()
                 .map(group -> new OpsGroupView(group.id(), group.name(), group.ownerId(),
-                        groupRepository.countMembers(group.id()), group.createdAt()))
+                        memberCounts.getOrDefault(group.id(), 0L), group.createdAt()))
                 .toList();
     }
 

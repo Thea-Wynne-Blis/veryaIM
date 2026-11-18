@@ -24,6 +24,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -109,9 +110,16 @@ public class GroupApplicationService {
 
     @Transactional(readOnly = true)
     public List<GroupSummary> list(long userId) {
-        return groupRepository.findByUser(userId).stream()
+        List<Group> groups = groupRepository.findByUser(userId);
+        if (groups.isEmpty()) {
+            return List.of();
+        }
+        // 一次 group by 取回全部成员数，避免每个群一次 count。
+        Map<String, Long> memberCounts = groupRepository.countMembersByGroup(
+                groups.stream().map(Group::id).toList());
+        return groups.stream()
                 .map(group -> new GroupSummary(group.id(), group.name(), group.ownerId(),
-                        groupRepository.countMembers(group.id()), group.updatedAt()))
+                        memberCounts.getOrDefault(group.id(), 0L), group.updatedAt()))
                 .toList();
     }
 
