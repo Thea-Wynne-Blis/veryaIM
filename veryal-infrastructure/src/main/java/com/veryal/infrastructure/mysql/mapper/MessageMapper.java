@@ -28,6 +28,21 @@ public interface MessageMapper extends BaseMapper<MessagePO> {
                                @Param("beforeSeq") long beforeSeq,
                                @Param("limit") int limit);
 
+    /** 会话内附件消息，按 seq 倒序。 */
+    List<MessagePO> selectMedia(@Param("conversationId") String conversationId,
+                                @Param("afterSeq") long afterSeq,
+                                @Param("limit") int limit);
+
+    /** 跨会话搜索文本 / 表情消息。 */
+    List<MessagePO> searchAcross(@Param("userId") long userId,
+                                 @Param("pattern") String pattern,
+                                 @Param("limit") int limit);
+
+    /** 跨会话搜索附件消息（文件名等存在 JSON content 里）。 */
+    List<MessagePO> searchMediaAcross(@Param("userId") long userId,
+                                      @Param("pattern") String pattern,
+                                      @Param("limit") int limit);
+
     @Select("SELECT COUNT(1) FROM im_message")
     long selectCountAll();
 }

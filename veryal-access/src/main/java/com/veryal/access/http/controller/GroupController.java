@@ -151,7 +151,8 @@ public class GroupController {
     }
 
     private static GroupMemberResponse toMemberResponse(GroupMemberView view) {
-        return new GroupMemberResponse(view.userId(), view.nickname(), view.avatar(),
+        return new GroupMemberResponse(view.userId(), view.nickname(), view.remark(),
+                                     view.avatar(),
                 view.online(), view.role(), view.mutedUntil(), view.mutedPermanently());
     }
 

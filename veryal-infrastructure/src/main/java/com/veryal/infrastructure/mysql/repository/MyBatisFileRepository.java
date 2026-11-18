@@ -50,6 +50,20 @@ public class MyBatisFileRepository implements FileRepository {
     }
 
     @Override
+    public List<StoredFile> findByIds(List<Long> fileIds) {
+        if (fileIds == null || fileIds.isEmpty()) {
+            return List.of();
+        }
+        List<Long> ids = fileIds.stream().filter(id -> id != null && id > 0).distinct().toList();
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        return fileMapper.selectBatchIds(ids).stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
+    @Override
     public void markDeleted(long fileId, Instant deletedAt) {
         fileMapper.update(null, Wrappers.<FilePO>lambdaUpdate()
                 .eq(FilePO::getId, fileId)

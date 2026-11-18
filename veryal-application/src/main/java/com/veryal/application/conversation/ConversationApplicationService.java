@@ -9,10 +9,16 @@ import com.veryal.common.json.JsonUtils;
 import com.veryal.domain.conversation.Conversation;
 import com.veryal.domain.conversation.ConversationIds;
 import com.veryal.domain.conversation.ConversationMember;
+import com.veryal.domain.conversation.ConversationMemberPrefs;
 import com.veryal.domain.conversation.ConversationRepository;
 import com.veryal.domain.conversation.ConversationType;
+import com.veryal.domain.file.FileRepository;
+import com.veryal.domain.file.StoredFile;
+import com.veryal.domain.friend.Friend;
+import com.veryal.domain.friend.FriendRepository;
 import com.veryal.domain.identity.User;
 import com.veryal.domain.identity.UserRepository;
+import com.veryal.domain.message.Message;
 import com.veryal.domain.message.MessageRepository;
 import com.veryal.domain.message.MessageType;
 import com.veryal.domain.message.event.MessageEvents;
@@ -25,7 +31,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 会话应用服务：单聊创建、会话列表、成员校验、读游标推进。
@@ -37,6 +46,8 @@ public class ConversationApplicationService {
     private final ConversationRepository conversationRepository;
     private final UserRepository userRepository;
     private final MessageRepository messageRepository;
+    private final FileRepository fileRepository;
+    private final FriendRepository friendRepository;
     private final OutboxAppender outboxAppender;
     private final ReadReceiptNotifier readReceiptNotifier;
     private final IdGenerator idGenerator;
@@ -141,6 +152,74 @@ public class ConversationApplicationService {
                     return bt.compareTo(at);
                 })
                 .toList();
+    }
+
+    /**
+     * 会话文件：从附件消息还原文件名 / 大小 / 类型，私聊和群聊各自独立。
+     *
+     * <p>只返回「对我可见」的消息：本人清空记录之前的附件不再出现。
+     * 文件元信息以 im_file 为准，图片消息本身没存文件名。</p>
+     */
+    @Transactional(readOnly = true)
+    public List<ConversationFileView> listFiles(long userId, String conversationId, int limit) {
+        requireMember(conversationId, userId);
+        long clearedSeq = conversationRepository.findMemberPrefs(conversationId, userId)
+                .map(ConversationMemberPrefs::clearedSeq)
+                .orElse(0L);
+        List<Message> messages = messageRepository.listMedia(conversationId, clearedSeq,
+                Math.max(1, Math.min(limit, 300)));
+
+        Map<Long, Long> fileIdByMessage = new HashMap<>();
+        for (Message message : messages) {
+            long fileId = fileIdOf(message.content());
+            if (fileId > 0) {
+                fileIdByMessage.put(message.id(), fileId);
+            }
+        }
+        if (fileIdByMessage.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, StoredFile> files = new HashMap<>();
+        fileRepository.findByIds(new ArrayList<>(fileIdByMessage.values()))
+                .forEach(file -> files.put(file.id(), file));
+        Map<Long, String> remarks = new HashMap<>();
+        for (Friend friend : friendRepository.listByUser(userId, 500)) {
+            if (friend.remark() != null && !friend.remark().isBlank()) {
+                remarks.put(friend.friendId(), friend.remark());
+            }
+        }
+        List<Long> senderIds = messages.stream().map(Message::senderId).distinct().toList();
+        Map<Long, User> users = new HashMap<>();
+        userRepository.findByIds(senderIds).forEach(user -> users.put(user.id(), user));
+
+        return messages.stream()
+                .map(message -> {
+                    StoredFile file = files.get(fileIdByMessage.get(message.id()));
+                    if (file == null) {
+                        return null;
+                    }
+                    User sender = users.get(message.senderId());
+                    String nickname = sender == null ? "用户 " + message.senderId()
+                            : sender.nickname();
+                    String senderName = remarks.getOrDefault(message.senderId(), nickname);
+                    return new ConversationFileView(file.id(), message.id(),
+                            message.type().name(), file.originalName(), file.sizeBytes(),
+                            file.contentType(), message.senderId(), senderName,
+                            message.createdAt());
+                })
+                .filter(java.util.Objects::nonNull)
+                .toList();
+    }
+
+    private long fileIdOf(byte[] content) {
+        if (content == null || content.length == 0) {
+            return 0L;
+        }
+        try {
+            return JsonUtils.mapper().readTree(content).path("fileId").asLong(0);
+        } catch (Exception e) {
+            return 0L;
+        }
     }
 
     private String preview(MessageType type, byte[] content, boolean recalled) {

@@ -358,3 +358,23 @@ CREATE INDEX IF NOT EXISTS idx_web_push_user ON im_web_push_subscription (user_i
 
 
 
+
+CREATE TABLE IF NOT EXISTS im_favorite
+(
+    id                 BIGINT       NOT NULL PRIMARY KEY,
+    user_id            BIGINT       NOT NULL,
+    conversation_id    VARCHAR(64)  NOT NULL,
+    message_id         BIGINT       NOT NULL,
+    msg_type           INT          NOT NULL,
+    content            BLOB         NULL,
+    file_id            BIGINT       NULL,
+    file_name          VARCHAR(255) NULL,
+    size_bytes         BIGINT       NULL,
+    content_type       VARCHAR(128) NULL,
+    sender_id          BIGINT       NOT NULL,
+    sender_name        VARCHAR(64)  NULL,
+    conversation_title VARCHAR(128) NULL,
+    created_at         TIMESTAMP(3) NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_favorite_user_message ON im_favorite (user_id, message_id);
+CREATE INDEX IF NOT EXISTS idx_favorite_user ON im_favorite (user_id, created_at);

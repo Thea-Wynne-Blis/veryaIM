@@ -12,6 +12,8 @@ public record GroupMemberResponse(
         long userId,
         @Schema(description = "昵称")
         String nickname,
+        @Schema(description = "好友备注，没设为 null；展示名优先用它")
+        String remark,
         @Schema(description = "头像地址")
         String avatar,
         @Schema(description = "是否在线（受对方隐私设置限制）")

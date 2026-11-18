@@ -98,7 +98,17 @@
                LEFT(pm.content, 1024) AS lastMessageContent,
                pm.recalled_at AS lastMessageRecalledAt,
                pm.sender_id AS lastMessageSenderId,
-               su.nickname AS lastMessageSenderName,
+               <!--
+                 群消息预览的姓名也优先用好友备注：和右侧成员列表、聊天里的作者名保持一致。
+                 自己发的消息不会用到这个字段（前端显示「我」）。
+               -->
+               COALESCE((SELECT f.remark
+                         FROM im_friend f
+                         WHERE f.user_id = #{userId}
+                           AND f.friend_id = pm.sender_id
+                           AND f.remark IS NOT NULL
+                           AND f.remark &lt;&gt; ''),
+                        su.nickname) AS lastMessageSenderName,
                pm.created_at AS lastMessageCreatedAt,
                g.name AS groupName,
                CASE WHEN c.conversation_type = 1 THEN

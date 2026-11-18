@@ -36,6 +36,18 @@ public interface MessageRepository {
     List<Message> searchText(String conversationId, String pattern,
                              long afterSeq, long beforeSeq, int limit);
 
+    /**
+     * 会话内的附件消息（图片 / 文件 / 语音 / 视频），按 seq 倒序。
+     * 「聊天文件」面板用它，已撤回的消息不出现。
+     */
+    List<Message> listMedia(String conversationId, long afterSeq, int limit);
+
+    /** 跨会话搜索文本 / 表情消息，只限我参与的会话；按创建时间倒序。 */
+    List<Message> searchAcrossConversations(long userId, String pattern, int limit);
+
+    /** 跨会话搜索附件消息（按文件名 / 内容 JSON 匹配），只限我参与的会话。 */
+    List<Message> searchMediaAcrossConversations(long userId, String pattern, int limit);
+
 
     long countAll();
 }

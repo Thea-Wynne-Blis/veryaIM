@@ -36,4 +36,54 @@
         LIMIT #{limit}
     </select>
 
+    <!-- 聊天文件：图片 / 文件 / 语音 / 视频，已撤回的不出现。 -->
+    <select id="selectMedia" resultType="com.veryal.infrastructure.mysql.po.MessagePO">
+        SELECT id, conversation_id, sender_id, client_msg_id, seq, msg_type, content,
+               created_at, recalled_at, recalled_by, reply_to_id, reply_sender_id, reply_preview
+        FROM im_message
+        WHERE conversation_id = #{conversationId}
+          AND recalled_at IS NULL
+          AND msg_type IN (2, 3, 4, 5)
+          AND seq &gt; #{afterSeq}
+        ORDER BY seq DESC
+        LIMIT #{limit}
+    </select>
+
+    <!--
+      全局搜索：只搜我参与的会话，且跳过我自己「清空记录」之前的消息。
+      结果跨会话，因此按创建时间倒序而不是 seq。
+    -->
+    <select id="searchAcross" resultType="com.veryal.infrastructure.mysql.po.MessagePO">
+        SELECT m.id, m.conversation_id, m.sender_id, m.client_msg_id, m.seq, m.msg_type,
+               m.content, m.created_at, m.recalled_at, m.recalled_by,
+               m.reply_to_id, m.reply_sender_id, m.reply_preview
+        FROM im_message m
+                 INNER JOIN im_conversation_member cm
+                            ON cm.conversation_id = m.conversation_id
+                                AND cm.user_id = #{userId}
+        WHERE m.recalled_at IS NULL
+          AND m.msg_type IN (1, 6)
+          AND m.seq &gt; cm.cleared_seq
+          AND m.content LIKE #{pattern} ESCAPE '!'
+        ORDER BY m.created_at DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 附件消息的 content 是 JSON，文件名也能被 LIKE 命中。 -->
+    <select id="searchMediaAcross" resultType="com.veryal.infrastructure.mysql.po.MessagePO">
+        SELECT m.id, m.conversation_id, m.sender_id, m.client_msg_id, m.seq, m.msg_type,
+               m.content, m.created_at, m.recalled_at, m.recalled_by,
+               m.reply_to_id, m.reply_sender_id, m.reply_preview
+        FROM im_message m
+                 INNER JOIN im_conversation_member cm
+                            ON cm.conversation_id = m.conversation_id
+                                AND cm.user_id = #{userId}
+        WHERE m.recalled_at IS NULL
+          AND m.msg_type IN (2, 3, 4, 5)
+          AND m.seq &gt; cm.cleared_seq
+          AND m.content LIKE #{pattern} ESCAPE '!'
+        ORDER BY m.created_at DESC
+        LIMIT #{limit}
+    </select>
+
 </mapper>

@@ -1,6 +1,7 @@
 package com.veryal.access.http.controller;
 
 import com.veryal.access.http.dto.ConversationCardResponse;
+import com.veryal.access.http.dto.ConversationFileResponse;
 import com.veryal.access.http.dto.ConversationPrefsRequest;
 import com.veryal.access.http.dto.ConversationResponse;
 import com.veryal.access.http.dto.CreateConversationRequest;
@@ -126,6 +127,18 @@ public class ConversationController {
                                                     @RequestParam(defaultValue = "50") int limit) {
         return ApiResponse.ok(MessagePageResponse.from(messageApplicationService.history(
                 user.userId(), conversationId, cursor, limit)));
+    }
+
+    @Operation(summary = "会话文件", description = "私聊 / 群聊各自的文件列表，来自未撤回的图片、文件、语音、视频消息；按时间倒序。")
+    @GetMapping("/{conversationId}/files")
+    public ApiResponse<List<ConversationFileResponse>> files(
+            @CurrentUser AuthenticatedUser user,
+            @PathVariable String conversationId,
+            @RequestParam(defaultValue = "200") int limit) {
+        return ApiResponse.ok(conversationApplicationService
+                .listFiles(user.userId(), conversationId, limit).stream()
+                .map(ConversationFileResponse::from)
+                .toList());
     }
 
     @Operation(summary = "搜索会话内消息", description = "按关键词搜索该会话的历史消息，仅对文本消息生效。")

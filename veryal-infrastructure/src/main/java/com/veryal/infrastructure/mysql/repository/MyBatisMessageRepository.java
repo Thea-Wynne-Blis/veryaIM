@@ -91,6 +91,30 @@ public class MyBatisMessageRepository implements MessageRepository {
     }
 
     @Override
+    public List<Message> listMedia(String conversationId, long afterSeq, int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, MAX_PAGE_LIMIT));
+        return messageMapper.selectMedia(conversationId, afterSeq, safeLimit).stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<Message> searchAcrossConversations(long userId, String pattern, int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, MAX_PAGE_LIMIT));
+        return messageMapper.searchAcross(userId, pattern, safeLimit).stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<Message> searchMediaAcrossConversations(long userId, String pattern, int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, MAX_PAGE_LIMIT));
+        return messageMapper.searchMediaAcross(userId, pattern, safeLimit).stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
+    @Override
     public long countAll() {
         return messageMapper.selectCount(null);
     }
