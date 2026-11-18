@@ -14,6 +14,7 @@ import java.time.Instant;
  * @param lastMessageRecalled 最后一条消息是否已撤回
  * @param clearedSeq          本人清空记录的水位
  * @param hidden              本人是否选择了「不显示」（更晚的消息会让它重新出现）
+ * @param peerRemark          本人给单聊对方设的好友备注，没设为 {@code null}
  */
 public record ConversationCardSnapshot(String conversationId,
                                        ConversationType type,
@@ -27,6 +28,7 @@ public record ConversationCardSnapshot(String conversationId,
                                        Instant lastMessageAt,
                                        Long peerUserId,
                                        String peerNickname,
+                                       String peerRemark,
                                        String groupName,
                                        long clearedSeq,
                                        boolean manualUnread,

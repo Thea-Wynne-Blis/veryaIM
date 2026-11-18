@@ -32,4 +32,5 @@ public class ConversationCardRowPO {
     public String groupName;
     public Long peerUserId;
     public String peerNickname;
+    public String peerRemark;
 }

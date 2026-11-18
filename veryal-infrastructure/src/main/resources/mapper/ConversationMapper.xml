@@ -116,7 +116,21 @@
                                   WHERE p2.conversation_id = c.id
                                     AND p2.user_id &lt;&gt; #{userId}
                                   LIMIT 1))
-               END AS peerNickname
+               END AS peerNickname,
+               <!--
+                 好友备注：列表 / 聊天头部优先显示备注，没设备注才回落到对方昵称。
+                 备注只对「我」这一侧生效，所以按 user_id = #{userId} 关联。
+               -->
+               CASE WHEN c.conversation_type = 1 THEN
+                   (SELECT f.remark
+                    FROM im_friend f
+                    WHERE f.user_id = #{userId}
+                      AND f.friend_id = (SELECT p3.user_id
+                                         FROM im_conversation_member p3
+                                         WHERE p3.conversation_id = c.id
+                                           AND p3.user_id &lt;&gt; #{userId}
+                                         LIMIT 1))
+               END AS peerRemark
         FROM im_conversation c
                  INNER JOIN im_conversation_member me
                             ON me.conversation_id = c.id AND me.user_id = #{userId}

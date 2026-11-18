@@ -164,6 +164,7 @@ public class MyBatisConversationRepository implements ConversationRepository {
                                 : SqlTime.toInstant(row.lastMessageCreatedAt),
                         row.peerUserId,
                         row.peerNickname,
+                        row.peerRemark,
                         row.groupName,
                         row.clearedSeq,
                         row.manualUnread,

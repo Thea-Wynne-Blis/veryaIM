@@ -95,9 +95,13 @@ public class ConversationApplicationService {
                     if (snapshot.type() == ConversationType.GROUP) {
                         title = snapshot.groupName() == null ? "群聊" : snapshot.groupName();
                     } else if (peerUserId > 0) {
-                        title = snapshot.peerNickname() == null
-                                ? "用户 " + peerUserId
-                                : snapshot.peerNickname();
+                        // 好友备注优先：改名/备注后列表与聊天头部都跟着变。
+                        title = snapshot.peerRemark() != null
+                                && !snapshot.peerRemark().isBlank()
+                                ? snapshot.peerRemark()
+                                : snapshot.peerNickname() == null
+                                        ? "用户 " + peerUserId
+                                        : snapshot.peerNickname();
                     } else {
                         title = "会话";
                     }

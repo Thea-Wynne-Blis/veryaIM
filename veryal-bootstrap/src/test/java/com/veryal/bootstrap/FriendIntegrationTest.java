@@ -3,6 +3,7 @@ package com.veryal.bootstrap;
 import com.veryal.access.http.dto.AuthResponse;
 import com.veryal.access.http.dto.BlockedUserResponse;
 import com.veryal.access.http.dto.ContactResponse;
+import com.veryal.access.http.dto.ConversationCardResponse;
 import com.veryal.access.http.dto.ConversationResponse;
 import com.veryal.access.http.dto.FriendRequestResponse;
 import com.veryal.access.http.dto.FriendResponse;
@@ -91,6 +92,25 @@ class FriendIntegrationTest {
                 Map.of("peerUserId", bob.userId()), aliceLogin.token(),
                 new ParameterizedTypeReference<ApiResponse<ConversationResponse>>() {
                 });
+
+        // 单聊会话标题优先用好友备注：bob 给 alice 备注了 bestie。
+        ApiResponse<List<ConversationCardResponse>> bobCards = get("/api/v1/conversations/cards",
+                bobLogin.token(), new ParameterizedTypeReference<>() {
+                });
+        ConversationCardResponse bobCard = bobCards.data().stream()
+                .filter(card -> conversation.data().conversationId().equals(card.conversationId()))
+                .findFirst().orElseThrow();
+        assertThat(bobCard.title()).isEqualTo("bestie");
+        assertThat(bobCard.peerUserId()).isEqualTo(alice.userId());
+
+        // 反向没有备注，仍然显示对方昵称。
+        ApiResponse<List<ConversationCardResponse>> aliceCards = get("/api/v1/conversations/cards",
+                aliceLogin.token(), new ParameterizedTypeReference<>() {
+                });
+        ConversationCardResponse aliceCard = aliceCards.data().stream()
+                .filter(card -> conversation.data().conversationId().equals(card.conversationId()))
+                .findFirst().orElseThrow();
+        assertThat(aliceCard.title()).isEqualTo(bob.nickname());
 
         post("/api/v1/blocks/" + alice.userId(), Map.of(), bobLogin.token(),
                 new ParameterizedTypeReference<ApiResponse<Void>>() {
