@@ -1,5 +1,6 @@
 package com.veryal.application.group;
 
+import com.veryal.application.message.SystemMessageService;
 import com.veryal.common.core.TimeProvider;
 import com.veryal.common.exception.BusinessException;
 import com.veryal.common.exception.ErrorCode;
@@ -12,6 +13,8 @@ import com.veryal.domain.group.GroupMuteDuration;
 import com.veryal.domain.group.GroupRepository;
 import com.veryal.domain.group.GroupRole;
 import com.veryal.domain.group.GroupSetting;
+import com.veryal.domain.identity.User;
+import com.veryal.domain.identity.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +40,8 @@ public class GroupModerationService {
     private final GroupModerationRepository moderationRepository;
     private final GroupRepository groupRepository;
     private final GroupAccessGuard groupAccessGuard;
+    private final UserRepository userRepository;
+    private final SystemMessageService systemMessageService;
     private final TimeProvider timeProvider;
 
     public ModerationView get(long userId, String groupId) {
@@ -75,6 +80,11 @@ public class GroupModerationService {
         GroupSetting updated = new GroupSetting(groupId, current.announcement(), muteAll,
                 timeProvider.now(), operatorId);
         moderationRepository.saveSetting(updated);
+        // 全员禁言状态变化也留一条聊天框提示，成员不用去群管理里才发现不能发言。
+        if (current.muteAll() != muteAll) {
+            systemMessageService.appendGroupNotice(groupId, operatorId,
+                    nicknameOf(operatorId) + (muteAll ? " 开启了全员禁言" : " 关闭了全员禁言"));
+        }
         return view(groupId, updated, moderationRepository.findMute(groupId, operatorId).orElse(null));
     }
 
@@ -94,12 +104,23 @@ public class GroupModerationService {
             throw new BusinessException(ErrorCode.FORBIDDEN, "cannot mute this member");
         }
         Instant now = timeProvider.now();
+        // 解除一个本来就没被禁言的人不需要再刷一条提示。
+        GroupMute before = moderationRepository.findMute(groupId, targetId).orElse(null);
+        boolean wasMuted = before != null && before.activeAt(now);
         if (duration.unmute()) {
             moderationRepository.unmute(groupId, targetId);
         } else if (duration.permanent()) {
             moderationRepository.mute(groupId, targetId, null, now);
         } else {
             moderationRepository.mute(groupId, targetId, now.plus(duration.duration()), now);
+        }
+        if (!duration.unmute() || wasMuted) {
+            String actor = nicknameOf(operatorId);
+            String targetName = nicknameOf(targetId);
+            String notice = duration.unmute()
+                    ? actor + " 解除了 " + targetName + " 的禁言"
+                    : actor + " 将 " + targetName + " " + mutePhrase(duration);
+            systemMessageService.appendGroupNotice(groupId, operatorId, notice);
         }
         return view(groupId,
                 moderationRepository.findSetting(groupId).orElse(GroupSetting.empty(groupId)),
@@ -169,6 +190,21 @@ public class GroupModerationService {
     private ModerationView view(String groupId, GroupSetting setting, GroupMute mute) {
         return new ModerationView(groupId, setting.announcement(), setting.muteAll(),
                 mute == null ? null : mute.mutedUntil(), mute != null && mute.permanent());
+    }
+
+    /** 群提示文案用昵称；用户不存在时退回 ID，避免整条提示丢失。 */
+    private String nicknameOf(long userId) {
+        return userRepository.findById(userId)
+                .map(User::nickname)
+                .filter(name -> name != null && !name.isBlank())
+                .orElse("用户 " + userId);
+    }
+
+    private static String mutePhrase(GroupMuteDuration duration) {
+        if (duration.permanent()) {
+            return "永久禁言";
+        }
+        return "禁言 " + duration.duration().toMinutes() + " 分钟";
     }
 
     private Group requireGroup(String groupId) {

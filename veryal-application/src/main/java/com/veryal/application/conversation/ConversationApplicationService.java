@@ -140,7 +140,8 @@ public class ConversationApplicationService {
             case AUDIO -> "[语音]";
             case VIDEO -> "[视频]";
             case FILE -> "[文件]";
-            case SYSTEM -> "[系统消息]";
+            // 系统消息的内容就是给人看的纯文本（如「爱丽丝 将 鲍勃 禁言 7 分钟」）。
+            case SYSTEM -> new String(content, java.nio.charset.StandardCharsets.UTF_8);
         };
         text = text.replaceAll("\\s+", " ").trim();
         return text.length() > 60 ? text.substring(0, 60) + "…" : text;

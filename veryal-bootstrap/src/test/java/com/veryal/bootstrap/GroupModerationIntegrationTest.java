@@ -10,6 +10,7 @@ import com.veryal.application.message.SendMessageCommand;
 import com.veryal.common.core.ApiResponse;
 import com.veryal.common.exception.BusinessException;
 import com.veryal.common.exception.ErrorCode;
+import com.veryal.domain.message.Message;
 import com.veryal.domain.message.MessageType;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -114,6 +115,21 @@ class GroupModerationIntegrationTest {
         mute(group, member.userId(), "UNMUTE", ownerLogin.token());
         assertThat(send(group.groupId(), member.userId(), "gm-c7-" + suffix,
                 "{\"text\":\"back\"}")).isNotNull();
+
+        // 禁言状态变化会在聊天框里留下系统提示，成员能直接看到发生了什么。
+        List<String> notices = messageApplicationService
+                .history(owner.userId(), group.groupId(), 0, 100).items().stream()
+                .filter(item -> item.type() == MessageType.SYSTEM)
+                .map(Message::textContent)
+                .toList();
+        assertThat(notices).anySatisfy(text -> assertThat(text)
+                .contains(owner.nickname() + " 将 " + member.nickname() + " 禁言 7 分钟"));
+        assertThat(notices).anySatisfy(text -> assertThat(text)
+                .contains(owner.nickname() + " 将 " + member.nickname() + " 永久禁言"));
+        assertThat(notices).anySatisfy(text -> assertThat(text)
+                .contains(owner.nickname() + " 解除了 " + member.nickname() + " 的禁言"));
+        assertThat(notices).anySatisfy(text -> assertThat(text)
+                .contains(owner.nickname() + " 开启了全员禁言"));
 
         // 非法档位由请求校验拒绝
         assertThat(postStatus("/api/v1/groups/" + group.groupId() + "/members/"
