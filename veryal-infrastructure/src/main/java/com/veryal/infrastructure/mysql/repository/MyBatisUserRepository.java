@@ -108,7 +108,7 @@ public class MyBatisUserRepository implements UserRepository {
     }
 
     private User toDomain(UserPO po) {
-        return new User(po.id, po.username, po.nickname, po.avatar,
+        return new User(po.id, po.username, po.nickname, po.avatar, po.region, po.signature,
                 UserStatus.fromCode(po.status), po.passwordHash,
                 SqlTime.toInstant(po.createdAt), SqlTime.toInstant(po.updatedAt));
     }
@@ -119,6 +119,8 @@ public class MyBatisUserRepository implements UserRepository {
         po.username = user.username();
         po.nickname = user.nickname();
         po.avatar = user.avatar();
+        po.region = user.region();
+        po.signature = user.signature();
         po.status = user.status().code();
         po.passwordHash = user.passwordHash();
         po.createdAt = SqlTime.toLocal(user.createdAt());

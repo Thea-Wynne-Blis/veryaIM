@@ -7,6 +7,8 @@ CREATE TABLE IF NOT EXISTS im_user
     username      VARCHAR(64)  NOT NULL,
     nickname      VARCHAR(128),
     avatar        VARCHAR(512),
+    region        VARCHAR(64),
+    signature     VARCHAR(255),
     status        TINYINT      NOT NULL DEFAULT 1,
     password_hash VARCHAR(255) NOT NULL,
     created_at    TIMESTAMP(3) NOT NULL,

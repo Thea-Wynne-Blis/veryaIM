@@ -42,7 +42,8 @@ public class UserApplicationService {
 
     @CacheEvict(cacheNames = "user", key = "#userId")
     @Transactional
-    public UserProfile updateProfile(long userId, String nickname, String avatar) {
+    public UserProfile updateProfile(long userId, String nickname, String avatar,
+                                     String region, String signature) {
         User user = requireUser(userId);
         if (nickname != null && nickname.length() > 64) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "nickname too long");
@@ -50,7 +51,11 @@ public class UserApplicationService {
         if (avatar != null && avatar.length() > 512) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "avatar url too long");
         }
-        User updated = user.updateProfile(nickname, avatar, timeProvider.now());
+        // 资料卡里的地区/签名是自由文本，去掉首尾空白后按原样存；空串表示清空。
+        String cleanRegion = region == null ? null : region.trim();
+        String cleanSignature = signature == null ? null : signature.trim();
+        User updated = user.updateProfile(nickname, avatar, cleanRegion, cleanSignature,
+                timeProvider.now());
         userRepository.update(updated);
         return UserProfile.from(updated);
     }

@@ -22,13 +22,15 @@ import com.veryal.domain.identity.UserRepository;
 import com.veryal.domain.message.outbox.OutboxAppender;
 import com.veryal.domain.message.outbox.OutboxMessage;
 import com.veryal.domain.presence.PresenceRepository;
-import com.veryal.domain.presence.PresenceStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 好友与黑名单应用服务。
@@ -163,13 +165,28 @@ public class FriendApplicationService {
 
     @Transactional(readOnly = true)
     public List<FriendView> listFriends(long userId) {
-        return friendRepository.listByUser(userId, MAX_LIST_SIZE).stream()
+        List<Friend> relations = friendRepository.listByUser(userId, MAX_LIST_SIZE);
+        if (relations.isEmpty()) {
+            return List.of();
+        }
+        // 好友列表一次批量取用户资料与在线状态：通讯录是首屏接口，
+        // 之前每个好友各查一次用户表 + 一次 Redis，好友多了会明显拖慢。
+        Map<Long, User> users = userRepository.findByIds(
+                        relations.stream().map(Friend::friendId).toList())
+                .stream()
+                .collect(Collectors.toMap(User::id, user -> user));
+        Set<Long> onlineIds = presenceRepository.onlineUserIds(
+                relations.stream().map(Friend::friendId).toList());
+        return relations.stream()
                 .map(friend -> {
-                    User user = userRepository.findById(friend.friendId()).orElse(null);
-                    String nickname = user == null ? "" : user.nickname();
-                    String avatar = user == null ? null : user.avatar();
-                    return new FriendView(friend.friendId(), nickname, avatar, friend.remark(),
-                            online(friend.friendId()), friend.createdAt());
+                    User user = users.get(friend.friendId());
+                    return new FriendView(friend.friendId(),
+                            user == null ? "" : user.nickname(),
+                            user == null ? null : user.avatar(),
+                            user == null ? null : user.region(),
+                            user == null ? null : user.signature(),
+                            friend.remark(), onlineIds.contains(friend.friendId()),
+                            friend.createdAt());
                 })
                 .toList();
     }
@@ -284,11 +301,6 @@ public class FriendApplicationService {
     private User requireUser(long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-    }
-
-    private boolean online(long userId) {
-        return presenceRepository.findByUserId(userId).stream()
-                .anyMatch(item -> item.status() == PresenceStatus.ONLINE);
     }
 
     private int limit(int limit) {

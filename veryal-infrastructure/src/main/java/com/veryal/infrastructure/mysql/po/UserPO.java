@@ -19,6 +19,8 @@ public class UserPO {
     public String username;
     public String nickname;
     public String avatar;
+    public String region;
+    public String signature;
     public int status;
     public String passwordHash;
     public LocalDateTime createdAt;

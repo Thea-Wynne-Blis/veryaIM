@@ -3,6 +3,11 @@ package com.veryal.application.identity;
 import com.veryal.common.core.TimeProvider;
 import com.veryal.common.exception.BusinessException;
 import com.veryal.common.exception.ErrorCode;
+import com.veryal.domain.friend.Friend;
+import com.veryal.domain.friend.FriendRepository;
+import com.veryal.domain.friend.FriendRequest;
+import com.veryal.domain.friend.FriendRequestRepository;
+import com.veryal.domain.friend.FriendRequestStatus;
 import com.veryal.domain.identity.User;
 import com.veryal.domain.identity.UserPrivacy;
 import com.veryal.domain.identity.UserPrivacyRepository;
@@ -27,6 +32,8 @@ public class UserSocialService {
     private final UserRepository userRepository;
     private final UserPrivacyRepository privacyRepository;
     private final PresenceRepository presenceRepository;
+    private final FriendRepository friendRepository;
+    private final FriendRequestRepository friendRequestRepository;
     private final TimeProvider timeProvider;
 
     @Transactional(readOnly = true)
@@ -51,8 +58,26 @@ public class UserSocialService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         UserPrivacy privacy = privacy(targetId);
         boolean online = privacy.showOnline() && presenceRepository.isOnline(targetId);
+        // 资料卡要区分「好友 / 陌生人 / 自己」三种形态：
+        // 好友取 im_friend 的建立时间当「添加时间」，陌生人给发送申请入口。
+        Friend friend = requesterId == targetId ? null
+                : friendRepository.find(requesterId, targetId).orElse(null);
+        boolean pendingOutgoing = false;
+        boolean pendingIncoming = false;
+        if (requesterId != targetId) {
+            pendingOutgoing = pending(requesterId, targetId);
+            pendingIncoming = pending(targetId, requesterId);
+        }
         return new UserProfileView(user.id(), user.username(), user.nickname(), user.avatar(),
-                online, user.createdAt());
+                user.region(), user.signature(), online, user.createdAt(),
+                friend != null, friend == null ? null : friend.createdAt(),
+                friend == null ? null : friend.remark(), pendingOutgoing, pendingIncoming);
+    }
+
+    private boolean pending(long fromUserId, long toUserId) {
+        return friendRequestRepository.findBetween(fromUserId, toUserId)
+                .filter(request -> request.status() == FriendRequestStatus.PENDING)
+                .isPresent();
     }
 
     @Transactional(readOnly = true)
@@ -93,7 +118,10 @@ public class UserSocialService {
     }
 
     public record UserProfileView(long userId, String username, String nickname, String avatar,
-                                  boolean online, Instant createdAt) {
+                                  String region, String signature, boolean online,
+                                  Instant createdAt, boolean friend, Instant friendSince,
+                                  String remark, boolean pendingOutgoing,
+                                  boolean pendingIncoming) {
     }
 
     public record PrivacyUpdate(Boolean searchByPhone, Boolean searchByUsername,

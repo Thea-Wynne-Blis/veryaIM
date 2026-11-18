@@ -42,12 +42,13 @@ public class UserController {
         return ApiResponse.ok(UserResponse.from(userApplicationService.getProfile(user.userId())));
     }
 
-    @Operation(summary = "修改我的资料", description = "可修改昵称与头像地址，其他字段不可改。")
+    @Operation(summary = "修改我的资料", description = "可修改昵称、头像地址、所在地区与个性签名；地区/签名传空串表示清空。")
     @PutMapping("/me")
     public ApiResponse<UserResponse> update(@CurrentUser AuthenticatedUser user,
                                             @Valid @RequestBody UpdateProfileRequest request) {
-        return ApiResponse.ok(UserResponse.from(
-                userApplicationService.updateProfile(user.userId(), request.nickname(), request.avatar())));
+        return ApiResponse.ok(UserResponse.from(userApplicationService.updateProfile(
+                user.userId(), request.nickname(), request.avatar(),
+                request.region(), request.signature())));
     }
 
     @Operation(summary = "我的登录设备", description = "列出该账号登录过的设备，含设备类型与最近活跃时间。"
