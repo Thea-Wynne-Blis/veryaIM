@@ -65,8 +65,14 @@ public class FileApplicationService {
     public static final int THUMB_MASTER_SIDE = 640;
     private static final int THUMB_MIN_SIDE = 96;
     private static final int THUMB_MAX_SIDE = 1280;
-    /** 会被缓存的几种边长，删除文件时按这份清单清理，避免派生文件残留。 */
-    private static final int[] CACHED_THUMB_SIDES = {320, THUMB_DEFAULT_SIDE, THUMB_MASTER_SIDE, THUMB_MAX_SIDE};
+    /**
+     * 客户端会请求的几种边长，删除文件时按这份清单清理，避免派生文件残留。
+     *
+     * <p>头像 96、列表 320 / 480 / 640、灯箱预览 1280；漏掉任何一档都会留下孤儿缩略图。</p>
+     */
+    private static final int[] CACHED_THUMB_SIDES = {
+        THUMB_MIN_SIDE, 320, THUMB_DEFAULT_SIDE, THUMB_MASTER_SIDE, THUMB_MAX_SIDE
+    };
 
     public FileView upload(long uploaderId, String filename, String contentType,
                            byte[] content) {
