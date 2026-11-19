@@ -282,6 +282,23 @@ public class FileApplicationService {
         if (file.status() == FileStatus.DELETED) {
             return;
         }
+        purge(file);
+    }
+
+    /**
+     * 清理没有任何业务引用的文件。
+     *
+     * <p>调用方是定时孤儿扫描，已经没有用户身份，也不再校验归属；
+     * 之所以不给外部接口用，是因为少了两层保护。</p>
+     */
+    public void deleteOrphan(long fileId) {
+        fileRepository.findById(fileId)
+                .filter(file -> file.status() != FileStatus.DELETED)
+                .ifPresent(this::purge);
+    }
+
+    private void purge(StoredFile file) {
+        long fileId = file.id();
         FileStorage storage = storageProvider.get(file.storageType());
         storage.delete(file.objectKey());
         // 缩略图是按需生成的派生文件，跟着原文件一起清掉（不存在也无妨）

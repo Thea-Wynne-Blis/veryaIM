@@ -118,6 +118,7 @@
 - [x] Caffeine（用户资料 L1 缓存，代码显式配置：10 万条 / 10 分钟 / 统计；`@Cacheable` / `@CacheEvict`）
 - [x] RabbitMQ（Outbox 发布、单投递队列 + Redis 路由、重试队列、死信队列）
 - [x] 文件存储策略（local / MinIO / 阿里云 OSS；上传、下载、删除、临时 URL、SHA-256、元数据落库）
+- [x] 存储垃圾清理（每 6 小时：孤儿文件按 24 小时保留期回收，校验动态/收藏/头像引用；放弃的分片会话一并丢弃）
 - [x] Prometheus 指标（连接数、连接建立/关闭、心跳超时、消息接收、协议错误）
 - [ ] Grafana（按部署环境接入）
 - [x] Actuator health / info / metrics

@@ -10,4 +10,35 @@
         WHERE status = 0
     </select>
 
+    <!--
+      孤儿文件：超过保留时间，且没有任何「活着的」引用。
+      1) im_moment_media 关联的动态必须未删除：动态删了留给清理，避免误删被别的动态复用的文件；
+      2) 收藏指向的文件本体要继续能下载；
+      3) 头像存的是 URL 字符串，用 id 子串匹配（误判只会少删，不会误删）。
+      conversation_id 非空的会话附件不参与。
+    -->
+    <select id="selectOrphans" resultType="com.veryal.infrastructure.mysql.po.FilePO">
+        SELECT f.*
+        FROM im_file f
+        WHERE f.status = 0
+          AND f.deleted_at IS NULL
+          AND f.conversation_id IS NULL
+          AND f.created_at &lt; #{threshold}
+          AND NOT EXISTS (
+              SELECT 1
+              FROM im_moment_media mm
+              JOIN im_moment m ON m.id = mm.moment_id
+              WHERE mm.file_id = f.id
+                AND m.deleted_at IS NULL
+          )
+          AND NOT EXISTS (
+              SELECT 1 FROM im_favorite fav WHERE fav.file_id = f.id
+          )
+          AND NOT EXISTS (
+              SELECT 1 FROM im_user u WHERE u.avatar LIKE CONCAT('%', f.id, '%')
+          )
+        ORDER BY f.id
+        LIMIT #{limit}
+    </select>
+
 </mapper>

@@ -10,6 +10,8 @@ import com.veryal.infrastructure.mysql.po.UploadSessionPO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -51,6 +53,21 @@ public class MyBatisUploadRepository implements UploadRepository {
                 .eq(UploadSessionPO::getId, uploadId)
                 .set(UploadSessionPO::getStatus, status.code())
                 .set(UploadSessionPO::getFileId, fileId));
+    }
+
+    @Override
+    public List<UploadSession> findActiveBefore(Instant createdBefore, int limit) {
+        if (limit <= 0) {
+            return List.of();
+        }
+        return uploadSessionMapper.selectList(Wrappers.<UploadSessionPO>lambdaQuery()
+                        .eq(UploadSessionPO::getStatus, UploadStatus.ACTIVE.code())
+                        .lt(UploadSessionPO::getCreatedAt, SqlTime.toLocal(createdBefore))
+                        .orderByAsc(UploadSessionPO::getCreatedAt)
+                        .last("LIMIT " + limit))
+                .stream()
+                .map(this::toDomain)
+                .toList();
     }
 
     private UploadSession toDomain(UploadSessionPO po) {

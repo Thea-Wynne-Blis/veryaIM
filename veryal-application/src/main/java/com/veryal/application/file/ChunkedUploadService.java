@@ -16,6 +16,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -33,6 +35,8 @@ import java.util.Locale;
 public class ChunkedUploadService {
 
     private static final int MAX_CHUNKS = 10_000;
+    /** 单轮最多处理多少个放弃的会话，剩下的下一轮继续。 */
+    private static final int STALE_BATCH = 200;
 
     private final UploadRepository uploadRepository;
     private final FileApplicationService fileApplicationService;
@@ -148,6 +152,26 @@ public class ChunkedUploadService {
         }
         uploadRepository.markStatus(uploadId, UploadStatus.CANCELED, null);
         cleanup(uploadId);
+    }
+
+    /**
+     * 清理停在 ACTIVE 太久的会话：关掉页面或断网后不再续传，分片会一直占着磁盘。
+     *
+     * @return 本轮清理的会话数
+     */
+    public int discardStale(Duration idle) {
+        Instant threshold = timeProvider.now().minus(idle);
+        int discarded = 0;
+        for (UploadSession session : uploadRepository.findActiveBefore(threshold, STALE_BATCH)) {
+            try {
+                uploadRepository.markStatus(session.id(), UploadStatus.CANCELED, null);
+                cleanup(session.id());
+                discarded++;
+            } catch (RuntimeException e) {
+                log.warn("failed to discard stale upload: uploadId={}", session.id(), e);
+            }
+        }
+        return discarded;
     }
 
     private UploadSession requireActive(long uploaderId, long uploadId) {

@@ -18,5 +18,13 @@ public interface FileRepository {
 
     void markDeleted(long fileId, Instant deletedAt);
 
+    /**
+     * 孤儿文件：上传后一直没被动态、收藏或头像引用，且已超过保留时间。
+     *
+     * <p>典型来源是「选了图又关掉发布框」和「删掉的动态留下媒体」；
+     * 会话附件带 conversationId，不在清理范围内。</p>
+     */
+    List<StoredFile> findOrphans(Instant createdBefore, int limit);
+
     long totalBytes();
 }

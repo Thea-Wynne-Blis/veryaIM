@@ -76,6 +76,16 @@ public class MyBatisFileRepository implements FileRepository {
         return fileMapper.selectTotalBytes();
     }
 
+    @Override
+    public List<StoredFile> findOrphans(Instant createdBefore, int limit) {
+        if (limit <= 0) {
+            return List.of();
+        }
+        return fileMapper.selectOrphans(SqlTime.toLocal(createdBefore), limit).stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
     private StoredFile toDomain(FilePO po) {
         return new StoredFile(po.id, po.uploaderId, po.objectKey,
                 po.originalName, po.contentType, po.sizeBytes, po.sha256,
