@@ -76,20 +76,6 @@ public class MyBatisFileRepository implements FileRepository {
         return fileMapper.selectTotalBytes();
     }
 
-    @Override
-    public List<StoredFile> findByUploader(long uploaderId, int limit) {
-        int size = Math.min(Math.max(limit, 1), 200);
-        return fileMapper.selectList(Wrappers.<FilePO>lambdaQuery()
-                        .eq(FilePO::getUploaderId, uploaderId)
-                        .eq(FilePO::getStatus, FileStatus.ACTIVE.code())
-                        .isNull(FilePO::getDeletedAt)
-                        .orderByDesc(FilePO::getId)
-                        .last("limit " + size))
-                .stream()
-                .map(this::toDomain)
-                .toList();
-    }
-
     private StoredFile toDomain(FilePO po) {
         return new StoredFile(po.id, po.uploaderId, po.objectKey,
                 po.originalName, po.contentType, po.sizeBytes, po.sha256,
