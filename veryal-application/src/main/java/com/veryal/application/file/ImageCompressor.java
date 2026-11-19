@@ -18,17 +18,19 @@ import java.io.ByteArrayOutputStream;
 import java.util.Iterator;
 
 /**
- * 图片压缩：JPEG/PNG 超过 1920px 时等比缩放；大图重编码为 JPEG（质量 0.85）。
+ * 图片压缩：JPEG/PNG 超过 1920px 时等比缩放，未超尺寸的原样入库。
  *
- * <p>只有真的需要缩小或重编码时才完整解码。仅为了读宽高时走 ImageReader 头信息，
+ * <p>只有真的需要缩小时才完整解码。仅为了读宽高时走 ImageReader 头信息，
  * 否则一张 2.4MB 的 1920×1080 PNG 光解码就要 200ms 以上，上传会明显变慢。</p>
+ *
+ * <p>尺寸内的图片不再重编码：单核解码 + 编码一次 1200 万像素要 1~3 秒，
+ * 而客户端上传前已按同样的长边压过，服务端重复计算只会拖慢上传并挤占 CPU。</p>
  */
 @Slf4j
 @Component
 public class ImageCompressor {
 
     static final int MAX_DIMENSION = 1920;
-    static final long RECOMPRESS_THRESHOLD = 1024L * 1024;
 
     public byte[] compress(byte[] content, String contentType) {
         if (!supportsCompression(contentType)) {
@@ -40,11 +42,8 @@ public class ImageCompressor {
             return content;
         }
         int maxSide = Math.max(size[0], size[1]);
-        boolean needsResize = maxSide > MAX_DIMENSION;
-        if (!needsResize
-                && (type.startsWith("image/png") || content.length <= RECOMPRESS_THRESHOLD)) {
-            // 未超尺寸时 PNG 重编码几乎不会变小（截图类图片常常更大），
-            // 却要付出一次完整解码 + 编码的 CPU，直接原图入库。
+        if (maxSide <= MAX_DIMENSION) {
+            // 已在展示尺寸内：直接原图入库，省掉一次完整解码 + 重编码。
             return content;
         }
         try {
@@ -52,13 +51,11 @@ public class ImageCompressor {
             if (source == null) {
                 return content;
             }
-            double scale = needsResize ? (double) MAX_DIMENSION / maxSide : 1.0;
-            BufferedImage target = needsResize
-                    ? resize(source, (int) Math.round(source.getWidth() * scale),
-                    (int) Math.round(source.getHeight() * scale))
-                    : source;
-            byte[] compressed = type.startsWith("image/png") ? encodePng(target) : encodeJpeg(target);
-            return compressed.length < content.length || needsResize ? compressed : content;
+            double scale = (double) MAX_DIMENSION / maxSide;
+            BufferedImage target = resize(source,
+                    (int) Math.round(source.getWidth() * scale),
+                    (int) Math.round(source.getHeight() * scale));
+            return type.startsWith("image/png") ? encodePng(target) : encodeJpeg(target);
         } catch (Exception e) {
             log.debug("image compression skipped: type={}, reason={}", contentType, e.getMessage());
             return content;

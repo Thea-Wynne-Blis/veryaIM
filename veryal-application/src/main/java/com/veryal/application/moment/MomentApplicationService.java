@@ -48,6 +48,7 @@ public class MomentApplicationService {
     private final MomentAccessPolicy accessPolicy;
     private final MomentViewAssembler assembler;
     private final MomentNoticeService noticeService;
+    private final MomentThumbnailWarmer thumbnailWarmer;
     private final FriendRepository friendRepository;
     private final FileApplicationService fileApplicationService;
     private final SensitiveWordService sensitiveWordService;
@@ -89,11 +90,21 @@ public class MomentApplicationService {
                 media.add(toMedia(momentId, order++, authorId, input));
             }
             momentRepository.saveMedia(media);
+            warmThumbnails(media);
         }
         if (!audience.isEmpty()) {
             momentRepository.saveAudience(audience);
         }
         return assembler.assembleOne(authorId, requireMoment(momentId));
+    }
+
+    /** 图片的缩略图放到后台预热；视频没有缩略图，直接跳过。 */
+    private void warmThumbnails(List<MomentMedia> media) {
+        for (MomentMedia item : media) {
+            if (item.kind() == MomentMediaKind.IMAGE) {
+                thumbnailWarmer.warm(item.fileId());
+            }
+        }
     }
 
     @Transactional

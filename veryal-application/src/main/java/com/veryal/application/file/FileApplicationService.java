@@ -56,8 +56,17 @@ public class FileApplicationService {
 
     /** 缩略图默认最长边；气泡只有 258px 宽，480 足够 2x 屏。 */
     public static final int THUMB_DEFAULT_SIDE = 480;
+    /**
+     * 主缩略图边长：所有更小的尺寸都从它派生。
+     *
+     * <p>朋友圈列表最大只用到 640，发布时会异步预热这一档；
+     * 之后请求 320 / 480 时只需解码 640 的小图，不用再碰原图。</p>
+     */
+    public static final int THUMB_MASTER_SIDE = 640;
     private static final int THUMB_MIN_SIDE = 96;
     private static final int THUMB_MAX_SIDE = 1280;
+    /** 会被缓存的几种边长，删除文件时按这份清单清理，避免派生文件残留。 */
+    private static final int[] CACHED_THUMB_SIDES = {320, THUMB_DEFAULT_SIDE, THUMB_MASTER_SIDE, THUMB_MAX_SIDE};
 
     public FileView upload(long uploaderId, String filename, String contentType,
                            byte[] content) {
@@ -228,11 +237,18 @@ public class FileApplicationService {
         if (cached != null && cached.length > 0) {
             return new Thumbnail(cached, "image/jpeg", etag);
         }
-        byte[] original = storage.get(file.objectKey());
-        byte[] thumb = imageCompressor.thumbnail(original, side);
+        // 小尺寸优先从主缩略图派生：解码量只有原图的几十分之一。
+        byte[] source = side < THUMB_MASTER_SIDE
+                ? readQuietly(storage, file.objectKey() + ".thumb-" + THUMB_MASTER_SIDE + ".jpg")
+                : null;
+        String fallbackType = source == null ? file.contentType() : "image/jpeg";
+        if (source == null) {
+            source = storage.get(file.objectKey());
+        }
+        byte[] thumb = imageCompressor.thumbnail(source, side);
         if (thumb == null || thumb.length == 0) {
-            // 解码失败（少见格式）直接回退原图，至少能看
-            return new Thumbnail(original, file.contentType(), etag);
+            // 解码失败（少见格式）直接回退源图，至少能看
+            return new Thumbnail(source, fallbackType, etag);
         }
         try {
             storage.put(thumbKey, thumb, "image/jpeg");
@@ -262,11 +278,13 @@ public class FileApplicationService {
         }
         FileStorage storage = storageProvider.get(file.storageType());
         storage.delete(file.objectKey());
-        try {
-            // 缩略图是按需生成的派生文件，跟着原文件一起清掉（不存在也无妨）
-            storage.delete(file.objectKey() + ".thumb-" + THUMB_DEFAULT_SIDE + ".jpg");
-        } catch (RuntimeException e) {
-            log.debug("thumbnail cleanup skipped: fileId={}", fileId);
+        // 缩略图是按需生成的派生文件，跟着原文件一起清掉（不存在也无妨）
+        for (int side : CACHED_THUMB_SIDES) {
+            try {
+                storage.delete(file.objectKey() + ".thumb-" + side + ".jpg");
+            } catch (RuntimeException e) {
+                log.debug("thumbnail cleanup skipped: fileId={}, side={}", fileId, side);
+            }
         }
         fileRepository.markDeleted(fileId, timeProvider.now());
     }

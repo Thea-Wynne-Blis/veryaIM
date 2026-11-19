@@ -50,6 +50,26 @@ class ImageCompressorTest {
         assertThat(result).isSameAs(bytes);
     }
 
+    /** 未超尺寸的 JPEG 同样原样入库：客户端已按 1920 压过，服务端再算一次纯属浪费。 */
+    @Test
+    void keepsJpegWithinLimitsUntouched() throws Exception {
+        BufferedImage image = new BufferedImage(1920, 1440, BufferedImage.TYPE_INT_RGB);
+        Graphics2D graphics = image.createGraphics();
+        try {
+            graphics.setColor(Color.DARK_GRAY);
+            graphics.fillRect(0, 0, 1920, 1440);
+        } finally {
+            graphics.dispose();
+        }
+        ByteArrayOutputStream original = new ByteArrayOutputStream();
+        ImageIO.write(image, "jpg", original);
+        byte[] bytes = original.toByteArray();
+
+        byte[] result = new ImageCompressor().compress(bytes, "image/jpeg");
+
+        assertThat(result).isSameAs(bytes);
+    }
+
     /** 缩略图：等比缩到最长边以内，统一 JPEG。 */
     @Test
     void thumbnailFitsWithinRequestedSide() throws Exception {
