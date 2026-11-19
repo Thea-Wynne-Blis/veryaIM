@@ -31,6 +31,8 @@ public enum Command {
 
     FRIEND_NOTIFY(0x0120, false),
 
+    MOMENT_NOTIFY(0x0130, false),
+
     ERROR(0x01FF, false);
 
     private static final Map<Integer, Command> BY_CODE;

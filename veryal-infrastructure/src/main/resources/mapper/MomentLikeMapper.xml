@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  点赞批量读取：我是否点过赞、每条动态最近点赞人。
+  窗口函数保证一次查询返回当前页所有动态的点赞人，避免 N+1。
+-->
+<mapper namespace="com.veryal.infrastructure.mysql.mapper.MomentLikeMapper">
+
+    <select id="selectLikedMomentIds" resultType="java.lang.Long">
+        SELECT moment_id
+        FROM im_moment_like
+        WHERE user_id = #{userId}
+          AND moment_id IN
+          <foreach collection="momentIds" item="momentId" open="(" separator="," close=")">
+              #{momentId}
+          </foreach>
+    </select>
+
+    <select id="selectLikers" resultType="com.veryal.infrastructure.mysql.po.MomentLikePO">
+        SELECT t.moment_id, t.user_id, t.created_at
+        FROM (SELECT l.moment_id,
+                     l.user_id,
+                     l.created_at,
+                     ROW_NUMBER() OVER (PARTITION BY l.moment_id ORDER BY l.created_at DESC) AS rn
+              FROM im_moment_like l
+              WHERE l.moment_id IN
+                <foreach collection="momentIds" item="momentId" open="(" separator="," close=")">
+                    #{momentId}
+                </foreach>) t
+        WHERE t.rn &lt;= #{perMoment}
+        ORDER BY t.moment_id ASC, t.created_at DESC
+    </select>
+
+</mapper>

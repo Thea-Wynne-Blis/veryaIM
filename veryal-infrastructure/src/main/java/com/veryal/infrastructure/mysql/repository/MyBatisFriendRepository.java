@@ -9,7 +9,10 @@ import com.veryal.infrastructure.mysql.po.FriendPO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -51,6 +54,24 @@ public class MyBatisFriendRepository implements FriendRepository {
                 .eq(FriendPO::getUserId, userId)
                 .eq(FriendPO::getFriendId, friendId)
                 .set(FriendPO::getRemark, remark));
+    }
+
+    @Override
+    public Map<Long, String> remarks(long userId, Collection<Long> friendIds) {
+        if (friendIds == null || friendIds.isEmpty()) {
+            return Map.of();
+        }
+        List<FriendPO> rows = friendMapper.selectList(Wrappers.<FriendPO>lambdaQuery()
+                .eq(FriendPO::getUserId, userId)
+                .in(FriendPO::getFriendId, friendIds)
+                .isNotNull(FriendPO::getRemark));
+        Map<Long, String> result = new HashMap<>();
+        for (FriendPO row : rows) {
+            if (row.remark != null && !row.remark.isBlank()) {
+                result.put(row.friendId, row.remark);
+            }
+        }
+        return result;
     }
 
     @Override

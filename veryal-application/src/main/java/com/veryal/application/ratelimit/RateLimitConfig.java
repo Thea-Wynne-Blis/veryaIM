@@ -34,7 +34,9 @@ public class RateLimitConfig {
                 RateLimitPolicy.slidingWindow("http-login", 10, Duration.ofSeconds(60)),
                 RateLimitPolicy.tokenBucket("http-api", 200, 50),
                 RateLimitPolicy.slidingWindow("gateway-login", 10, Duration.ofSeconds(60)),
-                RateLimitPolicy.tokenBucket("message-send", 30, 15)
+                RateLimitPolicy.tokenBucket("message-send", 30, 15),
+                RateLimitPolicy.slidingWindow("moment-publish", 20, Duration.ofSeconds(60)),
+                RateLimitPolicy.slidingWindow("moment-comment", 30, Duration.ofSeconds(60))
         );
     }
 }

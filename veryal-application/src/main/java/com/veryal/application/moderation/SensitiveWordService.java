@@ -90,6 +90,16 @@ public class SensitiveWordService {
         }
     }
 
+    /** 校验任意用户输入文本（朋友圈正文、评论等）。 */
+    public void checkText(String text) {
+        if (text == null || text.isBlank()) {
+            return;
+        }
+        if (filter.get().contains(text)) {
+            throw new BusinessException(ErrorCode.SENSITIVE_CONTENT);
+        }
+    }
+
     private String extractText(byte[] content) {
         String raw = new String(content, StandardCharsets.UTF_8).trim();
         if (!raw.startsWith("{")) {

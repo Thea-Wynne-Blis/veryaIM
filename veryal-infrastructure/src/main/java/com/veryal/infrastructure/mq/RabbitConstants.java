@@ -19,6 +19,7 @@ public final class RabbitConstants {
     public static final String READ_RECEIPT_QUEUE = "veryal-read-receipt-queue";
     public static final String MESSAGE_RECALL_QUEUE = "veryal-message-recall-queue";
     public static final String FRIEND_EVENT_QUEUE = "veryal-friend-event-queue";
+    public static final String MOMENT_EVENT_QUEUE = "veryal-moment-event-queue";
 
     public static final String RETRY_ROUTING_KEY = "message.delivery.retry";
     public static final String DEAD_ROUTING_KEY = "message.delivery.dead";

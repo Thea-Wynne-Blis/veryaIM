@@ -7,5 +7,7 @@ public enum ReportTargetType {
 
     USER,
     GROUP,
-    MESSAGE
+    MESSAGE,
+    MOMENT,
+    MOMENT_COMMENT
 }

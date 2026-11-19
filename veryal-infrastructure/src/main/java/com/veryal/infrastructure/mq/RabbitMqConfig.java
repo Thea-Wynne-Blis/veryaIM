@@ -94,6 +94,13 @@ public class RabbitMqConfig {
     }
 
     @Bean
+    public Queue momentEventQueue(RabbitInstance instance) {
+        return QueueBuilder.nonDurable(instance.momentEventQueueName())
+                .autoDelete()
+                .build();
+    }
+
+    @Bean
     public Binding privateCreatedBinding(TopicExchange messageExchange, Queue messageDeliveryQueue) {
         return BindingBuilder.bind(messageDeliveryQueue).to(messageExchange)
                 .with(MessageEvents.PRIVATE_CREATED);
@@ -133,6 +140,12 @@ public class RabbitMqConfig {
     public Binding friendEventBinding(TopicExchange messageExchange, Queue friendEventQueue) {
         return BindingBuilder.bind(friendEventQueue).to(messageExchange)
                 .with(com.veryal.domain.friend.FriendEvents.NOTIFY);
+    }
+
+    @Bean
+    public Binding momentEventBinding(TopicExchange messageExchange, Queue momentEventQueue) {
+        return BindingBuilder.bind(momentEventQueue).to(messageExchange)
+                .with(com.veryal.domain.moment.MomentEvents.NOTIFY);
     }
 
     @Bean

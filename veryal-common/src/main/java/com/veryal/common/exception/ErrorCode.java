@@ -37,6 +37,8 @@ public enum ErrorCode {
     DEVICE_NOT_FOUND(40404, "设备不存在", 404),
     FILE_NOT_FOUND(40405, "文件不存在", 404),
     FRIEND_REQUEST_NOT_FOUND(40407, "好友申请不存在", 404),
+    MOMENT_NOT_FOUND(40408, "动态不存在", 404),
+    MOMENT_COMMENT_NOT_FOUND(40409, "评论不存在", 404),
     FRIEND_REQUEST_EXISTS(40904, "好友申请已存在", 409),
     ALREADY_FRIEND(40905, "已经是好友", 409),
 

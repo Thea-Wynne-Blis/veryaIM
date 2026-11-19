@@ -140,6 +140,14 @@ veryal:
         algorithm: TOKEN_BUCKET
         permits: ${VERYAL_RATE_LIMIT_MESSAGE_PERMITS:30}
         refill-per-second: ${VERYAL_RATE_LIMIT_MESSAGE_REFILL:15}
+      - name: moment-publish
+        algorithm: SLIDING_WINDOW
+        permits: ${VERYAL_RATE_LIMIT_MOMENT_PUBLISH_PERMITS:20}
+        window-seconds: 60
+      - name: moment-comment
+        algorithm: SLIDING_WINDOW
+        permits: ${VERYAL_RATE_LIMIT_MOMENT_COMMENT_PERMITS:30}
+        window-seconds: 60
   storage:
     type: ${VERYAL_STORAGE_TYPE:local}
     local:

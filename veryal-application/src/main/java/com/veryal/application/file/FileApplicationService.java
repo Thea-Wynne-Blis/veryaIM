@@ -115,13 +115,33 @@ public class FileApplicationService {
     }
 
     /**
+     * 校验文件属于指定用户且可用，返回元数据供业务层校验类型（如图片 / 视频）。
+     */
+    public FileView ownedFile(long userId, long fileId) {
+        return FileView.from(requireOwned(userId, fileId));
+    }
+
+    /**
      * 打开文件内容流，供下载接口按 Range 分块回写。
      *
      * <p>{@link #download(long, long)} 会把整份内容读进堆，25MB 的视频并发几次就能把内存顶满；
      * 这里只返回存储句柄，由接入层决定读哪一段、读多少。</p>
      */
     public FileStream open(long userId, long fileId) {
-        StoredFile file = requireAccessible(userId, fileId);
+        return streamOf(requireAccessible(userId, fileId));
+    }
+
+    /**
+     * 已由调用方完成业务鉴权（例如朋友圈动态可见性）后打开文件流。
+     *
+     * <p>只校验文件本身存在且未删除，不再套用「上传者 / 会话成员」规则；
+     * 调用方必须先确认当前用户有权访问引用该文件的业务对象。</p>
+     */
+    public FileStream openGranted(long fileId) {
+        return streamOf(requireActive(fileId));
+    }
+
+    private FileStream streamOf(StoredFile file) {
         return new FileStream(file, storageProvider.get(file.storageType()));
     }
 
@@ -178,7 +198,17 @@ public class FileApplicationService {
      * 用缩略图能把每次进入会话的图片流量降一到两个数量级。</p>
      */
     public Thumbnail thumbnail(long userId, long fileId, int requestedSide) {
-        StoredFile file = requireAccessible(userId, fileId);
+        return buildThumbnail(requireAccessible(userId, fileId), requestedSide);
+    }
+
+    /**
+     * 已由调用方完成业务鉴权后的缩略图读取。语义同 {@link #openGranted(long)}。
+     */
+    public Thumbnail thumbnailGranted(long fileId, int requestedSide) {
+        return buildThumbnail(requireActive(fileId), requestedSide);
+    }
+
+    private Thumbnail buildThumbnail(StoredFile file, int requestedSide) {
         String contentType = file.contentType() == null ? "" : file.contentType().toLowerCase(Locale.ROOT);
         if (!contentType.startsWith("image/")) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT,
@@ -260,12 +290,18 @@ public class FileApplicationService {
         return conversationId;
     }
 
-    private StoredFile requireAccessible(long userId, long fileId) {
+    /** 只校验文件存在且未删除，不做任何业务归属判断。 */
+    private StoredFile requireActive(long fileId) {
         StoredFile file = fileRepository.findById(fileId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.FILE_NOT_FOUND, "file not found"));
         if (file.status() == FileStatus.DELETED) {
             throw new BusinessException(ErrorCode.FILE_NOT_FOUND, "file not found");
         }
+        return file;
+    }
+
+    private StoredFile requireAccessible(long userId, long fileId) {
+        StoredFile file = requireActive(fileId);
         if (file.uploaderId() == userId) {
             return file;
         }

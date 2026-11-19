@@ -97,6 +97,7 @@
 - [x] 平台操作审计（V12，租户/管理员操作写库并可查询）
 - [x] 黑名单（拉黑/解除，私聊拦截，拉黑解除好友与待处理申请）
 - [x] 通讯录（好友/群/待处理申请/在线状态聚合）
+- [x] 朋友圈（动态/图片视频、可见范围四档、点赞评论、互动通知实时推送、可见时间范围设置、独立媒体鉴权端点）
 
 ### 可靠性
 
@@ -231,7 +232,7 @@
 使用 MySQL 8.0.30 与 Redis 7.4 容器（`prod` profile，经 SSH 隧道连接）启动打包产物：
 
 - 数据访问层切换 MyBatis-Plus 后重新回归：注册、登录、创建会话、发送消息、幂等重发、历史查询链路在 MySQL 8.0.30 上全部通过。
-- Flyway 自动执行 `V1__init.sql` 到 `V23__web_push_subscription.sql`；V17 删除租户表，V18 隐私/举报，V19 禁言，V20 敏感词，V21 删除 `tenant_id`，V22 推送设备，V23 Web Push 订阅；V17–V22 已完成云服务器 MySQL 冒烟。
+- Flyway 自动执行 `V1__init.sql` 到 `V29__moment.sql`；V17 删除租户表，V18 隐私/举报，V19 禁言，V20 敏感词，V21 删除 `tenant_id`，V22 推送设备，V23 Web Push 订阅，V28 收藏，V29 朋友圈（7 张表）；V17–V22、V28–V29 已完成云服务器 MySQL 冒烟。
 - `GET /actuator/health` 返回 `UP`（MySQL + Redis）。
 - HTTP 流程验证通过：注册 → 登录 → 创建单聊 → 发送消息（seq=1）→ 重复发送命中幂等（`duplicate=true`，同 messageId/seq）→ 历史消息 1 条 → 同步 1 条 → 已读上报。
 - 数据库核对：`im_user`、`im_conversation_sequence.last_seq=1`、`im_message` 记录存在。

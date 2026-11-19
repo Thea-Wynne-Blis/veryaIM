@@ -7,6 +7,8 @@ import com.veryal.common.id.IdGenerator;
 import com.veryal.domain.group.GroupRepository;
 import com.veryal.domain.identity.UserRepository;
 import com.veryal.domain.message.MessageRepository;
+import com.veryal.domain.moment.MomentInteractionRepository;
+import com.veryal.domain.moment.MomentRepository;
 import com.veryal.domain.report.Report;
 import com.veryal.domain.report.ReportRepository;
 import com.veryal.domain.report.ReportTargetType;
@@ -27,6 +29,8 @@ public class ReportApplicationService {
     private final UserRepository userRepository;
     private final GroupRepository groupRepository;
     private final MessageRepository messageRepository;
+    private final MomentRepository momentRepository;
+    private final MomentInteractionRepository momentInteractionRepository;
     private final IdGenerator idGenerator;
     private final TimeProvider timeProvider;
 
@@ -85,6 +89,30 @@ public class ReportApplicationService {
                 }
                 messageRepository.findById(messageId)
                         .orElseThrow(() -> new BusinessException(ErrorCode.MESSAGE_NOT_FOUND));
+            }
+            case MOMENT -> {
+                long momentId;
+                try {
+                    momentId = Long.parseLong(targetId);
+                } catch (NumberFormatException e) {
+                    throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "invalid moment id");
+                }
+                momentRepository.findById(momentId)
+                        .filter(moment -> !moment.deleted())
+                        .orElseThrow(() -> new BusinessException(ErrorCode.MOMENT_NOT_FOUND));
+            }
+            case MOMENT_COMMENT -> {
+                long commentId;
+                try {
+                    commentId = Long.parseLong(targetId);
+                } catch (NumberFormatException e) {
+                    throw new BusinessException(ErrorCode.INVALID_ARGUMENT,
+                            "invalid moment comment id");
+                }
+                momentInteractionRepository.findComment(commentId)
+                        .filter(comment -> !comment.deleted())
+                        .orElseThrow(() -> new BusinessException(
+                                ErrorCode.MOMENT_COMMENT_NOT_FOUND));
             }
         }
     }

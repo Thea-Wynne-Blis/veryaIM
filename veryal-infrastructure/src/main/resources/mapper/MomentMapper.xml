@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  朋友圈信息流：读时聚合好友关系、可见名单与作者的时间范围设置。
+  依赖以下索引：
+    - im_friend(user_id, friend_id)                     -> 好友子查询
+    - im_moment(author_id, id) / im_moment(status, id)  -> 作者与游标过滤
+    - im_moment_audience(moment_id, user_id)            -> 名单 EXISTS
+    - im_moment_setting(user_id)                        -> 作者时间范围
+-->
+<mapper namespace="com.veryal.infrastructure.mysql.mapper.MomentMapper">
+
+    <select id="selectFeed" resultType="com.veryal.infrastructure.mysql.po.MomentPO">
+        SELECT m.id, m.author_id, m.content, m.visibility, m.like_count, m.comment_count,
+               m.status, m.created_at, m.deleted_at
+        FROM im_moment m
+                 LEFT JOIN im_moment_setting s ON s.user_id = m.author_id
+        WHERE m.deleted_at IS NULL
+          AND m.id &lt; #{cursor}
+          AND (m.author_id = #{viewerId} OR m.status = 0)
+          AND m.author_id IN (SELECT f.friend_id
+                              FROM im_friend f
+                              WHERE f.user_id = #{viewerId}
+                              UNION ALL
+                              SELECT #{viewerId})
+          <if test="authorId != null">
+              AND m.author_id = #{authorId}
+          </if>
+          AND (m.author_id = #{viewerId}
+            OR (m.visibility &lt;&gt; 1
+                AND (m.visibility &lt;&gt; 2
+                    OR EXISTS (SELECT 1
+                               FROM im_moment_audience a
+                               WHERE a.moment_id = m.id
+                                 AND a.user_id = #{viewerId}
+                                 AND a.mode = 1))
+                AND NOT EXISTS (SELECT 1
+                                FROM im_moment_audience a
+                                WHERE a.moment_id = m.id
+                                  AND a.user_id = #{viewerId}
+                                  AND a.mode = 2)
+                AND (s.visible_days IS NULL
+                    OR s.visible_days = 0
+                    OR m.created_at &gt;= DATE_SUB(#{now}, INTERVAL s.visible_days DAY))))
+        ORDER BY m.id DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>
