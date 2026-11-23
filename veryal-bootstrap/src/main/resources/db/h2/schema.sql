@@ -378,3 +378,88 @@ CREATE TABLE IF NOT EXISTS im_favorite
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uk_favorite_user_message ON im_favorite (user_id, message_id);
 CREATE INDEX IF NOT EXISTS idx_favorite_user ON im_favorite (user_id, created_at);
+
+-- 朋友圈（与 V29__moment.sql 对齐）：dev 环境此前漏了这几张表，
+-- 导致朋友圈接口和孤儿文件清理任务在 H2 下直接报表不存在。
+CREATE TABLE IF NOT EXISTS im_moment
+(
+    id            BIGINT        NOT NULL PRIMARY KEY,
+    author_id     BIGINT        NOT NULL,
+    content       VARCHAR(2000) NOT NULL DEFAULT '',
+    visibility    TINYINT       NOT NULL DEFAULT 0,
+    like_count    INT           NOT NULL DEFAULT 0,
+    comment_count INT           NOT NULL DEFAULT 0,
+    status        TINYINT       NOT NULL DEFAULT 0,
+    created_at    TIMESTAMP(3)  NOT NULL,
+    deleted_at    TIMESTAMP(3)  NULL
+);
+CREATE INDEX IF NOT EXISTS idx_moment_author ON im_moment (author_id, id);
+CREATE INDEX IF NOT EXISTS idx_moment_feed ON im_moment (status, id);
+
+CREATE TABLE IF NOT EXISTS im_moment_media
+(
+    id               BIGINT  NOT NULL PRIMARY KEY,
+    moment_id        BIGINT  NOT NULL,
+    file_id          BIGINT  NOT NULL,
+    sort_order       TINYINT NOT NULL,
+    kind             TINYINT NOT NULL,
+    width            INT     NULL,
+    height           INT     NULL,
+    duration_seconds INT     NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_moment_media_file ON im_moment_media (moment_id, file_id);
+CREATE INDEX IF NOT EXISTS idx_moment_media_sort ON im_moment_media (moment_id, sort_order);
+
+CREATE TABLE IF NOT EXISTS im_moment_like
+(
+    moment_id  BIGINT       NOT NULL,
+    user_id    BIGINT       NOT NULL,
+    created_at TIMESTAMP(3) NOT NULL,
+    PRIMARY KEY (moment_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_moment_like_user ON im_moment_like (user_id, moment_id);
+
+CREATE TABLE IF NOT EXISTS im_moment_comment
+(
+    id               BIGINT       NOT NULL PRIMARY KEY,
+    moment_id        BIGINT       NOT NULL,
+    user_id          BIGINT       NOT NULL,
+    reply_to_id      BIGINT       NULL,
+    reply_to_user_id BIGINT       NULL,
+    content          VARCHAR(500) NOT NULL,
+    created_at       TIMESTAMP(3) NOT NULL,
+    deleted_at       TIMESTAMP(3) NULL
+);
+CREATE INDEX IF NOT EXISTS idx_moment_comment ON im_moment_comment (moment_id, id);
+CREATE INDEX IF NOT EXISTS idx_moment_comment_user ON im_moment_comment (user_id, id);
+
+CREATE TABLE IF NOT EXISTS im_moment_audience
+(
+    moment_id BIGINT  NOT NULL,
+    user_id   BIGINT  NOT NULL,
+    mode      TINYINT NOT NULL,
+    PRIMARY KEY (moment_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_moment_audience_user ON im_moment_audience (user_id, moment_id);
+
+CREATE TABLE IF NOT EXISTS im_moment_setting
+(
+    user_id             BIGINT       NOT NULL PRIMARY KEY,
+    visible_days        INT          NOT NULL DEFAULT 0,
+    last_read_moment_id BIGINT       NOT NULL DEFAULT 0,
+    updated_at          TIMESTAMP(3) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS im_moment_notice
+(
+    id         BIGINT       NOT NULL PRIMARY KEY,
+    user_id    BIGINT       NOT NULL,
+    actor_id   BIGINT       NOT NULL,
+    type       TINYINT      NOT NULL,
+    moment_id  BIGINT       NOT NULL,
+    comment_id BIGINT       NULL,
+    read_at    TIMESTAMP(3) NULL,
+    created_at TIMESTAMP(3) NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_moment_notice_user ON im_moment_notice (user_id, id);
+CREATE INDEX IF NOT EXISTS idx_moment_notice_unread ON im_moment_notice (user_id, read_at);

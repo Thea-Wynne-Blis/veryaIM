@@ -62,6 +62,14 @@ veryal:
         algorithm: TOKEN_BUCKET
         permits: 5
         refill-per-second: 0
+      - name: moment-publish
+        algorithm: SLIDING_WINDOW
+        permits: 1000
+        window-seconds: 60
+      - name: moment-comment
+        algorithm: SLIDING_WINDOW
+        permits: 1000
+        window-seconds: 60
   security:
     token:
       secret: test-only-secret-please-change-0123456789abcdef

@@ -42,7 +42,7 @@
                                   AND a.mode = 2)
                 AND (s.visible_days IS NULL
                     OR s.visible_days = 0
-                    OR m.created_at &gt;= DATE_SUB(#{now}, INTERVAL s.visible_days DAY))))
+                    OR TIMESTAMPADD(DAY, s.visible_days, m.created_at) &gt;= #{now})))
         ORDER BY m.id DESC
         LIMIT #{limit}
     </select>
