@@ -354,11 +354,7 @@ public class FileApplicationService {
     }
 
     private StoredFile requireOwned(long userId, long fileId) {
-        StoredFile file = fileRepository.findById(fileId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.FILE_NOT_FOUND, "file not found"));
-        if (file.status() == FileStatus.DELETED) {
-            throw new BusinessException(ErrorCode.FILE_NOT_FOUND, "file not found");
-        }
+        StoredFile file = requireActive(fileId);
         if (file.uploaderId() != userId) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "only uploader can access file");
         }

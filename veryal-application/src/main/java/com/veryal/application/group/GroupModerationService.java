@@ -46,7 +46,7 @@ public class GroupModerationService {
 
     public ModerationView get(long userId, String groupId) {
         requireGroup(groupId);
-        requireMember(groupId, userId);
+        groupAccessGuard.requireMember(groupId, userId);
         GroupSetting setting = moderationRepository.findSetting(groupId)
                 .orElse(GroupSetting.empty(groupId));
         return view(groupId, setting, moderationRepository.findMute(groupId, userId).orElse(null));
@@ -96,7 +96,7 @@ public class GroupModerationService {
                                      GroupMuteDuration duration) {
         requireGroup(groupId);
         GroupRole operatorRole = groupAccessGuard.requireRole(groupId, operatorId, GroupRole.OWNER);
-        GroupMember target = requireMember(groupId, targetId);
+        GroupMember target = groupAccessGuard.requireMember(groupId, targetId);
         if (targetId == operatorId) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "cannot mute yourself");
         }
@@ -132,7 +132,7 @@ public class GroupModerationService {
      */
     public void ensureCanSend(String groupId, long senderId) {
         requireGroup(groupId);
-        GroupMember sender = requireMember(groupId, senderId);
+        GroupMember sender = groupAccessGuard.requireMember(groupId, senderId);
         GroupSetting setting = moderationRepository.findSetting(groupId)
                 .orElse(GroupSetting.empty(groupId));
         if (setting.muteAll() && !sender.role().manager()) {
@@ -210,12 +210,6 @@ public class GroupModerationService {
     private Group requireGroup(String groupId) {
         return groupRepository.findById(groupId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND));
-    }
-
-    private GroupMember requireMember(String groupId, long userId) {
-        return groupRepository.findMember(groupId, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CONVERSATION_MEMBER,
-                        "not a group member"));
     }
 
     public record ModerationView(String groupId, String announcement, boolean muteAll,

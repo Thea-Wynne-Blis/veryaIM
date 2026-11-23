@@ -11,8 +11,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-
 /**
  * 离线消息同步应用服务。
  *
@@ -36,12 +34,9 @@ public class SyncApplicationService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CONVERSATION_MEMBER));
 
         int pageSize = limit <= 0 ? 100 : Math.min(limit, MAX_SYNC_LIMIT);
-        List<Message> messages = messageRepository.pageAfter(conversationId, Math.max(cursor, 0), pageSize + 1);
-        boolean hasMore = messages.size() > pageSize;
-        if (hasMore) {
-            messages = messages.subList(0, pageSize);
-        }
-        long nextCursor = messages.isEmpty() ? Math.max(cursor, 0) : messages.get(messages.size() - 1).seq();
-        return new CursorPage<>(messages, Long.toString(nextCursor), hasMore);
+        long afterSeq = Math.max(cursor, 0);
+        return CursorPage.slice(
+                messageRepository.pageAfter(conversationId, afterSeq, pageSize + 1),
+                pageSize, afterSeq, Message::seq);
     }
 }

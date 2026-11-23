@@ -140,7 +140,7 @@ public class GroupApplicationService {
     @Transactional
     public void leave(long userId, String groupId) {
         Group group = requireGroup(groupId);
-        requireMember(groupId, userId);
+        groupAccessGuard.requireMember(groupId, userId);
         if (group.ownerId() == userId) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT,
                     "owner cannot leave group, transfer ownership first");
@@ -163,7 +163,7 @@ public class GroupApplicationService {
         if (targetUserId == group.ownerId()) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "cannot remove group owner");
         }
-        GroupMember target = requireMember(groupId, targetUserId);
+        GroupMember target = groupAccessGuard.requireMember(groupId, targetUserId);
         if (!operatorRole.canKick(target.role())) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "cannot remove this member");
         }
@@ -187,7 +187,7 @@ public class GroupApplicationService {
         if (targetUserId == group.ownerId() || role == GroupRole.OWNER) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "cannot change owner role");
         }
-        requireMember(groupId, targetUserId);
+        groupAccessGuard.requireMember(groupId, targetUserId);
         groupRepository.updateMemberRole(groupId, targetUserId, role);
         groupRepository.touch(groupId, timeProvider.now());
         auditRecorder.record(operatorId, AuditAction.GROUP_ROLE_CHANGE, "group_member",
@@ -205,7 +205,7 @@ public class GroupApplicationService {
         if (newOwnerId == currentOwnerId) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "already group owner");
         }
-        requireMember(groupId, newOwnerId);
+        groupAccessGuard.requireMember(groupId, newOwnerId);
         Instant now = timeProvider.now();
         Group transferred = group.transferOwner(newOwnerId, now);
         groupRepository.update(transferred);
@@ -233,12 +233,6 @@ public class GroupApplicationService {
     private Group requireGroup(String groupId) {
         return groupRepository.findById(groupId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "group not found"));
-    }
-
-    private GroupMember requireMember(String groupId, long userId) {
-        return groupRepository.findMember(groupId, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CONVERSATION_MEMBER,
-                        "not a group member"));
     }
 
     private void addConversationMember(String conversationId, long userId, Instant now) {

@@ -40,6 +40,7 @@ public class GroupMemberService {
 
     private final GroupRepository groupRepository;
     private final GroupModerationRepository moderationRepository;
+    private final GroupAccessGuard groupAccessGuard;
     private final UserRepository userRepository;
     private final UserPrivacyRepository privacyRepository;
     private final PresenceRepository presenceRepository;
@@ -50,9 +51,7 @@ public class GroupMemberService {
     public List<GroupMemberView> list(long viewerId, String groupId) {
         Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "group not found"));
-        groupRepository.findMember(groupId, viewerId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CONVERSATION_MEMBER,
-                        "not a group member"));
+        groupAccessGuard.requireMember(groupId, viewerId);
 
         List<GroupMember> members = groupRepository.findMembers(group.id());
         List<Long> userIds = members.stream().map(GroupMember::userId).toList();

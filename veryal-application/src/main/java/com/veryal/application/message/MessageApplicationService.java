@@ -152,13 +152,8 @@ public class MessageApplicationService {
         int pageSize = clampLimit(limit);
         // 清空记录是「本人可见水位」：cursor 之外再从水位之后开始翻，别把删掉的记录翻回来。
         long afterSeq = Math.max(cursor, clearedSeqOf(conversationId, userId));
-        List<Message> messages = messageRepository.pageAfter(conversationId, afterSeq, pageSize + 1);
-        boolean hasMore = messages.size() > pageSize;
-        if (hasMore) {
-            messages = messages.subList(0, pageSize);
-        }
-        long nextCursor = messages.isEmpty() ? afterSeq : messages.get(messages.size() - 1).seq();
-        return new CursorPage<>(messages, Long.toString(nextCursor), hasMore);
+        return CursorPage.slice(messageRepository.pageAfter(conversationId, afterSeq, pageSize + 1),
+                pageSize, afterSeq, Message::seq);
     }
 
     /** 搜索结果定位：校验可见水位后返回目标消息前后的上下文。 */
@@ -189,14 +184,9 @@ public class MessageApplicationService {
         String escaped = query.replace("!", "!!").replace("%", "!%").replace("_", "!_");
         String pattern = "%" + escaped + "%";
         long beforeSeq = cursor <= 0 ? Long.MAX_VALUE : cursor;
-        List<Message> messages = messageRepository.searchText(conversationId, pattern,
-                clearedSeqOf(conversationId, userId), beforeSeq, pageSize + 1);
-        boolean hasMore = messages.size() > pageSize;
-        if (hasMore) {
-            messages = messages.subList(0, pageSize);
-        }
-        long nextCursor = messages.isEmpty() ? cursor : messages.get(messages.size() - 1).seq();
-        return new CursorPage<>(messages, Long.toString(nextCursor), hasMore);
+        return CursorPage.slice(messageRepository.searchText(conversationId, pattern,
+                        clearedSeqOf(conversationId, userId), beforeSeq, pageSize + 1),
+                pageSize, cursor, Message::seq);
     }
 
     /**

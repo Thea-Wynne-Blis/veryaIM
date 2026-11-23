@@ -246,18 +246,24 @@ public class ConversationApplicationService {
      */
     @Transactional(readOnly = true)
     public ConversationMember requireMember(String conversationId, long userId) {
-        Conversation conversation = conversationRepository.findById(conversationId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND,
-                        "conversation not found: " + conversationId));
+        return requireMember(requireConversation(conversationId), userId);
+    }
+
+    private ConversationMember requireMember(Conversation conversation, long userId) {
         return conversationRepository.findMember(conversation.id(), userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CONVERSATION_MEMBER));
     }
 
+    private Conversation requireConversation(String conversationId) {
+        return conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND,
+                        "conversation not found: " + conversationId));
+    }
+
     @Transactional(readOnly = true)
     public ConversationView view(String conversationId, long userId) {
-        requireMember(conversationId, userId);
-        Conversation conversation = conversationRepository.findById(conversationId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND));
+        Conversation conversation = requireConversation(conversationId);
+        requireMember(conversation, userId);
         return view(conversation);
     }
 

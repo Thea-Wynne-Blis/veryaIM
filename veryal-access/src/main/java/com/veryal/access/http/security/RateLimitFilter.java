@@ -51,7 +51,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
             return;
         }
-        String clientIp = clientIp(request);
+        String clientIp = ClientAddress.of(request);
         AuthenticatedUser user = (AuthenticatedUser) request.getAttribute(
                 AuthenticationFilter.USER_ATTRIBUTE);
         String key = user == null ? "ip:" + clientIp : "user:" + user.userId();
@@ -71,13 +71,5 @@ public class RateLimitFilter extends OncePerRequestFilter {
             return;
         }
         filterChain.doFilter(request, response);
-    }
-
-    private String clientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
     }
 }

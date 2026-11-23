@@ -22,8 +22,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import jakarta.servlet.http.HttpServletRequest;
-
 /**
  * 注解式限流切面：@RateLimit 方法调用前消费令牌，超限抛 429。
  */
@@ -94,12 +92,7 @@ public class RateLimitAspect {
 
     private String clientIp() {
         if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes) {
-            HttpServletRequest request = attributes.getRequest();
-            String forwarded = request.getHeader("X-Forwarded-For");
-            if (forwarded != null && !forwarded.isBlank()) {
-                return forwarded.split(",")[0].trim();
-            }
-            return request.getRemoteAddr();
+            return ClientAddress.of(attributes.getRequest());
         }
         return "unknown";
     }
