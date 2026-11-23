@@ -54,6 +54,14 @@ veryal:
         algorithm: TOKEN_BUCKET
         permits: 10000
         refill-per-second: 10000
+      - name: sticker-image
+        algorithm: TOKEN_BUCKET
+        permits: 10000
+        refill-per-second: 10000
+      - name: avatar-image
+        algorithm: TOKEN_BUCKET
+        permits: 10000
+        refill-per-second: 10000
       - name: gateway-login
         algorithm: SLIDING_WINDOW
         permits: 1000

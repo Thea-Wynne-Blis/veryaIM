@@ -38,7 +38,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class AvatarApplicationService {
 
-    /** 前端已裁成 512 见方，4MB 足够兜住未经裁剪的截图。 */
+    /** 前端已裁成 320 见方，4MB 足够兜住未经裁剪的截图。 */
     static final long MAX_AVATAR_BYTES = 4L * 1024 * 1024;
     /** 解码前的像素上限，防止 1 像素炸弹式的超大图。 */
     private static final long MAX_AVATAR_PIXELS = 40_000_000L;

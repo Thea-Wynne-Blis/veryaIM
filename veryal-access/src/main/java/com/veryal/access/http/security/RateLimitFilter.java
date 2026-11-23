@@ -33,6 +33,15 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private static final String LOGIN_PATH = "/api/v1/auth/login";
     private static final String API_POLICY = "http-api";
+    /**
+     * 头像 / 表情预览都由 {@code <img>} 直接加载，不带 Authorization，只能按 IP 计数；
+     * 一屏几十张图会把公共出口 IP 的额度吃光，因此各给一套更宽松的独立令牌桶，
+     * 但仍然限速——不能因为「是图片」就完全不设防。
+     */
+    private static final String AVATAR_PREFIX = "/api/v1/avatars/";
+    private static final String AVATAR_POLICY = "avatar-image";
+    private static final String STICKER_IMAGE_PREFIX = "/api/v1/stickers/image";
+    private static final String STICKER_IMAGE_POLICY = "sticker-image";
 
     private final RateLimiterRegistry rateLimiterRegistry;
     private final RateLimitProperties rateLimitProperties;
@@ -55,7 +64,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
         AuthenticatedUser user = (AuthenticatedUser) request.getAttribute(
                 AuthenticationFilter.USER_ATTRIBUTE);
         String key = user == null ? "ip:" + clientIp : "user:" + user.userId();
-        String policy = API_POLICY;
+        String policy = path.startsWith(AVATAR_PREFIX) ? AVATAR_POLICY
+                : path.startsWith(STICKER_IMAGE_PREFIX) ? STICKER_IMAGE_POLICY
+                : API_POLICY;
 
         RateLimitResult result = rateLimiterRegistry.tryAcquire(policy, key);
         response.setHeader("X-RateLimit-Remaining", Long.toString(result.remaining()));

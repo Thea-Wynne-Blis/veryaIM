@@ -132,6 +132,16 @@ veryal:
         algorithm: TOKEN_BUCKET
         permits: ${VERYAL_RATE_LIMIT_API_PERMITS:200}
         refill-per-second: ${VERYAL_RATE_LIMIT_API_REFILL:50}
+      # 表情预览图是 <img> 直接加载，一次面板几十张；给足突发额度但仍限速。
+      - name: sticker-image
+        algorithm: TOKEN_BUCKET
+        permits: ${VERYAL_RATE_LIMIT_STICKER_IMAGE_PERMITS:1200}
+        refill-per-second: ${VERYAL_RATE_LIMIT_STICKER_IMAGE_REFILL:200}
+      # 头像同样由 <img> 直接加载（按 IP 计数）：短缓存后重复请求很少。
+      - name: avatar-image
+        algorithm: TOKEN_BUCKET
+        permits: ${VERYAL_RATE_LIMIT_AVATAR_PERMITS:600}
+        refill-per-second: ${VERYAL_RATE_LIMIT_AVATAR_REFILL:100}
       - name: gateway-login
         algorithm: SLIDING_WINDOW
         permits: ${VERYAL_RATE_LIMIT_GATEWAY_LOGIN_PERMITS:10}

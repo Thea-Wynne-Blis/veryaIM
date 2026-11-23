@@ -54,6 +54,10 @@ public class AuthenticationFilter extends OncePerRequestFilter {
         if (path.startsWith("/api/v1/avatars/")) {
             return true;
         }
+        // 表情预览同样是 <img> 直接加载，且只中转白名单图源。
+        if (path.equals("/api/v1/stickers/image")) {
+            return true;
+        }
         return path.equals("/api/v1/auth/register") || path.equals("/api/v1/auth/login");
     }
 
