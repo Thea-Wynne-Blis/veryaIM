@@ -11,6 +11,7 @@ import com.veryal.application.avatar.AvatarApplicationService;
 import com.veryal.application.identity.AuthenticatedUser;
 import com.veryal.application.identity.UserApplicationService;
 import com.veryal.common.core.ApiResponse;
+import com.veryal.domain.presence.PresenceRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -41,11 +42,13 @@ public class UserController {
     private final UserApplicationService userApplicationService;
     private final AuditApplicationService auditApplicationService;
     private final AvatarApplicationService avatarApplicationService;
+    private final PresenceRepository presenceRepository;
 
-    @Operation(summary = "我的资料", description = "返回当前用户的昵称、头像、创建时间等基础资料。")
+    @Operation(summary = "我的资料", description = "返回当前用户的昵称、头像、创建时间等基础资料，并带上实时在线状态。")
     @GetMapping("/me")
     public ApiResponse<UserResponse> me(@CurrentUser AuthenticatedUser user) {
-        return ApiResponse.ok(UserResponse.from(userApplicationService.getProfile(user.userId())));
+        return ApiResponse.ok(UserResponse.from(userApplicationService.getProfile(user.userId()),
+                presenceRepository.isOnline(user.userId())));
     }
 
     @Operation(summary = "修改我的资料", description = "可修改昵称、头像地址、所在地区与个性签名；地区/签名传空串表示清空。")
@@ -54,7 +57,7 @@ public class UserController {
                                             @Valid @RequestBody UpdateProfileRequest request) {
         return ApiResponse.ok(UserResponse.from(userApplicationService.updateProfile(
                 user.userId(), request.nickname(), request.avatar(),
-                request.region(), request.signature())));
+                request.region(), request.signature()), presenceRepository.isOnline(user.userId())));
     }
 
     @Operation(summary = "上传我的头像", description = "multipart 上传 JPG/PNG/GIF，服务端存文件子系统并返回更新后的资料。")
@@ -63,7 +66,7 @@ public class UserController {
                                                   @RequestParam("file") MultipartFile file) {
         return ApiResponse.ok(UserResponse.from(avatarApplicationService.changeUserAvatar(
                 user.userId(), file.getOriginalFilename(), file.getContentType(),
-                bytesOf(file))));
+                bytesOf(file)), presenceRepository.isOnline(user.userId())));
     }
 
     @Operation(summary = "删除我的头像", description = "清空头像并回收旧文件，之后 /api/v1/avatars/user/{id} 返回 404。")

@@ -22,11 +22,17 @@ public record UserResponse(
                                  @Schema(description = "个性签名")
                                  String signature,
                                  @Schema(description = "创建时间（UTC）")
-                                 Instant createdAt
+                                 Instant createdAt,
+                                 @Schema(description = "当前是否在线；仅「我的资料」等本人接口按实时在线状态返回")
+                                 boolean online
 ) {
 
     public static UserResponse from(UserProfile profile) {
+        return from(profile, false);
+    }
+
+    public static UserResponse from(UserProfile profile, boolean online) {
         return new UserResponse(profile.userId(), profile.username(), profile.nickname(),
-                profile.avatar(), profile.region(), profile.signature(), profile.createdAt());
+                profile.avatar(), profile.region(), profile.signature(), profile.createdAt(), online);
     }
 }
