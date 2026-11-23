@@ -39,6 +39,7 @@ public enum ErrorCode {
     FRIEND_REQUEST_NOT_FOUND(40407, "好友申请不存在", 404),
     MOMENT_NOT_FOUND(40408, "动态不存在", 404),
     MOMENT_COMMENT_NOT_FOUND(40409, "评论不存在", 404),
+    NOTE_NOT_FOUND(40410, "笔记不存在", 404),
     FRIEND_REQUEST_EXISTS(40904, "好友申请已存在", 409),
     ALREADY_FRIEND(40905, "已经是好友", 409),
 
