@@ -23,6 +23,7 @@ import com.veryal.domain.message.outbox.OutboxAppender;
 import com.veryal.domain.message.outbox.OutboxMessage;
 import com.veryal.domain.presence.PresenceRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +36,7 @@ import java.util.stream.Collectors;
 /**
  * 好友与黑名单应用服务。
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class FriendApplicationService {
@@ -50,6 +52,7 @@ public class FriendApplicationService {
     private final PresenceRepository presenceRepository;
     private final OutboxAppender outboxAppender;
     private final FriendNotifier friendNotifier;
+    private final FriendGreetingService friendGreetingService;
     private final IdGenerator idGenerator;
     private final TimeProvider timeProvider;
 
@@ -84,6 +87,8 @@ public class FriendApplicationService {
                     toUserId, text, FriendRequestStatus.ACCEPTED, now, now);
             friendRequestRepository.save(accepted);
             publish(FriendEventType.ACCEPTED, accepted, text, now);
+            // 自动打个招呼：双方会话列表立刻出现这个单聊，不用刷新页面。
+            greetQuietly(toUserId, fromUserId);
             return view(accepted);
         }
 
@@ -124,6 +129,8 @@ public class FriendApplicationService {
                 request.createdAt(), now);
         friendRequestRepository.update(accepted);
         publish(FriendEventType.ACCEPTED, accepted, accepted.message(), now);
+        // 接受方自动发第一条消息，申请方无需刷新就能看到新会话。
+        greetQuietly(request.toUserId(), request.fromUserId());
         return view(accepted);
     }
 
@@ -261,6 +268,19 @@ public class FriendApplicationService {
         outboxAppender.append(new OutboxMessage(event.eventId(), "friend:" + requestId,
                 FriendEvents.NOTIFY, JsonUtils.toJsonBytes(event), at));
         friendNotifier.notify(event);
+    }
+
+    /**
+     * 自动打招呼失败不能影响好友关系本身：好友已经加上了，这里只记日志。
+     * 打招呼走独立事务（{@link FriendGreetingService}），异常不会标记外层回滚。
+     */
+    private void greetQuietly(long accepterId, long requesterId) {
+        try {
+            friendGreetingService.greet(accepterId, requesterId);
+        } catch (RuntimeException e) {
+            log.warn("auto friend greeting failed: accepter={}, requester={}",
+                    accepterId, requesterId, e);
+        }
     }
 
     private void addFriend(long userId, long friendId, Instant now) {        if (friendRepository.find(userId, friendId).isPresent()) {
