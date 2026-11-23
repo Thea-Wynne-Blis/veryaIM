@@ -18,6 +18,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -49,6 +50,22 @@ public class MyBatisGroupRepository implements GroupRepository {
     public void touch(String groupId, Instant updatedAt) {
         groupMapper.update(null, Wrappers.<GroupPO>lambdaUpdate()
                 .eq(GroupPO::getId, groupId)
+                .set(GroupPO::getUpdatedAt, SqlTime.toLocal(updatedAt)));
+    }
+
+    @Override
+    public Optional<Long> findAvatarFileId(String groupId) {
+        GroupPO po = groupMapper.selectOne(Wrappers.<GroupPO>lambdaQuery()
+                .select(GroupPO::getId, GroupPO::getAvatarFileId)
+                .eq(GroupPO::getId, groupId));
+        return Optional.ofNullable(po).map(item -> item.avatarFileId).filter(Objects::nonNull);
+    }
+
+    @Override
+    public void updateAvatar(String groupId, Long avatarFileId, Instant updatedAt) {
+        groupMapper.update(null, Wrappers.<GroupPO>lambdaUpdate()
+                .eq(GroupPO::getId, groupId)
+                .set(GroupPO::getAvatarFileId, avatarFileId)
                 .set(GroupPO::getUpdatedAt, SqlTime.toLocal(updatedAt)));
     }
 

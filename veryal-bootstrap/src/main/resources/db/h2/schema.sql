@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS im_user
     username      VARCHAR(64)  NOT NULL,
     nickname      VARCHAR(128),
     avatar        VARCHAR(512),
+    avatar_file_id BIGINT,
     region        VARCHAR(64),
     signature     VARCHAR(255),
     status        TINYINT      NOT NULL DEFAULT 1,
@@ -103,6 +104,7 @@ CREATE TABLE IF NOT EXISTS im_group
 (
     id         VARCHAR(64)  NOT NULL PRIMARY KEY,
     name       VARCHAR(128) NOT NULL,
+    avatar_file_id BIGINT,
     owner_id   BIGINT       NOT NULL,
     created_at TIMESTAMP(3) NOT NULL,
     updated_at TIMESTAMP(3) NOT NULL

@@ -81,4 +81,10 @@ public record User(long id, String username, String nickname, String avatar,
         return new User(id, username, nickname, avatar, region, signature, newStatus, passwordHash,
                 createdAt, now);
     }
+
+    /** 只替换头像地址；{@code newAvatar} 传 null 表示清除头像。 */
+    public User withAvatar(String newAvatar, Instant now) {
+        return new User(id, username, nickname, newAvatar, region, signature, status, passwordHash,
+                createdAt, now);
+    }
 }

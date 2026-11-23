@@ -5,24 +5,29 @@ import com.veryal.access.http.dto.DeviceResponse;
 import com.veryal.access.http.dto.UpdateProfileRequest;
 import com.veryal.access.http.dto.UserResponse;
 import com.veryal.access.http.security.CurrentUser;
+import com.veryal.access.http.support.MultipartFiles;
 import com.veryal.application.audit.AuditApplicationService;
+import com.veryal.application.avatar.AvatarApplicationService;
 import com.veryal.application.identity.AuthenticatedUser;
 import com.veryal.application.identity.UserApplicationService;
 import com.veryal.common.core.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
+import org.springframework.web.multipart.MultipartFile;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+
+import java.util.List;
 
 /**
  * 用户资料与设备接口。
@@ -35,6 +40,7 @@ public class UserController {
 
     private final UserApplicationService userApplicationService;
     private final AuditApplicationService auditApplicationService;
+    private final AvatarApplicationService avatarApplicationService;
 
     @Operation(summary = "我的资料", description = "返回当前用户的昵称、头像、创建时间等基础资料。")
     @GetMapping("/me")
@@ -49,6 +55,26 @@ public class UserController {
         return ApiResponse.ok(UserResponse.from(userApplicationService.updateProfile(
                 user.userId(), request.nickname(), request.avatar(),
                 request.region(), request.signature())));
+    }
+
+    @Operation(summary = "上传我的头像", description = "multipart 上传 JPG/PNG/GIF，服务端存文件子系统并返回更新后的资料。")
+    @PostMapping(value = "/me/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<UserResponse> uploadAvatar(@CurrentUser AuthenticatedUser user,
+                                                  @RequestParam("file") MultipartFile file) {
+        return ApiResponse.ok(UserResponse.from(avatarApplicationService.changeUserAvatar(
+                user.userId(), file.getOriginalFilename(), file.getContentType(),
+                bytesOf(file))));
+    }
+
+    @Operation(summary = "删除我的头像", description = "清空头像并回收旧文件，之后 /api/v1/avatars/user/{id} 返回 404。")
+    @DeleteMapping("/me/avatar")
+    public ApiResponse<Void> removeAvatar(@CurrentUser AuthenticatedUser user) {
+        avatarApplicationService.clearUserAvatar(user.userId());
+        return ApiResponse.ok();
+    }
+
+    private static byte[] bytesOf(MultipartFile file) {
+        return MultipartFiles.bytesOf(file);
     }
 
     @Operation(summary = "我的登录设备", description = "列出该账号登录过的设备，含设备类型与最近活跃时间。"

@@ -10,6 +10,8 @@ import com.veryal.access.http.dto.TransferGroupRequest;
 import com.veryal.access.http.dto.UpdateGroupRequest;
 import com.veryal.access.http.security.CurrentUser;
 import com.veryal.access.http.security.RequireGroupRole;
+import com.veryal.access.http.support.MultipartFiles;
+import com.veryal.application.avatar.AvatarApplicationService;
 import com.veryal.application.group.GroupApplicationService;
 import com.veryal.application.group.GroupMemberService;
 import com.veryal.application.group.GroupMemberView;
@@ -20,6 +22,7 @@ import com.veryal.common.exception.ErrorCode;
 import com.veryal.domain.group.GroupRole;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -27,7 +30,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Locale;
@@ -48,6 +53,7 @@ public class GroupController {
 
     private final GroupApplicationService groupApplicationService;
     private final GroupMemberService groupMemberService;
+    private final AvatarApplicationService avatarApplicationService;
 
     @Operation(summary = "创建群聊", description = "创建后自动把创建者设为群主，群 ID 即会话 ID，可直接用于发消息。")
     @PostMapping
@@ -101,6 +107,28 @@ public class GroupController {
                                              @Valid @RequestBody UpdateGroupRequest request) {
         return ApiResponse.ok(GroupResponse.from(groupApplicationService.rename(
                 user.userId(), groupId, request.name())));
+    }
+
+    @Operation(summary = "上传群头像", description = "群主或管理员可改；multipart 上传 JPG/PNG/GIF，返回更新后的群资料。")
+    @RequireGroupRole(GroupRole.ADMIN)
+    @PutMapping(value = "/{groupId}/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<GroupResponse> uploadAvatar(@CurrentUser AuthenticatedUser user,
+                                                   @PathVariable String groupId,
+                                                   @RequestParam("file") MultipartFile file) {
+        avatarApplicationService.changeGroupAvatar(user.userId(), groupId,
+                file.getOriginalFilename(), file.getContentType(), MultipartFiles.bytesOf(file));
+        return ApiResponse.ok(GroupResponse.from(groupApplicationService.get(
+                user.userId(), groupId)));
+    }
+
+    @Operation(summary = "删除群头像", description = "群主或管理员可改；删除后群头像接口返回 404。")
+    @RequireGroupRole(GroupRole.ADMIN)
+    @DeleteMapping("/{groupId}/avatar")
+    public ApiResponse<GroupResponse> removeAvatar(@CurrentUser AuthenticatedUser user,
+                                                   @PathVariable String groupId) {
+        avatarApplicationService.clearGroupAvatar(user.userId(), groupId);
+        return ApiResponse.ok(GroupResponse.from(groupApplicationService.get(
+                user.userId(), groupId)));
     }
 
     @Operation(summary = "退出群聊", description = "群主需先转让群主身份才能退群。")

@@ -17,6 +17,8 @@ public record GroupResponse(
         String name,
         @Schema(description = "群主用户 ID")
         long ownerId,
+        @Schema(description = "群头像地址；未设置时返回 404，客户端应回退到文字头像")
+        String avatar,
         @Schema(description = "成员用户 ID 列表")
         List<Long> memberIds,
         @Schema(description = "创建时间（UTC）")
@@ -28,12 +30,19 @@ public record GroupResponse(
 ) {
 
     public static GroupResponse from(GroupView view) {
-        return new GroupResponse(view.groupId(), view.name(), view.ownerId(), view.memberIds(),
+        return new GroupResponse(view.groupId(), view.name(), view.ownerId(),
+                avatarUrl(view.groupId()), view.memberIds(),
                 view.createdAt(), view.updatedAt(), view.roleInGroup());
     }
 
     public static GroupResponse from(GroupSummary summary) {
-        return new GroupResponse(summary.groupId(), summary.name(), summary.ownerId(), List.of(),
+        return new GroupResponse(summary.groupId(), summary.name(), summary.ownerId(),
+                avatarUrl(summary.groupId()), List.of(),
                 null, summary.updatedAt(), null);
+    }
+
+    /** 头像地址由群 ID 推导，未设置时接口返回 404，客户端回退到文字头像。 */
+    private static String avatarUrl(String groupId) {
+        return "/api/v1/avatars/group/" + groupId;
     }
 }

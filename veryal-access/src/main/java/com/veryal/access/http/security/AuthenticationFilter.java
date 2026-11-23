@@ -50,6 +50,10 @@ public class AuthenticationFilter extends OncePerRequestFilter {
         if (path.startsWith("/api/v1/platform/")) {
             return true;
         }
+        // 头像公开只读：<img src> 无法携带 Authorization 头。
+        if (path.startsWith("/api/v1/avatars/")) {
+            return true;
+        }
         return path.equals("/api/v1/auth/register") || path.equals("/api/v1/auth/login");
     }
 

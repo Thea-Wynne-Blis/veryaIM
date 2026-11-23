@@ -17,6 +17,8 @@ public class GroupPO {
     @TableId(type = IdType.INPUT)
     public String id;
     public String name;
+    /** 群头像文件 ID（im_file.id）。 */
+    public Long avatarFileId;
     public long ownerId;
     public LocalDateTime createdAt;
     public LocalDateTime updatedAt;

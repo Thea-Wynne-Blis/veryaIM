@@ -15,6 +15,16 @@ public interface GroupRepository {
 
     void update(Group group);
 
+    /**
+     * 群头像文件 ID；未设置时为空。
+     */
+    Optional<Long> findAvatarFileId(String groupId);
+
+    /**
+     * 只更新群头像列。
+     */
+    void updateAvatar(String groupId, Long avatarFileId, Instant updatedAt);
+
     void touch(String groupId, Instant updatedAt);
 
     List<GroupMember> findMembers(String groupId);

@@ -19,6 +19,8 @@ public class UserPO {
     public String username;
     public String nickname;
     public String avatar;
+    /** 头像文件 ID（im_file.id）；头像本体在文件子系统，这里只存引用。 */
+    public Long avatarFileId;
     public String region;
     public String signature;
     public int status;

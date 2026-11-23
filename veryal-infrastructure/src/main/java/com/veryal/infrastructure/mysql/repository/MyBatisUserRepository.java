@@ -10,8 +10,10 @@ import com.veryal.infrastructure.mysql.po.UserPO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -26,6 +28,23 @@ public class MyBatisUserRepository implements UserRepository {
     @Override
     public Optional<User> findById(long userId) {
         return Optional.ofNullable(userMapper.selectById(userId)).map(this::toDomain);
+    }
+
+    @Override
+    public Optional<Long> findAvatarFileId(long userId) {
+        UserPO po = userMapper.selectOne(Wrappers.<UserPO>lambdaQuery()
+                .select(UserPO::getId, UserPO::getAvatarFileId)
+                .eq(UserPO::getId, userId));
+        return Optional.ofNullable(po).map(item -> item.avatarFileId).filter(Objects::nonNull);
+    }
+
+    @Override
+    public void updateAvatar(long userId, String avatar, Long avatarFileId, Instant updatedAt) {
+        userMapper.update(null, Wrappers.<UserPO>lambdaUpdate()
+                .eq(UserPO::getId, userId)
+                .set(UserPO::getAvatar, avatar)
+                .set(UserPO::getAvatarFileId, avatarFileId)
+                .set(UserPO::getUpdatedAt, SqlTime.toLocal(updatedAt)));
     }
 
     @Override
