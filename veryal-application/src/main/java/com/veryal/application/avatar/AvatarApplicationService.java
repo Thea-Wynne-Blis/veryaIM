@@ -1,6 +1,8 @@
 package com.veryal.application.avatar;
 
 import com.veryal.application.file.FileApplicationService;
+import com.veryal.application.file.ImageContentValidator;
+import com.veryal.application.file.OrphanFiles;
 import com.veryal.application.group.GroupAccessGuard;
 import com.veryal.application.identity.UserProfile;
 import com.veryal.common.core.TimeProvider;
@@ -14,13 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import javax.imageio.ImageIO;
-import javax.imageio.ImageReader;
-import javax.imageio.stream.ImageInputStream;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.time.Instant;
-import java.util.Iterator;
 import java.util.Locale;
 import java.util.Set;
 
@@ -55,13 +51,14 @@ public class AvatarApplicationService {
                                         byte[] content) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-        String type = validate(contentType, content);
+        String type = ImageContentValidator.validate(contentType, content,
+                MAX_AVATAR_BYTES, MAX_AVATAR_PIXELS, ALLOWED_TYPES);
         Long previous = userRepository.findAvatarFileId(userId).orElse(null);
         long fileId = store(userId, filename, type, content);
         Instant now = timeProvider.now();
         String url = "/api/v1/avatars/user/" + userId + "?v=" + now.toEpochMilli();
         userRepository.updateAvatar(userId, url, fileId, now);
-        dropQuietly(previous, fileId);
+        OrphanFiles.dropQuietly(fileApplicationService, previous, fileId);
         return UserProfile.from(user.withAvatar(url, now));
     }
 
@@ -69,18 +66,19 @@ public class AvatarApplicationService {
     public void clearUserAvatar(long userId) {
         Long previous = userRepository.findAvatarFileId(userId).orElse(null);
         userRepository.updateAvatar(userId, null, null, timeProvider.now());
-        dropQuietly(previous, null);
+        OrphanFiles.dropQuietly(fileApplicationService, previous, null);
     }
 
     @Transactional
     public void changeGroupAvatar(long operatorId, String groupId, String filename,
                                   String contentType, byte[] content) {
         groupAccessGuard.requireRole(groupId, operatorId, GroupRole.ADMIN);
-        String type = validate(contentType, content);
+        String type = ImageContentValidator.validate(contentType, content,
+                MAX_AVATAR_BYTES, MAX_AVATAR_PIXELS, ALLOWED_TYPES);
         Long previous = groupRepository.findAvatarFileId(groupId).orElse(null);
         long fileId = store(operatorId, filename, type, content);
         groupRepository.updateAvatar(groupId, fileId, timeProvider.now());
-        dropQuietly(previous, fileId);
+        OrphanFiles.dropQuietly(fileApplicationService, previous, fileId);
     }
 
     @Transactional
@@ -88,7 +86,7 @@ public class AvatarApplicationService {
         groupAccessGuard.requireRole(groupId, operatorId, GroupRole.ADMIN);
         Long previous = groupRepository.findAvatarFileId(groupId).orElse(null);
         groupRepository.updateAvatar(groupId, null, timeProvider.now());
-        dropQuietly(previous, null);
+        OrphanFiles.dropQuietly(fileApplicationService, previous, null);
     }
 
     @Transactional(readOnly = true)
@@ -116,71 +114,7 @@ public class AvatarApplicationService {
 
     private long store(long uploaderId, String filename, String contentType, byte[] content) {
         String name = filename == null || filename.isBlank()
-                ? "avatar" + extensionOf(contentType) : filename;
+                ? "avatar" + ImageContentValidator.extensionOf(contentType) : filename;
         return fileApplicationService.store(uploaderId, null, name, contentType, content).fileId();
-    }
-
-    /**
-     * 校验并归一化头像内容：必须是可解码的 JPG/PNG/GIF。
-     *
-     * <p>只信任实际字节而不是客户端声明的类型；SVG 一律拒绝（可携带脚本）。</p>
-     */
-    private String validate(String contentType, byte[] content) {
-        if (content == null || content.length == 0) {
-            throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "avatar must not be empty");
-        }
-        if (content.length > MAX_AVATAR_BYTES) {
-            throw new BusinessException(ErrorCode.FILE_TOO_LARGE,
-                    "avatar exceeds " + MAX_AVATAR_BYTES + " bytes");
-        }
-        String type = contentType == null ? "" : contentType.trim().toLowerCase(Locale.ROOT);
-        if (!ALLOWED_TYPES.contains(type)) {
-            throw new BusinessException(ErrorCode.INVALID_ARGUMENT,
-                    "avatar must be a jpeg, png or gif image");
-        }
-        try (ImageInputStream input = ImageIO.createImageInputStream(
-                new ByteArrayInputStream(content))) {
-            Iterator<ImageReader> readers = input == null
-                    ? java.util.Collections.emptyIterator() : ImageIO.getImageReaders(input);
-            if (!readers.hasNext()) {
-                throw new BusinessException(ErrorCode.INVALID_ARGUMENT,
-                        "avatar is not a readable image");
-            }
-            ImageReader reader = readers.next();
-            try {
-                reader.setInput(input, true, true);
-                long width = reader.getWidth(0);
-                long height = reader.getHeight(0);
-                if (width <= 0 || height <= 0 || width * height > MAX_AVATAR_PIXELS) {
-                    throw new BusinessException(ErrorCode.INVALID_ARGUMENT,
-                            "avatar dimensions are not supported");
-                }
-            } finally {
-                reader.dispose();
-            }
-        } catch (IOException e) {
-            throw new BusinessException(ErrorCode.INVALID_ARGUMENT,
-                    "avatar is not a readable image");
-        }
-        return type;
-    }
-
-    private static String extensionOf(String contentType) {
-        return switch (contentType) {
-            case "image/png" -> ".png";
-            case "image/gif" -> ".gif";
-            default -> ".jpg";
-        };
-    }
-
-    private void dropQuietly(Long previousFileId, Long currentFileId) {
-        if (previousFileId == null || previousFileId.equals(currentFileId)) {
-            return;
-        }
-        try {
-            fileApplicationService.deleteOrphan(previousFileId);
-        } catch (RuntimeException ignored) {
-            // 旧头像清理失败不影响本次操作，留给 StorageCleanupTask。
-        }
     }
 }
