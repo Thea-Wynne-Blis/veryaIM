@@ -50,6 +50,9 @@ veryal-src.zip
 config/.env
 config/application-local.yaml
 
+# 本地运行时生成的 VAPID 密钥对（含私钥），不要提交
+data/
+
 # ��ʱ���Բ���
 dom-check.html
 nick.txt

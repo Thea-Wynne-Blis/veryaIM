@@ -21,6 +21,14 @@ spring:
     username: ${SPRING_RABBITMQ_USERNAME:veryal}
     password: ${SPRING_RABBITMQ_PASSWORD:veryal}
 
+# 生产默认关闭 OpenAPI 文档：/v3/api-docs 与 /swagger-ui 不在 /api/v1 鉴权范围内，
+# 打开就等于把完整接口清单暴露在公网；需要时用 VERYAL_OPENAPI_ENABLED=true 临时打开。
+springdoc:
+  api-docs:
+    enabled: ${VERYAL_OPENAPI_ENABLED:false}
+  swagger-ui:
+    enabled: ${VERYAL_OPENAPI_ENABLED:false}
+
 veryal:
   node-id: ${VERYAL_NODE_ID:1}
   gateway:

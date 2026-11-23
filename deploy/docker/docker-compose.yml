@@ -14,7 +14,8 @@ services:
       - --collation-server=utf8mb4_0900_ai_ci
       - --default-time-zone=+00:00
     ports:
-      - "3306:3306"
+      # 只绑回环：中间件不需要对外，后台上用 SSH 隧道访问即可。
+      - "127.0.0.1:3306:3306"
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
@@ -29,7 +30,7 @@ services:
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis-data:/data
     healthcheck:
@@ -46,8 +47,8 @@ services:
       RABBITMQ_DEFAULT_USER: ${VERYAL_MQ_USER:-veryal}
       RABBITMQ_DEFAULT_PASS: ${VERYAL_MQ_PASSWORD:-veryal}
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
     healthcheck:
@@ -65,8 +66,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-veryal}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-veryal-secret}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     volumes:
       - minio-data:/data
 
@@ -105,9 +106,10 @@ services:
       SPRING_RABBITMQ_USERNAME: ${VERYAL_MQ_USER:-veryal}
       SPRING_RABBITMQ_PASSWORD: ${VERYAL_MQ_PASSWORD:-veryal}
     ports:
-      - "8080:8080"
-      - "9098:9098"
-      - "9099:9099"
+      # 对外的只有前置 Nginx；应用端口同样只绑回环。
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:9098:9098"
+      - "127.0.0.1:9099:9099"
 
 volumes:
   mysql-data:
