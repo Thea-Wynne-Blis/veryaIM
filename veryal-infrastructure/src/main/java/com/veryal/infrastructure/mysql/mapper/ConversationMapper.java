@@ -2,6 +2,7 @@ package com.veryal.infrastructure.mysql.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.veryal.infrastructure.mysql.po.ConversationCardRowPO;
+import com.veryal.infrastructure.mysql.po.ConversationMemberBackgroundPO;
 import com.veryal.infrastructure.mysql.po.ConversationMemberPrefsPO;
 import com.veryal.infrastructure.mysql.po.ConversationPO;
 import com.veryal.infrastructure.mysql.po.ConversationSendContextPO;
@@ -124,4 +125,36 @@ public interface ConversationMapper extends BaseMapper<ConversationPO> {
     List<Long> selectMemberIdsPage(@Param("conversationId") String conversationId,
                                    @Param("afterUserId") long afterUserId,
                                    @Param("limit") int limit);
+
+    /** 单个会话里本人的聊天背景（没有设置时两列都是 NULL）。 */
+    @Select("""
+            SELECT chat_bg_file_id, chat_bg_preset
+            FROM im_conversation_member
+            WHERE conversation_id = #{conversationId}
+              AND user_id = #{userId}
+            """)
+    ConversationMemberBackgroundPO selectMemberBackground(@Param("conversationId") String conversationId,
+                                                          @Param("userId") long userId);
+
+    /** 写入会话级聊天背景；两个参数都为 NULL 表示恢复「跟随全局」。 */
+    @Update("""
+            UPDATE im_conversation_member
+            SET chat_bg_file_id = #{fileId},
+                chat_bg_preset = #{preset}
+            WHERE conversation_id = #{conversationId}
+              AND user_id = #{userId}
+            """)
+    int updateMemberBackground(@Param("conversationId") String conversationId,
+                               @Param("userId") long userId,
+                               @Param("fileId") Long fileId,
+                               @Param("preset") String preset);
+
+    /** 本人所有设置过背景的会话。 */
+    @Select("""
+            SELECT conversation_id, chat_bg_file_id, chat_bg_preset
+            FROM im_conversation_member
+            WHERE user_id = #{userId}
+              AND (chat_bg_file_id IS NOT NULL OR chat_bg_preset IS NOT NULL)
+            """)
+    List<ConversationMemberBackgroundPO> selectMemberBackgrounds(@Param("userId") long userId);
 }
