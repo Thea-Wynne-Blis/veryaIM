@@ -64,4 +64,35 @@ class CloudStorageStrategyTest {
                 .isInstanceOf(SystemException.class)
                 .hasMessageContaining("minio.endpoint");
     }
+
+    @Test
+    void minioWithoutPublicEndpointFallsBackToStreaming() {
+        StorageProperties properties = new StorageProperties();
+        properties.getMinio().setEndpoint("http://127.0.0.1:9100");
+        properties.getMinio().setAccessKey("test-access-key");
+        properties.getMinio().setSecretKey("test-secret-key");
+
+        MinioFileStorage storage = new MinioFileStorage(properties);
+
+        // 只有内网 endpoint 时，签名地址客户端不可达：返回 null，由 Controller 回退到 /content。
+        assertThat(storage.presignedUrl("a.txt", Duration.ofMinutes(5))).isNull();
+    }
+
+    @Test
+    void minioWithPublicEndpointSignsForPublicHost() {
+        StorageProperties properties = new StorageProperties();
+        properties.getMinio().setEndpoint("http://127.0.0.1:9100");
+        properties.getMinio().setPublicEndpoint("https://files.example.com");
+        properties.getMinio().setAccessKey("test-access-key");
+        properties.getMinio().setSecretKey("test-secret-key");
+        properties.getMinio().setBucket("veryal-test");
+
+        MinioFileStorage storage = new MinioFileStorage(properties);
+
+        // 纯本地签名，不发网络请求；host 必须是客户端可达的公网地址。
+        assertThat(storage.presignedUrl("tenant/1/a.txt", Duration.ofMinutes(5)))
+                .contains("https://files.example.com")
+                .contains("veryal-test")
+                .contains("a.txt");
+    }
 }

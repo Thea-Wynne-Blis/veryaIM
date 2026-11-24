@@ -11,6 +11,11 @@
 # 这样 .env 只写想覆盖的项，其余沿用 application.yml 里的默认值。
 # ============================================================
 
+server:
+  # 裸机部署时后端只经 nginx 暴露，HTTP 绑回环即可。
+  # 容器部署不要设这一项：容器内绑回环会让 -p 端口映射连不上。
+  address: "${VERYAL_HTTP_BIND:127.0.0.1}"
+
 spring:
   datasource:
     url: "${VERYAL_DB_URL:jdbc:mysql://127.0.0.1:3306/veryal_im?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC}"
@@ -28,6 +33,10 @@ spring:
 
 veryal:
   node-id: "${VERYAL_NODE_ID:1}"
+  gateway:
+    websocket:
+      # 网关同样只经 nginx 暴露；容器部署留空（VERYAL_WS_BIND=）表示所有网卡。
+      bind-address: "${VERYAL_WS_BIND:127.0.0.1}"
   security:
     token:
       secret: "${VERYAL_TOKEN_SECRET}"
@@ -42,6 +51,19 @@ veryal:
     type: "${VERYAL_STORAGE_TYPE:local}"
     local:
       root-path: "${VERYAL_STORAGE_LOCAL_ROOT:./data/files}"
+    # local / minio / oss 三选一；文件行里记录各自的 storage_type，切换后旧文件仍可读。
+    minio:
+      endpoint: "${VERYAL_MINIO_ENDPOINT:}"
+      public-endpoint: "${VERYAL_MINIO_PUBLIC_ENDPOINT:}"
+      region: "${VERYAL_MINIO_REGION:us-east-1}"
+      access-key: "${VERYAL_MINIO_ACCESS_KEY:}"
+      secret-key: "${VERYAL_MINIO_SECRET_KEY:}"
+      bucket: "${VERYAL_MINIO_BUCKET:veryal}"
+    oss:
+      endpoint: "${VERYAL_OSS_ENDPOINT:}"
+      access-key-id: "${VERYAL_OSS_ACCESS_KEY_ID:}"
+      access-key-secret: "${VERYAL_OSS_ACCESS_KEY_SECRET:}"
+      bucket: "${VERYAL_OSS_BUCKET:veryal}"
   upload:
     staging-path: "${VERYAL_UPLOAD_STAGING:./data/uploads}"
   platform:

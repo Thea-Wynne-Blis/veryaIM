@@ -164,6 +164,10 @@ veryal:
       root-path: ${VERYAL_STORAGE_LOCAL_ROOT:./data/files}
     minio:
       endpoint: ${VERYAL_MINIO_ENDPOINT:}
+      # 客户端可达的公网地址，只用于签名临时 URL；不配则 /files/{id}/url 回退到 /content
+      public-endpoint: ${VERYAL_MINIO_PUBLIC_ENDPOINT:}
+      # 必须显式给，否则签名前要先问服务端 region（多一次网络往返）
+      region: ${VERYAL_MINIO_REGION:us-east-1}
       access-key: ${VERYAL_MINIO_ACCESS_KEY:}
       secret-key: ${VERYAL_MINIO_SECRET_KEY:}
       bucket: ${VERYAL_MINIO_BUCKET:veryal}

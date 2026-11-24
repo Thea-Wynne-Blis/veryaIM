@@ -31,6 +31,7 @@ public class MinioFileStorage implements FileStorage {
 
     private final StorageProperties properties;
     private volatile MinioClient client;
+    private volatile MinioClient signing;
     private volatile boolean bucketReady;
 
     public MinioFileStorage(StorageProperties properties) {
@@ -142,9 +143,15 @@ public class MinioFileStorage implements FileStorage {
 
     @Override
     public String presignedUrl(String objectKey, Duration ttl) {
+        // 先校验内网连接配置，避免「少配了 key」被静默当成「不支持签名」。
+        client();
+        String publicEndpoint = properties.getMinio().getPublicEndpoint();
+        if (publicEndpoint == null || publicEndpoint.isBlank()) {
+            return null;
+        }
         try {
             int expiry = (int) Math.min(MAX_PRESIGN_SECONDS, Math.max(1, ttl.toSeconds()));
-            return client().getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
+            return signingClient(publicEndpoint).getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
                     .method(Method.GET)
                     .bucket(bucket())
                     .object(objectKey)
@@ -158,6 +165,27 @@ public class MinioFileStorage implements FileStorage {
         }
     }
 
+    /** 签名用的客户端：endpoint 换成客户端可达的公网地址，凭据与桶不变。 */
+    private MinioClient signingClient(String publicEndpoint) {
+        MinioClient current = signing;
+        if (current == null) {
+            synchronized (this) {
+                if (signing == null) {
+                    StorageProperties.Minio minio = properties.getMinio();
+                    require(minio.getAccessKey(), "veryal.storage.minio.access-key");
+                    require(minio.getSecretKey(), "veryal.storage.minio.secret-key");
+                    signing = MinioClient.builder()
+                            .endpoint(publicEndpoint)
+                            .region(minio.getRegion())
+                            .credentials(minio.getAccessKey(), minio.getSecretKey())
+                            .build();
+                }
+                current = signing;
+            }
+        }
+        return current;
+    }
+
     private MinioClient client() {
         MinioClient current = client;
         if (current == null) {
@@ -169,6 +197,7 @@ public class MinioFileStorage implements FileStorage {
                     require(minio.getSecretKey(), "veryal.storage.minio.secret-key");
                     client = MinioClient.builder()
                             .endpoint(minio.getEndpoint())
+                            .region(minio.getRegion())
                             .credentials(minio.getAccessKey(), minio.getSecretKey())
                             .build();
                 }
