@@ -1,8 +1,19 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    # 不设上限时 json-file 会一直增长，长期运行必然打满磁盘。
+    max-size: "50m"
+    max-file: "3"
+
 services:
   mysql:
     image: mysql:8.0.30
     container_name: veryal-mysql
     restart: unless-stopped
+    logging: *default-logging
+    # 内存硬顶：缓冲池 128M + 连接/排序等，1G 有余量；超了宁可被 kill 也不要拖垮宿主机。
+    mem_limit: 1g
+    stop_grace_period: 30s
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
       MYSQL_DATABASE: veryal_im
@@ -13,6 +24,11 @@ services:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_0900_ai_ci
       - --default-time-zone=+00:00
+      # 慢查询日志默认关闭：写盘 + 落在数据卷里不自动轮转，性价比不高。
+      # 排查时临时开（重启容器自动恢复关闭）：
+      #   SET GLOBAL slow_query_log=ON; SET GLOBAL long_query_time=1;
+      - --slow-query-log=0
+      - --long-query-time=1
     ports:
       # 只绑回环：中间件不需要对外，后台上用 SSH 隧道访问即可。
       - "127.0.0.1:3306:3306"
@@ -28,7 +44,20 @@ services:
     image: redis:7-alpine
     container_name: veryal-redis
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
+    logging: *default-logging
+    mem_limit: 320m
+    stop_grace_period: 30s
+    command:
+      - redis-server
+      # 只存可重建数据（在线路由/票据/限流），AOF 让重启后票据与在线状态不至于全丢。
+      - --appendonly
+      - "yes"
+      # 数据集本身只有几 MB，256M 是硬顶；策略保持 noeviction：
+      # 满了宁可写入报错（日志里能看见），也不要静默淘汰限流/在线状态。
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - noeviction
     ports:
       - "127.0.0.1:6379:6379"
     volumes:
@@ -43,6 +72,9 @@ services:
     image: rabbitmq:3.13-management-alpine
     container_name: veryal-rabbitmq
     restart: unless-stopped
+    logging: *default-logging
+    mem_limit: 512m
+    stop_grace_period: 30s
     environment:
       RABBITMQ_DEFAULT_USER: ${VERYAL_MQ_USER:-veryal}
       RABBITMQ_DEFAULT_PASS: ${VERYAL_MQ_PASSWORD:-veryal}
@@ -57,19 +89,30 @@ services:
       timeout: 5s
       retries: 20
 
-  minio:
-    image: minio/minio:latest
-    container_name: veryal-minio
+  # 对象存储：S3 兼容（Garage）。MinIO 官方镜像/二进制 2025 年已下架，
+  # 后端仍走 S3 协议（配置键 veryal.storage.minio.*），换实现不影响业务代码。
+  s3:
+    image: dxflrs/garage:v1.1.0
+    container_name: veryal-s3
     restart: unless-stopped
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-veryal}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-veryal-secret}
+    logging: *default-logging
+    mem_limit: 384m
+    stop_grace_period: 30s
     ports:
-      - "127.0.0.1:9000:9000"
-      - "127.0.0.1:9001:9001"
+      - "127.0.0.1:9100:3900"   # S3 API
+      - "127.0.0.1:9101:3902"   # Web 控制台
+      - "127.0.0.1:9103:3903"   # 管理 API（/health 供探活）
     volumes:
-      - minio-data:/data
+      - ./garage.toml:/etc/garage.toml:ro
+      - s3-meta:/var/lib/garage/meta
+      - s3-data:/var/lib/garage/data
+    healthcheck:
+      # Garage 镜像没有 shell / wget / curl，只能直接用 /garage 命令探活。
+      test: ["CMD", "/garage", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
 
   veryal-app:
     build:
@@ -77,6 +120,12 @@ services:
       dockerfile: deploy/docker/Dockerfile
     container_name: veryal-app
     restart: unless-stopped
+    logging: *default-logging
+    # JVM 用 MaxRAMPercentage=75，容器给 1G 时堆上限约 768M，和裸机 -Xmx 对齐。
+    mem_limit: 1g
+    # Spring 的优雅停机（shutdown=graceful, timeout 15s）需要比 docker 默认 10s 更长的窗口，
+    # 否则正在写的请求会被 SIGKILL 打断。
+    stop_grace_period: 30s
     depends_on:
       mysql:
         condition: service_healthy
@@ -84,8 +133,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-      minio:
-        condition: service_started
+      s3:
+        condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: prod
       VERYAL_DB_URL: jdbc:mysql://mysql:3306/veryal_im?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&rewriteBatchedStatements=true
@@ -97,9 +146,12 @@ services:
       VERYAL_REDIS_ENABLED: "true"
       VERYAL_MQ_ENABLED: "true"
       VERYAL_STORAGE_TYPE: ${VERYAL_STORAGE_TYPE:-minio}
-      VERYAL_MINIO_ENDPOINT: http://minio:9000
-      VERYAL_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-veryal}
-      VERYAL_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-veryal-secret}
+      # S3 兼容端点（minio-java 客户端，路径风格）
+      VERYAL_MINIO_ENDPOINT: http://s3:3900
+      VERYAL_MINIO_PUBLIC_ENDPOINT: ${VERYAL_MINIO_PUBLIC_ENDPOINT:-}
+      VERYAL_MINIO_REGION: ${VERYAL_MINIO_REGION:-us-east-1}
+      VERYAL_MINIO_ACCESS_KEY: ${VERYAL_S3_ACCESS_KEY:?先 garage key create 再填到 .env}
+      VERYAL_MINIO_SECRET_KEY: ${VERYAL_S3_SECRET_KEY:?先 garage key create 再填到 .env}
       VERYAL_MINIO_BUCKET: ${VERYAL_MINIO_BUCKET:-veryal}
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: "5672"
@@ -110,9 +162,17 @@ services:
       - "127.0.0.1:8080:8080"
       - "127.0.0.1:9098:9098"
       - "127.0.0.1:9099:9099"
+    healthcheck:
+      # 镜像里没有 curl/wget，用 bash 的 /dev/tcp 发一个最小 HTTP 请求。
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf \"GET /actuator/health HTTP/1.0\\r\\n\\r\\n\" >&3 && head -1 <&3 | grep -q 200'"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
 
 volumes:
   mysql-data:
   redis-data:
   rabbitmq-data:
-  minio-data:
+  s3-meta:
+  s3-data:

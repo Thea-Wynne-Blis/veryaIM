@@ -49,6 +49,9 @@ veryal-src.zip
 # 运行时配置：只提交模板，真实值留在服务器
 config/.env
 config/application-local.yaml
+# start.sh 也支持放仓库根目录的 .env（同样含密码）
+.env
+!.env.example
 
 # 本地运行时生成的 VAPID 密钥对（含私钥），不要提交
 data/

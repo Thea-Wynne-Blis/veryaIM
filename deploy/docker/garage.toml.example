@@ -1,0 +1,42 @@
+# Garage 单节点配置模板（compose 用）
+#
+# 用法：
+#   cp garage.toml.example garage.toml
+#   RPC_SECRET=$(openssl rand -hex 32) ADMIN_TOKEN=$(openssl rand -hex 24) \
+#     envsubst < garage.toml.example > garage.toml
+#   chmod 600 garage.toml
+#
+# 首次启动后还要初始化集群（只做一次）：
+#   docker exec veryal-s3 /garage status            # 取 node id
+#   docker exec veryal-s3 /garage layout assign -z dc1 -c 20G <node-id>
+#   docker exec veryal-s3 /garage layout apply --version 1
+#   docker exec veryal-s3 /garage key create veryal-app   # 记下 Key ID / Secret
+#   docker exec veryal-s3 /garage bucket create veryal
+#   docker exec veryal-s3 /garage bucket allow veryal --key veryal-app --owner --read --write
+# 然后把 Key ID / Secret 填进 .env 的 VERYAL_S3_ACCESS_KEY / VERYAL_S3_SECRET_KEY。
+
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+db_engine = "lmdb"
+
+replication_mode = "1"
+compression_level = 1
+
+rpc_bind_addr = "[::]:3901"
+rpc_public_addr = "127.0.0.1:3901"
+rpc_secret = "${RPC_SECRET}"
+
+[s3_api]
+# 必须与 minio-java 客户端默认签名 region 一致；改成别的会让所有请求 400。
+s3_region = "us-east-1"
+api_bind_addr = "[::]:3900"
+root_domain = ".s3.garage.localhost"
+
+[s3_web]
+bind_addr = "[::]:3902"
+root_domain = ".web.garage.localhost"
+index = "index.html"
+
+[admin]
+api_bind_addr = "[::]:3903"
+admin_token = "${ADMIN_TOKEN}"
