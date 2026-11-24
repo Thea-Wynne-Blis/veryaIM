@@ -1,4 +1,4 @@
-package com.veryal.access.core.push;
+package com.veryal.access.core.push.local;
 
 import com.veryal.domain.message.event.MessageRecallNotifier;
 import com.veryal.domain.message.event.MessageRecallPushPort;

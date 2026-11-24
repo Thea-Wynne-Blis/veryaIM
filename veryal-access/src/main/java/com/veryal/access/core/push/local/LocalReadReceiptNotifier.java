@@ -1,4 +1,4 @@
-package com.veryal.access.core.push;
+package com.veryal.access.core.push.local;
 
 import com.veryal.domain.message.event.ReadReceiptEvent;
 import com.veryal.domain.message.event.ReadReceiptNotifier;

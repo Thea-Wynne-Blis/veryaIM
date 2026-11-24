@@ -1,4 +1,4 @@
-package com.veryal.access.core.push;
+package com.veryal.access.core.push.local;
 
 import com.google.protobuf.ByteString;
 import com.veryal.access.core.Connection;

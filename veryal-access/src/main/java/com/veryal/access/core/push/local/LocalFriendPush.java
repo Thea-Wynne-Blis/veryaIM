@@ -1,4 +1,4 @@
-package com.veryal.access.core.push;
+package com.veryal.access.core.push.local;
 
 import com.veryal.access.core.Connection;
 import com.veryal.access.core.ConnectionRegistry;

@@ -1,4 +1,4 @@
-package com.veryal.access.core.push;
+package com.veryal.access.core.push.webpush;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.veryal.application.push.WebPushProperties;

@@ -1,4 +1,4 @@
-package com.veryal.access.core.push;
+package com.veryal.access.core.push.webpush;
 
 import com.veryal.application.push.WebPushProperties;
 import com.veryal.common.json.JsonUtils;

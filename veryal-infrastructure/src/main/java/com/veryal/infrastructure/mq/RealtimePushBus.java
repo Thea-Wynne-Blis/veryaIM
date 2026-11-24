@@ -1,5 +1,6 @@
 package com.veryal.infrastructure.mq;
 
+import com.rabbitmq.client.Channel;
 import com.veryal.common.json.JsonUtils;
 import com.veryal.domain.delivery.RealtimeBusPort;
 import com.veryal.domain.delivery.RealtimeDeliveryPort;
@@ -9,8 +10,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.support.AmqpHeaders;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
+
+import java.io.IOException;
 
 /**
  * 跨实例推送总线实现（fanout 广播）。
@@ -46,13 +51,18 @@ public class RealtimePushBus implements RealtimeBusPort {
         }
     }
 
-    @RabbitListener(queues = "#{realtimePushQueue.name}")
-    public void onPush(byte[] payload) {
+    @RabbitListener(queues = "#{realtimePushQueue.name}", ackMode = "MANUAL")
+    public void onPush(byte[] payload, Channel channel,
+                       @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) throws IOException {
         try {
             MessageCreatedEvent event = JsonUtils.fromJson(payload, MessageCreatedEvent.class);
             realtimeDeliveryPort.deliver(event);
-        } catch (RuntimeException e) {
-            log.warn("realtime bus consume failed: reason={}", e.getMessage());
+            channel.basicAck(deliveryTag, false);
+        } catch (Exception e) {
+            // 总线队列是每实例的临时广播队列：处理失败直接丢弃即可，
+            // 漏推由客户端重连/游标增量补齐，不做重试以免毒消息阻塞后续推送。
+            log.warn("realtime bus consume failed, dropped: reason={}", e.getMessage(), e);
+            channel.basicNack(deliveryTag, false, false);
         }
     }
 }

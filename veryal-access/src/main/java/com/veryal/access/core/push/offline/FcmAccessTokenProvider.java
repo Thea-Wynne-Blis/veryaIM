@@ -1,4 +1,4 @@
-package com.veryal.access.core.push;
+package com.veryal.access.core.push.offline;
 
 import com.veryal.common.json.JsonUtils;
 import lombok.extern.slf4j.Slf4j;

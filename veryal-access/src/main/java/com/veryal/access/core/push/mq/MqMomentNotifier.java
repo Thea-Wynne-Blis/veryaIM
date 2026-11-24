@@ -1,4 +1,4 @@
-package com.veryal.access.core.push;
+package com.veryal.access.core.push.mq;
 
 import com.veryal.domain.moment.MomentEvent;
 import com.veryal.domain.moment.MomentNotifier;

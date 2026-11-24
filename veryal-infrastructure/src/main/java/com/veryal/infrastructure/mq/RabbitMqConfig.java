@@ -74,29 +74,35 @@ public class RabbitMqConfig {
 
     @Bean
     public Queue readReceiptQueue(RabbitInstance instance) {
-        return QueueBuilder.nonDurable(instance.readReceiptQueueName())
-                .autoDelete()
-                .build();
+        return perInstanceQueue(instance.readReceiptQueueName());
     }
 
     @Bean
     public Queue messageRecallQueue(RabbitInstance instance) {
-        return QueueBuilder.nonDurable(instance.messageRecallQueueName())
-                .autoDelete()
-                .build();
+        return perInstanceQueue(instance.messageRecallQueueName());
     }
 
     @Bean
     public Queue friendEventQueue(RabbitInstance instance) {
-        return QueueBuilder.nonDurable(instance.friendEventQueueName())
-                .autoDelete()
-                .build();
+        return perInstanceQueue(instance.friendEventQueueName());
     }
 
     @Bean
     public Queue momentEventQueue(RabbitInstance instance) {
-        return QueueBuilder.nonDurable(instance.momentEventQueueName())
+        return perInstanceQueue(instance.momentEventQueueName());
+    }
+
+    /**
+     * 每实例广播队列：非持久 + 自动删除（实例下线即清理）。
+     *
+     * <p>消费者失败时 {@code basicNack(requeue=false)}，必须配死信交换机，
+     * 否则瞬时故障（DB/Redis 抖动、反序列化失败）会把事件直接丢掉。</p>
+     */
+    private static Queue perInstanceQueue(String name) {
+        return QueueBuilder.nonDurable(name)
                 .autoDelete()
+                .deadLetterExchange(RabbitConstants.DEAD_LETTER_EXCHANGE)
+                .deadLetterRoutingKey(RabbitConstants.DEAD_ROUTING_KEY)
                 .build();
     }
 

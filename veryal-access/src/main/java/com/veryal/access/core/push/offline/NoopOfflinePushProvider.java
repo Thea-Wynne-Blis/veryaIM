@@ -1,4 +1,4 @@
-package com.veryal.access.core.push;
+package com.veryal.access.core.push.offline;
 
 import com.veryal.domain.push.OfflinePushMessage;
 import com.veryal.domain.push.OfflinePushProvider;

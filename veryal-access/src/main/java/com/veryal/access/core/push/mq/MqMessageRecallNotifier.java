@@ -1,7 +1,7 @@
-package com.veryal.access.core.push;
+package com.veryal.access.core.push.mq;
 
-import com.veryal.domain.message.event.ReadReceiptEvent;
-import com.veryal.domain.message.event.ReadReceiptNotifier;
+import com.veryal.domain.message.event.MessageRecallNotifier;
+import com.veryal.domain.message.event.MessageRecalledEvent;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -10,10 +10,10 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @ConditionalOnProperty(prefix = "veryal.mq", name = "enabled", havingValue = "true")
-public class MqReadReceiptNotifier implements ReadReceiptNotifier {
+public class MqMessageRecallNotifier implements MessageRecallNotifier {
 
     @Override
-    public void notify(ReadReceiptEvent event) {
+    public void notify(MessageRecalledEvent event) {
         // RabbitMQ 消费者统一广播
     }
 }

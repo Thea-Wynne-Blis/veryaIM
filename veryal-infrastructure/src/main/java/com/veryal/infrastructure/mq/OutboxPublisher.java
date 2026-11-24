@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.MessageDeliveryMode;
 import org.springframework.amqp.core.MessageProperties;
+import org.springframework.amqp.core.ReturnedMessage;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -84,7 +85,14 @@ public class OutboxPublisher {
                     }, correlation);
             CorrelationData.Confirm confirm = correlation.getFuture()
                     .get(properties.getConfirmTimeoutMs(), TimeUnit.MILLISECONDS);
-            if (confirm.isAck()) {
+            ReturnedMessage returned = correlation.getReturned();
+            if (returned != null) {
+                // mandatory + publisher-returns：消息没有被任何队列接收（实例下线、绑定缺失）。
+                // Broker 仍会回 ack，只看 confirm 会把它当成发布成功而永久丢事件。
+                markRetry(record, "unroutable: exchange=" + returned.getExchange()
+                        + ", routingKey=" + returned.getRoutingKey()
+                        + ", reply=" + returned.getReplyText());
+            } else if (confirm.isAck()) {
                 outboxMapper.markPublished(record.id, SqlTime.toLocal(Instant.now()));
                 log.debug("outbox published: eventId={}, type={}", record.eventId, record.eventType);
             } else {

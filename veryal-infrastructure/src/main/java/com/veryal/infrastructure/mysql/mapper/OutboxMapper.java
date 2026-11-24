@@ -16,10 +16,16 @@ import java.util.List;
  */
 public interface OutboxMapper extends BaseMapper<OutboxPO> {
 
+    /**
+     * 领取待发布记录：0 首次发布，2 退避到期后的重试。
+     *
+     * <p>重试以前只查 status = 0，而 {@link #markRetry} / {@link #recoverStale} 写的是 2，
+     * 退避记录永远选不出来，发布失败一次就永久丢失。</p>
+     */
     @Select("""
             SELECT id
             FROM im_outbox
-            WHERE status = 0
+            WHERE status IN (0, 2)
               AND next_retry_at <= #{now}
             ORDER BY id ASC
             LIMIT #{limit}
@@ -29,7 +35,7 @@ public interface OutboxMapper extends BaseMapper<OutboxPO> {
     @Update("""
             UPDATE im_outbox
             SET status = 4, updated_at = #{now}
-            WHERE id = #{id} AND status = 0
+            WHERE id = #{id} AND status IN (0, 2)
             """)
     int claim(@Param("id") long id, @Param("now") LocalDateTime now);
 

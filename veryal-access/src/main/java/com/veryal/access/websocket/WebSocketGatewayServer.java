@@ -109,7 +109,11 @@ public class WebSocketGatewayServer implements SmartLifecycle {
                     }
                 });
         try {
-            serverChannel = bootstrap.bind(properties.getPort()).syncUninterruptibly().channel();
+            String bindAddress = properties.getBindAddress();
+            serverChannel = (bindAddress == null || bindAddress.isBlank()
+                    ? bootstrap.bind(properties.getPort())
+                    : bootstrap.bind(bindAddress, properties.getPort()))
+                    .syncUninterruptibly().channel();
         } catch (RuntimeException e) {
             shutdownGroups();
             throw new SystemException(ErrorCode.CONFIGURATION_ERROR,
@@ -117,8 +121,13 @@ public class WebSocketGatewayServer implements SmartLifecycle {
         }
         boundPort = ((InetSocketAddress) serverChannel.localAddress()).getPort();
         running = true;
-        log.info("WebSocket gateway started: gatewayId={}, port={}, path={}",
-                gatewayProperties.getId(), boundPort, properties.getPath());
+        log.info("WebSocket gateway started: gatewayId={}, bind={}, port={}, path={}, maxConnections={}, maxConnectionsPerIp={}",
+                gatewayProperties.getId(),
+                properties.getBindAddress() == null || properties.getBindAddress().isBlank()
+                        ? "*" : properties.getBindAddress(),
+                boundPort, properties.getPath(),
+                gatewayProperties.getMaxConnections() <= 0 ? "unlimited" : gatewayProperties.getMaxConnections(),
+                gatewayProperties.getMaxConnectionsPerIp() <= 0 ? "unlimited" : gatewayProperties.getMaxConnectionsPerIp());
     }
 
     @Override
