@@ -49,3 +49,34 @@ ExecStart=/home/ubuntu/veryal/config/start.sh
 - 想加新配置：在 `.env.example` 加一行，再在
   `application-local.yaml.example` 里用 `${KEY:default}` 引用。
 - 改完 `.env` 重启服务即可，不需要重新打包。
+
+## 监听地址
+
+裸机部署时 HTTP 与 WS 网关都只绑回环，对外只有 nginx：
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `VERYAL_HTTP_BIND` | `127.0.0.1` | Spring `server.address` |
+| `VERYAL_WS_BIND` | `127.0.0.1` | Netty 网关监听地址 |
+
+容器部署（`deploy/docker`）不加载 `local` profile、也不设这两项，保持监听所有网卡，
+这样 `-p 127.0.0.1:8080:8080` 的端口映射才连得上。需要临时放开（例如调试直连
+9098）时把它设成空值即可：`VERYAL_WS_BIND=`。
+
+## 文件存储
+
+`VERYAL_STORAGE_TYPE` 三选一：`local`（落盘）、`minio`（任意 S3 兼容服务，线上是 Garage）、
+`oss`（阿里云 OSS）。三者可以随时切换，旧文件按 `im_file.storage_type` 路由，不需要迁移。
+
+`minio` 需要的最小配置：
+
+| 变量 | 线上值 | 说明 |
+|---|---|---|
+| `VERYAL_MINIO_ENDPOINT` | `http://127.0.0.1:9100` | 后端访问地址（回环，容器只绑本机） |
+| `VERYAL_MINIO_REGION` | `us-east-1` | 必须显式给；不配会先向服务端询问 region，签名也多一次网络往返 |
+| `VERYAL_MINIO_ACCESS_KEY` / `_SECRET_KEY` | 见 `config/.s3-credentials` | 后端专用 key，只对 `veryal` 桶有 RWO |
+| `VERYAL_MINIO_BUCKET` | `veryal` | 不存在时首次上传自动创建 |
+| `VERYAL_MINIO_PUBLIC_ENDPOINT` | 空 | 留空时 `/files/{id}/url` 返回 `/api/v1/files/{id}/content`，走应用流式下载 |
+
+`oss` 对应 `VERYAL_OSS_ENDPOINT` / `_ACCESS_KEY_ID` / `_ACCESS_KEY_SECRET` / `_BUCKET`。
+切换后 `bash bin/restart.sh` 即可，`bin/health.sh` 会按当前类型检查对应后端。
